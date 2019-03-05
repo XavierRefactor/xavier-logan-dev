@@ -1,2 +1,3 @@
-# xalign
-High-performance x-drop sequence alignment
+# LOGAN
+LOGAN: a high-performance x-drop LOnG-read sequence AlignmeNt algorithm
+
