@@ -25,7 +25,6 @@ namespace LOGAN
 
 			begpT = beginT; 
 			endpT = begpT + seedLen - 1; 	
-
 			begpQ = beginQ; 
 			endpQ = begpQ + seedLen - 1; 	
 
@@ -38,15 +37,15 @@ namespace LOGAN
 			endpQ = myseed.endpQ;
 
 			seedLen = myseed.seedLen;
-
 		} 
-
 		// member functions		
 		// modify after its initialization	
 		void setSeed(int& a, int& b, int& c) { begp = a; endp = b; leng = c; }
-		int getBegin() 	{ return begp; }
-		int getEnd() 	{ return endp; }
-		int getLength()	{ return leng; }
+		int getBegpT() 	{ return begpT; }
+		int getBegpQ() 	{ return begpQ; }
+		int getEndpT() 	{ return endpT; }
+		int getEndpQ() 	{ return endpQ; }
+		int getLength()	{ return seedLen; }
 
 	};
 
@@ -66,10 +65,12 @@ namespace LOGAN
 		} 			
 
 		// member functions		
-		int getScore() 		{ return score; }
-		int getOverlap()	{ return length; } 	// seed.length should be == lenght after extending seed extension 		
-		int getBegin() 		{ return seed.begp; }
-		int getEnd() 		{ return seed.endp; }
+		int getAlignScore() 	{ return score; }
+		int getAlignLength()	{ return length; } 		// seed.length should be == lenght after extending seed extension 		
+		int getAlignBegpT() 	{ return seed.begpT; }
+		int getAlignBegpQ() 	{ return seed.begpQ; }
+		int getAlignEndpT() 	{ return seed.endpT; }
+		int getAlignEndpQ() 	{ return seed.endpQ; }
 	};
 }
 
