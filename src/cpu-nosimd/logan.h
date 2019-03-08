@@ -4,78 +4,75 @@
 // Date:   6 March 2019
 //==================================================================
 
-// -----------------------------------------------------------------
-// Function extendSeed                         [GappedXDrop, noSIMD]
-// -----------------------------------------------------------------
+#include<string.h>
 
-namespace LOGAN
+typedef struct
 {
-	class Seed { 	
-	public: 
+	int beginPositionH;
+	int beginPositionV;
+	int endPositionH;
+	int endPositionV;
+	int seedLength;
+	int lowerDiagonal;  // GGGG: it might possibly be a std::string
+	int upperDiagonal;  // GGGG: it might possibly be a std::string
+	int score;
 
-		// we might need uint32_t 	
-		int begpT, endpT;
-		int begpQ, endpQ;
-		int seedLen; 		
+    Seed() : beginPositionH(0), beginPositionV(0), endPositionH(0), endPositionV(0), lowerDiagonal(0), upperDiagonal(0),
+             score(0)
+    {}
 
-		// default constructors 	
-		Seed(int& beginT, int& beginQ, int& len) 
-		{ 
-			seedLen = len;
+    Seed(int beginPositionH, int beginPositionV, int seedLength) :
+            beginPositionH(beginPositionH), beginPositionV(beginPositionV), endPositionH(beginPositionH + seedLength),
+            endPositionV(beginPositionV + seedLength), lowerDiagonal((beginPositionH - beginPositionV)),
+            upperDiagonal((beginPositionH - beginPositionV)), score(0)
+    {
+        assert(upperDiagonal >= lowerDiagonal);
+    }
 
-			begpT = beginT; 
-			endpT = begpT + seedLen - 1; 	
-			begpQ = beginQ; 
-			endpQ = begpQ + seedLen - 1; 	
+      Seed(int beginPositionH, int beginPositionV, int endPositionH, int endPositionV) :
+            beginPositionH(beginPositionH),
+            beginPositionV(beginPositionV),
+            endPositionH(endPositionH),
+            endPositionV(endPositionV),
+            lowerDiagonal(std::min((beginPositionH - beginPositionV), (endPositionH - endPositionV))),
+            upperDiagonal(std::max((beginPositionH - beginPositionV), (endPositionH - endPositionV))),
+            score(0)
+    {
+        assert(upperDiagonal >= lowerDiagonal);
+    }
 
-		} 	
-		Seed(Seed& myseed) 
-		{ 
-			begpT = myseed.begpT;
-			begpQ = myseed.begpQ; 
-			endpT = myseed.endpT;
-			endpQ = myseed.endpQ;
+    Seed(Seed const& other) :
+              beginPositionH(beginPositionH(other)),
+              beginPositionV(beginPositionV(other)),
+              endPositionH(endPositionH(other)),
+              endPositionV(endPositionV(other)),
+              lowerDiagonal(lowerDiagonal(other)),
+              upperDiagonal(upperDiagonal(other)),
+              score(0)
+    {
+        assert(upperDiagonal >= lowerDiagonal);
+    }
 
-			seedLen = myseed.seedLen;
-		} 
-		// member functions		
-		// modify after its initialization	
-		void setSeed(int& a, int& b, int& c) { begp = a; endp = b; leng = c; }//needs to be checked I think it's broken
-		void setBegpT(int p) {begpT = p}
-		void setBegpQ(int p) {begpQ = p}
-		void setEndpT(int p) {endpT = p}
-		void setEndpQ(int p) {endpQ = p}
+} Seed;
 
-		int getBegpT() 	{ return begpT; }
-		int getBegpQ() 	{ return begpQ; }
-		int getEndpT() 	{ return endpT; }
-		int getEndpQ() 	{ return endpQ; }
-		int getLength()	{ return seedLen; }
+typedef struct 
+{
+	Seed myseed;
+	int score; 			// alignment score
+	int length;			// overlap length / max extension
 
-	};
+	Result() : Seed(), score(0), length(0)
+	{}
 
-	class Result { 		
-	public: 
-		// we might need uint32_t 	
-		Seed seed;
-		int score; 		// extension/alignment score	
-		int length;		// extension/alignment length
+	Result(int kmerLen) : Seed(), score(0), length(kmerLen)
+	{}
 
-		// default constructors 	
-		Result(Seed& myseed) 
-		{ 
-			seed(myseed); 	
-			score = 0;
-			length = 0;
-		} 			
+} Result;
 
-		// member functions		
-		int getAlignScore() 	{ return score; }
-		int getAlignLength()	{ return length; } 		// seed.length should be == lenght after extending seed extension 		
-		int getAlignBegpT() 	{ return seed.begpT; }
-		int getAlignBegpQ() 	{ return seed.begpQ; }
-		int getAlignEndpT() 	{ return seed.endpT; }
-		int getAlignEndpQ() 	{ return seed.endpQ; }
-	};
-}
-
+// GGGG we can think about this later
+//int getAlignScore() 	{ return score; }
+//int getAlignLength()	{ return length; }
+//int getAlignBegpT() 	{ return seed.begpT; }
+//int getAlignBegpQ() 	{ return seed.begpQ; }
+//int getAlignEndpT() 	{ return seed.endpT; }
+//int getAlignEndpQ() 	{ return seed.endpQ; }
