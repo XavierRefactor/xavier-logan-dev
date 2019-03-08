@@ -31,48 +31,48 @@ typedef struct
 
 // return match score
 inline int
-scoreMatch(ScoringScheme const & me) {
+scoreMatch(ScoringScheme const& me) {
 	return me.match_score;
 }
 
 // individually set match score
 inline void
-setScoreMatch(ScoringScheme const & me, int const& value) {
+setScoreMatch(ScoringScheme const& me, int const& value) {
 	me.match_score = value;
 }
 
 // return mismatch score
 inline int
-scoreMismatch(ScoringScheme const & me) {
+scoreMismatch(ScoringScheme const& me) {
 	return me.mismatch_score;
 }
 
 // individually set mismatch score
 inline void
-setScoreMismatch(ScoringScheme const & me, int const& value) {
+setScoreMismatch(ScoringScheme const& me, int const& value) {
 	me.mismatch_score = value;
 }
 
 // return gap extension score
 inline int
-scoreGapExtend(ScoringScheme const & me) {
+scoreGapExtend(ScoringScheme const& me) {
 	return me.gap_extend_score;
 }
 
 // individually set gap extension score
 inline void
-setScoreGapExtend(ScoringScheme const & me, int const& value) {
+setScoreGapExtend(ScoringScheme const& me, int const& value) {
 	me.gap_extend_score = value;
 }
 
 // return gap opening score
 inline int
-scoreGapOpen(ScoringScheme const & me) {
+scoreGapOpen(ScoringScheme const& me) {
 	return me.gap_open_score;
 }
 
 // individually set gap opening score
 inline void
-setScoreGapOpen(ScoringScheme const & me, int const& value) {
+setScoreGapOpen(ScoringScheme const& me, int const& value) {
 	me.gap_open_score = value;
 }

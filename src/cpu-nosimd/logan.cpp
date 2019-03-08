@@ -220,51 +220,49 @@ enum ExtensionDirection
     EXTEND_BOTH  = 3
 };
 
-inline int
+inline Result
 extendSeed(Seed& seed,
+			short direction,
 			std::string const& target,
 			std::string const& query,
 			ScoringScheme const& penalties,
 			int& XDrop)
 {
-	// TODO GGGG: degine these functions
-	assert(scoreGapExtend(scoringScheme) < 0); 
-	assert(scoreGapOpen(scoringScheme) < 0); 	// this is the same ad GapExtend for linear scoring scheme
-	assert(scoreMismatch(scoringScheme) < 0);
-	assert(scoreMatch(scoringScheme) > 0); 
+	assert(scoreGapExtend(penalties) < 0); 
+	assert(scoreGapOpen(penalties) < 0); 	// this is the same ad GapExtend for linear scoring scheme
+	assert(scoreMismatch(penalties) < 0);
+	assert(scoreMatch(penalties) > 0); 
 
 	int scoreLeft;
 	int scoreRight;
-	int scoreFinal;
+	Result scoreFinal;
 
-	// string substr (size_t pos = 0, size_t len = npos) const;
-	// returns a newly constructed string object with its value initialized to a copy of a substring of this object
-	std::string targetPrefix = target.substr(0, endPositionT(seed));
-	std::string queryPrefix = query.substr(0, endPositionQ(seed));
+	if (direction == EXTEND_LEFT || direction == EXTEND_BOTH)
+	{
+		// string substr (size_t pos = 0, size_t len = npos) const;
+		// returns a newly constructed string object with its value initialized to a copy of a substring of this object
+		std::string targetPrefix = target.substr(0, beginPositionH(seed));	// from read start til start seed (seed not included)
+		std::string queryPrefix = query.substr(0, beginPositionV(seed));	// from read start til start seed (seed not included)
 
-	scoreLeft = _extendSeedGappedXDropOneDirection(seed, queryPrefix, databasePrefix, EXTEND_LEFT, scoringScheme, scoreDropOff);
+		scoreLeft = _extendSeedGappedXDropOneDirection(seed, queryPrefix, databasePrefix, EXTEND_LEFT, penalties, XDrop);
+	}
 
 	if (direction == EXTEND_RIGHT || direction == EXTEND_BOTH)
 	{
 		// Do not extend to the right if we are already at the beginning of an
 		// infix or the sequence itself.
+		std::string targetSuffix = target.substr(endPositionH(seed)); 	// from end seed until the end (seed not included)
+		std::string querySuffix = query.substr(endPositionV(seed));		// from end seed until the end (seed not included)
 
-		typedef typename Suffix<TDatabase const>::Type TDatabaseSuffix;
-		typedef typename Suffix<TQuery const>::Type TQuerySuffix;
-
-		TDatabaseSuffix databaseSuffix = suffix(database, endPositionH(seed));
-		TQuerySuffix querySuffix = suffix(query, endPositionV(seed));
-		// std::cout << "database = " << database << std::endl;
-		// std::cout << "database Suffix = " << databaseSuffix << std::endl;
-		// std::cout << "query = " << query << std::endl;
-		// std::cout << "query Suffix = " << querySuffix << std::endl;
-		// TODO(holtgrew): Update _extendSeedGappedXDropOneDirection and switch query/database order.
-		longestExtensionScoreRight = _extendSeedGappedXDropOneDirection(seed, querySuffix, databaseSuffix, EXTEND_RIGHT, scoringScheme, scoreDropOff);
+		scoreRight = _extendSeedGappedXDropOneDirection(seed, querySuffix, databaseSuffix, EXTEND_RIGHT, penalties, XDrop);
 	}
-	
-	longestExtensionScore = longestExtensionScoreRight + longestExtensionScoreLeft;
-	return (int)longestExtensionScore+KMER_LENGTH;
-	// TODO(holtgrew): Update seed's score?!
+
+	Result myalignment(KMER_LENGTH); // do not add KMER_LENGTH later
+
+	myalignment.score = scoreLeft + scoreRight; // we have already accounted for seed match score
+	myalignment.myseed = seed;	// extended begin and end of the seed
+
+	return myalignment;
 }
 
 inline void
