@@ -9,133 +9,6 @@
 //// Function extendSeed                         [GappedXDrop, noSIMD]
 //// -----------------------------------------------------------------
 //
-//template<typename TAntiDiag, typename TDropOff, typename TScoreValue>
-//inline void
-//_initAntiDiags(TAntiDiag & ,
-//			   TAntiDiag & antiDiag2,
-//			   TAntiDiag & antiDiag3,
-//			   TDropOff dropOff,
-//			   TScoreValue gapCost,
-//			   TScoreValue undefined)
-//{
-//	// antiDiagonals will be swaped in while loop BEFORE computation of antiDiag3 entries
-//	//  -> no initialization of antiDiag1 necessary
-//
-//	resize(antiDiag2, 1);
-//	antiDiag2[0] = 0;
-//
-//	resize(antiDiag3, 2);
-//	if (-gapCost > dropOff)
-//	{
-//		antiDiag3[0] = undefined;
-//		antiDiag3[1] = undefined;
-//	}
-//	else
-//	{
-//		antiDiag3[0] = gapCost;
-//		antiDiag3[1] = gapCost;
-//	}
-//}
-//
-//template<typename TAntiDiag>
-//inline void
-//_swapAntiDiags(TAntiDiag & antiDiag1,
-//			   TAntiDiag & antiDiag2,
-//			   TAntiDiag & antiDiag3)
-//{
-//	TAntiDiag temp;
-//	move(temp, antiDiag1);
-//	move(antiDiag1, antiDiag2);
-//	move(antiDiag2, antiDiag3);
-//	move(antiDiag3, temp);
-//}
-//
-//template<typename TAntiDiag, typename TSize, typename TScoreValue>
-//inline TSize
-//_initAntiDiag3(TAntiDiag & antiDiag3,
-//			   TSize offset,
-//			   TSize maxCol,
-//			   TSize antiDiagNo,
-//			   TScoreValue minScore,
-//			   TScoreValue gapCost,
-//			   TScoreValue undefined)
-//{
-//	resize(antiDiag3, maxCol + 1 - offset);
-//
-//	antiDiag3[0] = undefined;
-//	antiDiag3[maxCol - offset] = undefined;
-//
-//	if ((int)antiDiagNo * gapCost > minScore)
-//	{
-//		if (offset == 0) // init first column
-//			antiDiag3[0] = antiDiagNo * gapCost;
-//		if (antiDiagNo - maxCol == 0) // init first row
-//			antiDiag3[maxCol - offset] = antiDiagNo * gapCost;
-//	}
-//	return offset;
-//}
-//
-//template<typename TDiagonal, typename TSize>
-//inline void
-//_calcExtendedLowerDiag(TDiagonal & lowerDiag,
-//					   TSize minCol,
-//					   TSize antiDiagNo)
-//{
-//	TSize minRow = antiDiagNo - minCol;
-//	if ((TDiagonal)minCol - (TDiagonal)minRow < lowerDiag)
-//		lowerDiag = (TDiagonal)minCol - (TDiagonal)minRow;
-//}
-//
-//template<typename TDiagonal, typename TSize>
-//inline void
-//_calcExtendedUpperDiag(TDiagonal & upperDiag,
-//					   TSize maxCol,
-//					   TSize antiDiagNo)
-//{
-//	TSize maxRow = antiDiagNo + 1 - maxCol;
-//	if ((TDiagonal)maxCol - 1 - (TDiagonal)maxRow > upperDiag)
-//		upperDiag = maxCol - 1 - maxRow;
-//}
-//
-//template<typename TSeed, typename TSize, typename TDiagonal>
-//inline void
-//_updateExtendedSeed(TSeed & seed,
-//					ExtensionDirection direction,
-//					TSize cols,
-//					TSize rows,
-//					TDiagonal lowerDiag,
-//					TDiagonal upperDiag)
-//{
-//	if (direction == EXTEND_LEFT)
-//	{
-//		// Set lower and upper diagonals.
-//		TDiagonal beginDiag = beginDiagonal(seed);
-//		if (lowerDiagonal(seed) > beginDiag + lowerDiag)
-//			setLowerDiagonal(seed, beginDiag + lowerDiag);
-//		if (upperDiagonal(seed) < beginDiag + upperDiag)
-//			setUpperDiagonal(seed, beginDiag + upperDiag);
-//
-//		// Set new start position of seed.
-//		setBeginPositionH(seed, beginPositionH(seed) - rows);
-//		setBeginPositionV(seed, beginPositionV(seed) - cols);
-//	} else {  // direction == EXTEND_RIGHT
-//		// Set new lower and upper diagonals.
-//		TDiagonal endDiag = endDiagonal(seed);
-//		if (upperDiagonal(seed) < endDiag - lowerDiag)
-//			setUpperDiagonal(seed, endDiag - lowerDiag);
-//		if (lowerDiagonal(seed) > endDiag - upperDiag)
-//			setLowerDiagonal(seed, endDiag - upperDiag);
-//
-//		// Set new end position of seed.
-//		setEndPositionH(seed, endPositionH(seed) + rows);
-//		setEndPositionV(seed, endPositionV(seed) + cols);
-//	}
-//	SEQAN_ASSERT_GEQ(upperDiagonal(seed), lowerDiagonal(seed));
-//	SEQAN_ASSERT_GEQ(upperDiagonal(seed), beginDiagonal(seed));
-//	SEQAN_ASSERT_GEQ(upperDiagonal(seed), endDiagonal(seed));
-//	SEQAN_ASSERT_GEQ(beginDiagonal(seed), lowerDiagonal(seed));
-//	SEQAN_ASSERT_GEQ(endDiagonal(seed), lowerDiagonal(seed));
-//}
 //
 //// Limit score;  In the general case we cannot do this so we simply perform a check on the score mismatch values.
 //template <typename TScoreValue, typename TScoreSpec, typename TAlphabet>
@@ -335,6 +208,13 @@
 //		_updateExtendedSeed(seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
 //	return longestExtensionScore;
 //}
+enum ExtensionDirection
+{
+    EXTEND_NONE  = 0,
+    EXTEND_LEFT  = 1,
+    EXTEND_RIGHT = 2,
+    EXTEND_BOTH  = 3
+};
 
 inline int
 extendSeed(LOGAN::Seed& seed,
@@ -380,4 +260,132 @@ extendSeed(LOGAN::Seed& seed,
 	longestExtensionScore = longestExtensionScoreRight + longestExtensionScoreLeft;
 	return (int)longestExtensionScore+KMER_LENGTH;
 	// TODO(holtgrew): Update seed's score?!
+}
+
+inline void
+_initAntiDiags(std::string & ,
+			   std::string & antiDiag2,
+			   std::string & antiDiag3,
+			   int dropOff,
+			   int gapCost,
+			   int undefined)
+{
+	// antiDiagonals will be swaped in while loop BEFORE computation of antiDiag3 entries
+	//  -> no initialization of antiDiag1 necessary
+
+	antiDiag2.resize(1);
+	antiDiag2[0] = 0;
+
+	antiDiag3.resize(2);
+	if (-gapCost > dropOff)
+	{
+		antiDiag3[0] = undefined;
+		antiDiag3[1] = undefined;
+	}
+	else
+	{
+		antiDiag3[0] = gapCost;
+		antiDiag3[1] = gapCost;
+	}
+}
+
+// template<typename TAntiDiag>
+inline void
+_swapAntiDiags(std::string & antiDiag1,
+			   std::string & antiDiag2,
+			   std::string & antiDiag3)
+{
+	std::string temp;
+	strcpy(temp, antiDiag1);
+	strcpy(antiDiag1, antiDiag2);
+	strcpy(antiDiag2, antiDiag3);
+	strcpy(antiDiag3, temp);
+}
+
+inline int
+_initAntiDiag3(std::string & antiDiag3,
+			   int offset,
+			   int maxCol,
+			   int antiDiagNo,
+			   int minScore,
+			   int gapCost,
+			   int undefined)
+{
+	antiDiag3.resize(maxCol + 1 - offset);
+
+	antiDiag3[0] = undefined;
+	antiDiag3[maxCol - offset] = undefined;
+
+	if (antiDiagNo * gapCost > minScore)
+	{
+		if (offset == 0) // init first column
+			antiDiag3[0] = antiDiagNo * gapCost;
+		if (antiDiagNo - maxCol == 0) // init first row
+			antiDiag3[maxCol - offset] = antiDiagNo * gapCost;
+	}
+	return offset;
+}
+
+inline void
+_calcExtendedLowerDiag(std::string & lowerDiag,
+					   int minCol,
+					   int antiDiagNo)
+{
+	int minRow = antiDiagNo - minCol;
+	if (minCol - minRow < lowerDiag)
+		lowerDiag = minCol - minRow;
+}
+
+inline void
+_calcExtendedUpperDiag(TDiagonal & upperDiag,
+					   TSize maxCol,
+					   TSize antiDiagNo)
+{
+	TSize maxRow = antiDiagNo + 1 - maxCol;
+	if ((TDiagonal)maxCol - 1 - (TDiagonal)maxRow > upperDiag)
+		upperDiag = maxCol - 1 - maxRow;
+}
+
+//template<typename TSeed, typename TSize, typename TDiagonal>
+inline void
+_updateExtendedSeed(LOGAN::Seed& seed,
+					short direction, //as there are only 4 directions we may consider even smaller data types
+					int cols,
+					int rows,
+					std::string lowerDiag,
+					std::string upperDiag)
+{
+	//TODO 
+	//functions that return diagonal from seed
+	//functions set diagonal for seed
+	//which direction is which? h is q and v is t or viceversa?
+	if (direction == EXTEND_LEFT)
+	{
+		// Set lower and upper diagonals.
+		std::string beginDiag = beginDiagonal(seed);
+		if (lowerDiagonal(seed) > beginDiag + lowerDiag)
+			setLowerDiagonal(seed, beginDiag + lowerDiag);
+		if (upperDiagonal(seed) < beginDiag + upperDiag)
+			setUpperDiagonal(seed, beginDiag + upperDiag);
+
+		// Set new start position of seed.
+		setBeginPositionH(seed, beginPositionH(seed) - rows);
+		setBeginPositionV(seed, beginPositionV(seed) - cols);
+	} else {  // direction == EXTEND_RIGHT
+		// Set new lower and upper diagonals.
+		TDiagonal endDiag = endDiagonal(seed);
+		if (upperDiagonal(seed) < endDiag - lowerDiag)
+			setUpperDiagonal(seed, endDiag - lowerDiag);
+		if (lowerDiagonal(seed) > endDiag - upperDiag)
+			setLowerDiagonal(seed, endDiag - upperDiag);
+
+		// Set new end position of seed.
+		setEndPositionH(seed, endPositionH(seed) + rows);
+		setEndPositionV(seed, endPositionV(seed) + cols);
+	}
+	assert(upperDiagonal(seed) >= lowerDiagonal(seed));
+	assert(upperDiagonal(seed) >= beginDiagonal(seed));
+	assert(upperDiagonal(seed) >= endDiagonal(seed));
+	assert(beginDiagonal(seed) >= lowerDiagonal(seed));
+	assert(endDiagonal(seed) >= lowerDiagonal(seed));
 }

@@ -40,7 +40,12 @@ namespace LOGAN
 		} 
 		// member functions		
 		// modify after its initialization	
-		void setSeed(int& a, int& b, int& c) { begp = a; endp = b; leng = c; }
+		void setSeed(int& a, int& b, int& c) { begp = a; endp = b; leng = c; }//needs to be checked I think it's broken
+		void setBegpT(int p) {begpT = p}
+		void setBegpQ(int p) {begpQ = p}
+		void setEndpT(int p) {endpT = p}
+		void setEndpQ(int p) {endpQ = p}
+
 		int getBegpT() 	{ return begpT; }
 		int getBegpQ() 	{ return begpQ; }
 		int getEndpT() 	{ return endpT; }
