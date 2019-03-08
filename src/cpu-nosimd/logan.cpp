@@ -52,11 +52,11 @@
 //		Score<TScoreValue, TScoreSpec> scoringScheme,
 //		TScoreValue scoreDropOff)
 //{
-//	typedef typename Size<TQuerySegment>::Type TSize;
-//	typedef typename Seed<Simple,TConfig>::TDiagonal TDiagonal;
+//	typedef typename Size<TQuerySegment>::Type int;
+//	typedef typename Seed<Simple,TConfig>::int int;
 //
-//	TSize cols = length(querySeg)+1;
-//	TSize rows = length(databaseSeg)+1;
+//	int cols = length(querySeg)+1;
+//	int rows = length(databaseSeg)+1;
 //	if (rows == 1 || cols == 1)
 //		return 0;
 //
@@ -79,20 +79,20 @@
 //	//   - decrease indices by 1 for position in query/database segment
 //	//   - first calculated entry is on anti-diagonal n\B0 2
 //
-//	TSize minCol = 1;
-//	TSize maxCol = 2;
+//	int minCol = 1;
+//	int maxCol = 2;
 //
-//	TSize offset1 = 0; // number of leading columns that need not be calculated in antiDiag1
-//	TSize offset2 = 0; //                                                       in antiDiag2
-//	TSize offset3 = 0; //                                                       in antiDiag3
+//	int offset1 = 0; // number of leading columns that need not be calculated in antiDiag1
+//	int offset2 = 0; //                                                       in antiDiag2
+//	int offset3 = 0; //                                                       in antiDiag3
 //
 //	_initAntiDiags(antiDiag1, antiDiag2, antiDiag3, scoreDropOff, gapCost, undefined);
-//	TSize antiDiagNo = 1; // the currently calculated anti-diagonal
+//	int antiDiagNo = 1; // the currently calculated anti-diagonal
 //
 //	TScoreValue best = 0; // maximal score value in the DP matrix (for drop-off calculation)
 //
-//	TDiagonal lowerDiag = 0;
-//	TDiagonal upperDiag = 0;
+//	int lowerDiag = 0;
+//	int upperDiag = 0;
 //
 //	while (minCol < maxCol)
 //	{
@@ -104,14 +104,14 @@
 //		_initAntiDiag3(antiDiag3, offset3, maxCol, antiDiagNo, best - scoreDropOff, gapCost, undefined);
 //
 //		TScoreValue antiDiagBest = antiDiagNo * gapCost;
-//		for (TSize col = minCol; col < maxCol; ++col) {
+//		for (int col = minCol; col < maxCol; ++col) {
 //			// indices on anti-diagonals
-//			TSize i3 = col - offset3;
-//			TSize i2 = col - offset2;
-//			TSize i1 = col - offset1;
+//			int i3 = col - offset3;
+//			int i2 = col - offset2;
+//			int i1 = col - offset1;
 //
 //			// indices in query and database segments
-//			TSize queryPos, dbPos;
+//			int queryPos, dbPos;
 //			if (direction == EXTEND_RIGHT)
 //			{
 //				queryPos = col - 1;
@@ -167,8 +167,8 @@
 //	// find positions of longest extension
 //
 //	// reached ends of both segments
-//	TSize longestExtensionCol = length(antiDiag3) + offset3 - 2;
-//	TSize longestExtensionRow = antiDiagNo - longestExtensionCol;
+//	int longestExtensionCol = length(antiDiag3) + offset3 - 2;
+//	int longestExtensionRow = antiDiagNo - longestExtensionCol;
 //	TScoreValue longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
 //
 //	if (longestExtensionScore == undefined)
@@ -192,7 +192,7 @@
 //	if (longestExtensionScore == undefined)
 //	{
 //		// general case
-//		for (TSize i = 0; i < length(antiDiag1); ++i)
+//		for (int i = 0; i < length(antiDiag1); ++i)
 //		{
 //			if (antiDiag1[i] > longestExtensionScore)
 //			{
@@ -208,6 +208,9 @@
 //		_updateExtendedSeed(seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
 //	return longestExtensionScore;
 //}
+
+#include"logan.h"
+
 enum ExtensionDirection
 {
     EXTEND_NONE  = 0,
@@ -217,10 +220,10 @@ enum ExtensionDirection
 };
 
 inline int
-extendSeed(LOGAN::Seed& seed,
+extendSeed(Seed& seed,
 			std::string const& target,
 			std::string const& query,
-			Score<TScoreValue, TScoreSpec> const & scoringScheme, // TODO
+			Score<int, int> const& scoringScheme, // TODO Giulia 	
 			int& XDrop)
 {
 	// Let's start using only linear gap penalty, will introduce affine gap penalty later
@@ -254,7 +257,7 @@ extendSeed(LOGAN::Seed& seed,
 		// std::cout << "query = " << query << std::endl;
 		// std::cout << "query Suffix = " << querySuffix << std::endl;
 		// TODO(holtgrew): Update _extendSeedGappedXDropOneDirection and switch query/database order.
-		longestExtensionScoreRight =  _extendSeedGappedXDropOneDirection(seed, querySuffix, databaseSuffix, EXTEND_RIGHT, scoringScheme, scoreDropOff);
+		longestExtensionScoreRight = _extendSeedGappedXDropOneDirection(seed, querySuffix, databaseSuffix, EXTEND_RIGHT, scoringScheme, scoreDropOff);
 	}
 	
 	longestExtensionScore = longestExtensionScoreRight + longestExtensionScoreLeft;
@@ -327,7 +330,7 @@ _initAntiDiag3(std::string & antiDiag3,
 }
 
 inline void
-_calcExtendedLowerDiag(std::string & lowerDiag,
+_calcExtendedLowerDiag(int& lowerDiag,
 					   int minCol,
 					   int antiDiagNo)
 {
@@ -337,18 +340,18 @@ _calcExtendedLowerDiag(std::string & lowerDiag,
 }
 
 inline void
-_calcExtendedUpperDiag(TDiagonal & upperDiag,
-					   TSize maxCol,
-					   TSize antiDiagNo)
+_calcExtendedUpperDiag(int & upperDiag,
+					   int maxCol,
+					   int antiDiagNo)
 {
-	TSize maxRow = antiDiagNo + 1 - maxCol;
-	if ((TDiagonal)maxCol - 1 - (TDiagonal)maxRow > upperDiag)
+	int maxRow = antiDiagNo + 1 - maxCol;
+	if ((int)maxCol - 1 - (int)maxRow > upperDiag)
 		upperDiag = maxCol - 1 - maxRow;
 }
 
-//template<typename TSeed, typename TSize, typename TDiagonal>
+//template<typename TSeed, typename int, typename int>
 inline void
-_updateExtendedSeed(LOGAN::Seed& seed,
+_updateExtendedSeed(Seed& seed,
 					short direction, //as there are only 4 directions we may consider even smaller data types
 					int cols,
 					int rows,
@@ -373,7 +376,7 @@ _updateExtendedSeed(LOGAN::Seed& seed,
 		setBeginPositionV(seed, beginPositionV(seed) - cols);
 	} else {  // direction == EXTEND_RIGHT
 		// Set new lower and upper diagonals.
-		TDiagonal endDiag = endDiagonal(seed);
+		int endDiag = endDiagonal(seed);
 		if (upperDiagonal(seed) < endDiag - lowerDiag)
 			setUpperDiagonal(seed, endDiag - lowerDiag);
 		if (lowerDiagonal(seed) > endDiag - upperDiag)
