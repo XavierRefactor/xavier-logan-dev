@@ -210,6 +210,7 @@
 //}
 
 #include"logan.h"
+#include"score.h"
 
 enum ExtensionDirection
 {
@@ -223,13 +224,14 @@ inline int
 extendSeed(Seed& seed,
 			std::string const& target,
 			std::string const& query,
-			Score<int, int> const& scoringScheme, // TODO Giulia 	
+			ScoringScheme const& penalties,
 			int& XDrop)
 {
-	// Let's start using only linear gap penalty, will introduce affine gap penalty later
-	assert(penatlyI(scoringScheme) < 0); // I = indels (gaps)
-	assert(penatlyX(scoringScheme) < 0); // X = mismatches
-	assert(penaltyM(scoringScheme) > 0); // M = matches
+	// TODO GGGG: degine these functions
+	assert(scoreGapExtend(scoringScheme) < 0); 
+	assert(scoreGapOpen(scoringScheme) < 0); 	// this is the same ad GapExtend for linear scoring scheme
+	assert(scoreMismatch(scoringScheme) < 0);
+	assert(scoreMatch(scoringScheme) > 0); 
 
 	int scoreLeft;
 	int scoreRight;
