@@ -266,7 +266,7 @@ extendSeed(Seed& seed,
 }
 
 inline void
-_initAntiDiags(std::string & ,
+initAntiDiags(std::string & ,
 			   std::string & antiDiag2,
 			   std::string & antiDiag3,
 			   int dropOff,
@@ -294,7 +294,7 @@ _initAntiDiags(std::string & ,
 
 // template<typename TAntiDiag>
 inline void
-_swapAntiDiags(std::string & antiDiag1,
+swapAntiDiags(std::string & antiDiag1,
 			   std::string & antiDiag2,
 			   std::string & antiDiag3)
 {
@@ -306,7 +306,7 @@ _swapAntiDiags(std::string & antiDiag1,
 }
 
 inline int
-_initAntiDiag3(std::string & antiDiag3,
+initAntiDiag3(std::string & antiDiag3,
 			   int offset,
 			   int maxCol,
 			   int antiDiagNo,
@@ -330,7 +330,7 @@ _initAntiDiag3(std::string & antiDiag3,
 }
 
 inline void
-_calcExtendedLowerDiag(int& lowerDiag,
+calcExtendedLowerDiag(int& lowerDiag,
 					   int minCol,
 					   int antiDiagNo)
 {
@@ -340,7 +340,7 @@ _calcExtendedLowerDiag(int& lowerDiag,
 }
 
 inline void
-_calcExtendedUpperDiag(int & upperDiag,
+calcExtendedUpperDiag(int & upperDiag,
 					   int maxCol,
 					   int antiDiagNo)
 {
@@ -351,12 +351,12 @@ _calcExtendedUpperDiag(int & upperDiag,
 
 //template<typename TSeed, typename int, typename int>
 inline void
-_updateExtendedSeed(Seed& seed,
+updateExtendedSeed(Seed& seed,
 					short direction, //as there are only 4 directions we may consider even smaller data types
 					int cols,
 					int rows,
-					std::string lowerDiag,
-					std::string upperDiag)
+					int lowerDiag,
+					int upperDiag)
 {
 	//TODO 
 	//functions that return diagonal from seed
@@ -365,30 +365,30 @@ _updateExtendedSeed(Seed& seed,
 	if (direction == EXTEND_LEFT)
 	{
 		// Set lower and upper diagonals.
-		std::string beginDiag = beginDiagonal(seed);
-		if (lowerDiagonal(seed) > beginDiag + lowerDiag)
-			setLowerDiagonal(seed, beginDiag + lowerDiag);
-		if (upperDiagonal(seed) < beginDiag + upperDiag)
-			setUpperDiagonal(seed, beginDiag + upperDiag);
+		std::string beginDiag = seed.beginDiagonal;
+		if (seed.lowerDiagonal > (beginDiag + lowerDiag))
+			seed.lowerDiagonal = (beginDiag + lowerDiag);
+		if (seed.upperDiagonal < (beginDiag + upperDiag))
+			seed.upperDiagonal = (beginDiag + upperDiag);
 
 		// Set new start position of seed.
-		setBeginPositionH(seed, beginPositionH(seed) - rows);
-		setBeginPositionV(seed, beginPositionV(seed) - cols);
+		seed.beginPositionH -= rows;
+		seed.beginPositionV -= cols;
 	} else {  // direction == EXTEND_RIGHT
 		// Set new lower and upper diagonals.
-		int endDiag = endDiagonal(seed);
-		if (upperDiagonal(seed) < endDiag - lowerDiag)
-			setUpperDiagonal(seed, endDiag - lowerDiag);
-		if (lowerDiagonal(seed) > endDiag - upperDiag)
-			setLowerDiagonal(seed, endDiag - upperDiag);
+		int endDiag = seed.endDiagonal;
+		if (seed.upperDiagonal < (endDiag - lowerDiag))
+			seed.upperDiagonal = (endDiag - lowerDiag);
+		if (seed.lowerDiagonal > (endDiag - upperDiag))
+			seed.lowerDiagonal = (endDiag - upperDiag);
 
 		// Set new end position of seed.
-		setEndPositionH(seed, endPositionH(seed) + rows);
-		setEndPositionV(seed, endPositionV(seed) + cols);
+		seed.endPositionH += rows;
+		seed.endPositionV += cols;
 	}
-	assert(upperDiagonal(seed) >= lowerDiagonal(seed));
-	assert(upperDiagonal(seed) >= beginDiagonal(seed));
-	assert(upperDiagonal(seed) >= endDiagonal(seed));
-	assert(beginDiagonal(seed) >= lowerDiagonal(seed));
-	assert(endDiagonal(seed) >= lowerDiagonal(seed));
+	assert(seed.upperDiagonal >= seed.lowerDiagonal);
+	assert(seed.upperDiagonal >= seed.beginDiagonal);
+	assert(seed.upperDiagonal >= seed.endDiagonal);
+	assert(seed.beginDiagonal >= seed.lowerDiagonal);
+	assert(seed.endDiagonal >= seed.lowerDiagonal);
 }

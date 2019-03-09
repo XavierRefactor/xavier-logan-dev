@@ -15,6 +15,8 @@ typedef struct
 	int seedLength;
 	int lowerDiagonal;  // GGGG: it might possibly be a std::string
 	int upperDiagonal;  // GGGG: it might possibly be a std::string
+	int beginDiagonal;
+	int endDiagonal;
 	int score;
 
 		Seed() : beginPositionH(0), beginPositionV(0), endPositionH(0), endPositionV(0), lowerDiagonal(0), upperDiagonal(0),
@@ -24,31 +26,36 @@ typedef struct
 		Seed(int beginPositionH, int beginPositionV, int seedLength) :
 						beginPositionH(beginPositionH), beginPositionV(beginPositionV), endPositionH(beginPositionH + seedLength),
 						endPositionV(beginPositionV + seedLength), lowerDiagonal((beginPositionH - beginPositionV)),
-						upperDiagonal((beginPositionH - beginPositionV)), score(0)
+						upperDiagonal((beginPositionH - beginPositionV)), beginDiagonal(beginPositionH - beginPositionV),
+						endDiagonal(endPositionH - endPositionV), score(0)
 		{
-				assert(upperDiagonal >= lowerDiagonal);
+			assert(upperDiagonal >= lowerDiagonal);
 		}
 
-			Seed(int beginPositionH, int beginPositionV, int endPositionH, int endPositionV) :
+		Seed(int beginPositionH, int beginPositionV, int endPositionH, int endPositionV) :
 						beginPositionH(beginPositionH),
 						beginPositionV(beginPositionV),
 						endPositionH(endPositionH),
 						endPositionV(endPositionV),
 						lowerDiagonal(std::min((beginPositionH - beginPositionV), (endPositionH - endPositionV))),
 						upperDiagonal(std::max((beginPositionH - beginPositionV), (endPositionH - endPositionV))),
+						beginDiagonal((beginPositionH - beginPositionV)),
+						endDiagonal((endPositionH - endPositionV)),
 						score(0)
 		{
 				assert(upperDiagonal >= lowerDiagonal);
 		}
 
 		Seed(Seed const& other) :
-							beginPositionH(beginPositionH(other)),
-							beginPositionV(beginPositionV(other)),
-							endPositionH(endPositionH(other)),
-							endPositionV(endPositionV(other)),
-							lowerDiagonal(lowerDiagonal(other)),
-							upperDiagonal(upperDiagonal(other)),
-							score(0)
+			beginPositionH(beginPositionH(other)),
+			beginPositionV(beginPositionV(other)),
+			endPositionH(endPositionH(other)),
+			endPositionV(endPositionV(other)),
+			lowerDiagonal(lowerDiagonal(other)),
+			upperDiagonal(upperDiagonal(other)),
+			beginDiagonal(beginDiagonal(other)),
+			endDiagonal(endDiagonal(other)),
+			score(0)
 		{
 				assert(upperDiagonal >= lowerDiagonal);
 		}
