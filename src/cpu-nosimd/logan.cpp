@@ -10,27 +10,6 @@
 //// -----------------------------------------------------------------
 //
 //
-//// Limit score;  In the general case we cannot do this so we simply perform a check on the score mismatch values.
-//template <typename TScoreValue, typename TScoreSpec, typename TAlphabet>
-//void
-//_extendSeedGappedXDropOneDirectionLimitScoreMismatch(Score<TScoreValue, TScoreSpec> & scoringScheme,
-//													 TScoreValue minErrScore,
-//													 TAlphabet * /*tag*/)
-//{
-//	// We cannot set a lower limit for the mismatch score since the score might be a scoring matrix such as Blosum62.
-//	// Instead, we perform a check on the matrix scores.
-//#if SEQAN_ENABLE_DEBUG
-//	{
-//		for (unsigned i = 0; i < valueSize<TAlphabet>(); ++i)
-//			for (unsigned j = 0; j <= i; ++j)
-//				SEQAN_ASSERT_GEQ_MSG(score(scoringScheme, TAlphabet(i), TAlphabet(j)), minErrScore,
-//									 "Mismatch score too small!, i = %u, j = %u");
-//	}
-//#else
-//	(void)scoringScheme;
-//	(void)minErrScore;
-//#endif  // #if SEQAN_ENABLE_DEBUG
-//}
 //
 //// In the case of a SimpleScore, however, we can set this.
 //template <typename TScoreValue, typename TAlphabet>
@@ -391,4 +370,26 @@ updateExtendedSeed(Seed& seed,
 	assert(seed.upperDiagonal >= seed.endDiagonal);
 	assert(seed.beginDiagonal >= seed.lowerDiagonal);
 	assert(seed.endDiagonal >= seed.lowerDiagonal);
+}
+
+// Limit score;  In the general case we cannot do this so we simply perform a check on the score mismatch values.
+
+void
+extendSeedGappedXDropOneDirectionLimitScoreMismatch(Score & scoringScheme,
+													 int minErrScore,
+													 TAlphabet * /*tag*/)
+{
+	// We cannot set a lower limit for the mismatch score since the score might be a scoring matrix such as Blosum62.
+	// Instead, we perform a check on the matrix scores.
+#if SEQAN_ENABLE_DEBUG
+	{
+		for (unsigned i = 0; i < valueSize<TAlphabet>(); ++i)
+			for (unsigned j = 0; j <= i; ++j)
+				SEQAN_ASSERT_GEQ_MSG(score(scoringScheme, TAlphabet(i), TAlphabet(j)), minErrScore,
+									 "Mismatch score too small!, i = %u, j = %u");
+	}
+#else
+	(void)scoringScheme;
+	(void)minErrScore;
+#endif  // #if SEQAN_ENABLE_DEBUG
 }
