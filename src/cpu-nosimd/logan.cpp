@@ -1,16 +1,16 @@
-//
-////==================================================================
-//// Title:  C++ x-drop seed-and-extend alignment algorithm
-//// Author: G. Guidi, A. Zeni
-//// Date:   6 March 2019
-////==================================================================
-//
-//// -----------------------------------------------------------------
-//// Function extendSeed                         [GappedXDrop, noSIMD]
-//// -----------------------------------------------------------------
-//
-//
-//
+
+//==================================================================
+// Title:  C++ x-drop seed-and-extend alignment algorithm
+// Author: G. Guidi, A. Zeni
+// Date:   6 March 2019
+//==================================================================
+
+// -----------------------------------------------------------------
+// Function extendSeed                         [GappedXDrop, noSIMD]
+// -----------------------------------------------------------------
+
+//#define DEBUG
+
 #include<vector>
 #include<iostream>
 #include"logan.h"
@@ -19,10 +19,10 @@
 // #include <bits/stdc++.h> 
 enum ExtensionDirection
 {
-    EXTEND_NONE  = 0,
-    EXTEND_LEFT  = 1,
-    EXTEND_RIGHT = 2,
-    EXTEND_BOTH  = 3
+    EXTEND_NONEL  = 0,
+    EXTEND_LEFTL  = 1,
+    EXTEND_RIGHTL = 2,
+    EXTEND_BOTHL  = 3
 };
 
 //template<typename TSeed, typename int, typename int>
@@ -37,8 +37,7 @@ updateExtendedSeed(Seed& seed,
 	//TODO 
 	//functions that return diagonal from seed
 	//functions set diagonal for seed
-	//which direction is which? h is q and v is t or viceversa?
-	if (direction == EXTEND_LEFT)
+	if (direction == EXTEND_LEFTL)
 	{
 		// Set lower and upper diagonals.
 		int beginDiag = seed.beginDiagonal;
@@ -50,7 +49,7 @@ updateExtendedSeed(Seed& seed,
 		// Set new start position of seed.
 		seed.beginPositionH -= rows;
 		seed.beginPositionV -= cols;
-	} else {  // direction == EXTEND_RIGHT
+	} else {  // direction == EXTEND_RIGHTL
 		// Set new lower and upper diagonals.
 		int endDiag = seed.endDiagonal;
 		if (seed.upperDiagonal < (endDiag - lowerDiag))
@@ -228,12 +227,12 @@ extendSeedGappedXDropOneDirection(
 
 			// indices in query and database segments
 			int queryPos, dbPos;
-			if (direction == EXTEND_RIGHT)
+			if (direction == EXTEND_RIGHTL)
 			{
 				queryPos = col - 1;
 				dbPos = antiDiagNo - col - 1;
 			}
-			else // direction == EXTEND_LEFT
+			else // direction == EXTEND_LEFTL
 			{
 				queryPos = cols - 1 - col;
 				dbPos = rows - 1 + col - antiDiagNo;
@@ -344,24 +343,24 @@ extendSeed(Seed& seed,
 	int scoreRight;
 	Result scoreFinal;
 
-	if (direction == EXTEND_LEFT || direction == EXTEND_BOTH)
+	if (direction == EXTEND_LEFTL || direction == EXTEND_BOTHL)
 	{
 		// string substr (size_t pos = 0, size_t len = npos) const;
 		// returns a newly constructed string object with its value initialized to a copy of a substring of this object
 		std::string targetPrefix = target.substr(0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
 		std::string queryPrefix = query.substr(0, getBeginPositionV(seed));	// from read start til start seed (seed not included)
 
-		scoreLeft = extendSeedGappedXDropOneDirection(seed, queryPrefix, targetPrefix, EXTEND_LEFT, penalties, XDrop);
+		scoreLeft = extendSeedGappedXDropOneDirection(seed, queryPrefix, targetPrefix, EXTEND_LEFTL, penalties, XDrop);
 	}
 
-	if (direction == EXTEND_RIGHT || direction == EXTEND_BOTH)
+	if (direction == EXTEND_RIGHTL || direction == EXTEND_BOTHL)
 	{
 		// Do not extend to the right if we are already at the beginning of an
 		// infix or the sequence itself.
 		std::string targetSuffix = target.substr(getEndPositionH(seed)); 	// from end seed until the end (seed not included)
 		std::string querySuffix = query.substr(getEndPositionV(seed));		// from end seed until the end (seed not included)
 
-		scoreRight = extendSeedGappedXDropOneDirection(seed, querySuffix, targetSuffix, EXTEND_RIGHT, penalties, XDrop);
+		scoreRight = extendSeedGappedXDropOneDirection(seed, querySuffix, targetSuffix, EXTEND_RIGHTL, penalties, XDrop);
 	}
 
 	Result myalignment(kmer_length); // do not add KMER_LENGTH later
@@ -371,6 +370,8 @@ extendSeed(Seed& seed,
 
 	return myalignment;
 }
+
+#ifdef DEBUG
 
 //AAAA TODO??? might need some attention since TAlphabet is a graph
 // void
@@ -408,4 +409,5 @@ int main(int argc, char const *argv[])
 	return 0;
 }
 
+#endif
 
