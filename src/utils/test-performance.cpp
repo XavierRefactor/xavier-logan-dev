@@ -27,8 +27,8 @@ using namespace seqan;
 //=======================================================================
 
 typedef Seed<Simple> TSeed;
-typedef std::tuple< int, int, int, int, double > myinfo;	// score, start seed, end seed, runtime
-typedef std::tuple< int, myinfo, myinfo > myresult;			// pair identifier, myinfo seqan, myinfo logan
+typedef std::tuple< int, int, int, int, int, double > myinfo;	// score, start seedV, end seedV, start seedH, end seedH, runtime
+typedef std::tuple< int, myinfo, myinfo > myresult;				// pair identifier, myinfo seqan, myinfo logan
 
 char complement (char n)
 {   
@@ -68,11 +68,12 @@ vector<std::string> split (const std::string &s, char delim)
 //=======================================================================
 
 // typedef std::tuple< int, int, int, int, double > myinfo;	// score, start seed, end seed, runtime
-myinfo seqanXdrop(Dna5String& readV, Dna5String& readH, int posV, int posH, int8_t mat, int8_t mis, int8_t gap int kmerLen, int xdrop)
+myinfo seqanXdrop(Dna5String& readV, Dna5String& readH, int posV, int posH, int mat, int mis, int gap int kmerLen, int xdrop)
 {
 
 	Score<int, Simple> scoringScheme(mat, mis, gap);
 	int score;
+	myinfo seqanresult;
 
 	chrono::duration<double> diff;
 	TSeed seed(posH, posV, kmerLen);
@@ -84,25 +85,31 @@ myinfo seqanXdrop(Dna5String& readV, Dna5String& readH, int posV, int posH, int8
 	diff = end-start;
 
 	double time = diff.count();
+	seqanresult = std::make_tuple(score, beginPositionV(seed), endPositionV(seed), beginPositionH(seed), endPositionH(seed), time);
+	return seqanresult;
 }
 
 // typedef std::tuple< int, int, int, int, double > myinfo;	// score, start seed, end seed, runtime
-myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, int8_t mat, int8_t mis, int8_t gap int kmerLen, int xdrop)
+myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, int mat, int mis, int gap int kmerLen, int xdrop)
 {
 
 	ScoringScheme penalties(mat, mis, gap);
 	Result result(kmerLen);
+	myinfo loganresult;
 
 	chrono::duration<double> diff;
 	Seed seed(posH, posV, kmerLen);
 
 	// perform match extension	
 	auto start = std::chrono::system_clock::now();
+	// GGGG: double check call function
 	result = extendSeed(seed, readH, readV, EXTEND_BOTH, scoringScheme, xdrop, GappedXDrop());
 	auto end = std::chrono::system_clock::now();
 	diff = end-start;
 
 	double time = diff.count();
+	loganresult = std::make_tuple(result.score, beginPositionV(result.seed), endPositionV(result.seed), beginPositionH(result.seed), endPositionH(result.seed), time);
+	return loganresult;
 }
 
 //=======================================================================
@@ -118,7 +125,7 @@ int main(int argc, char **argv)
 	int kmerLen = atoi(argv[2]);	// kmerLen
 	int xdrop = atoi(argv[3]);		// xdrop
 	int mat = 1, mis = gap = -1;	// GGGG: make these input parameters
-	std::string filename = "benchmark.out"; // GGGG: make this input parameter
+	std::string filename = "benchmark.txt"; // GGGG: make filename input parameter
 
 	int maxt = 1;
 #pragma omp parallel
@@ -175,6 +182,7 @@ int main(int argc, char **argv)
 			seqanresult = seqanXdrop(seqVseqan, seqHseqan, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
 
+			// GGGG: use a stringstream here
 			local[ithread].push_back(std::make_tuple(i, seqanresult, loganresult)); // local thread information
 		}
 		else
