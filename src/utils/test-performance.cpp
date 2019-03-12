@@ -10,12 +10,13 @@
 #include <numeric>
 #include <string>
 #include <chrono>
+#include <omp.h>
 #include <seqan/sequence.h>
 #include <seqan/align.h>
 #include <seqan/seeds.h>
 #include <seqan/score.h>
 #include <seqan/modifier.h>
-#include "../cpu-nosimd/logan.h"
+#include "../cpu-nosimd/logan.cpp"
 
 using namespace std;
 using namespace seqan;
@@ -28,10 +29,9 @@ using namespace seqan;
 
 typedef Seed<Simple> TSeed;
 typedef std::tuple< int, int, int, int, int, double > myinfo;	// score, start seedV, end seedV, start seedH, end seedH, runtime
-typedef std::tuple< int, myinfo, myinfo > myresult;				// pair identifier, myinfo seqan, myinfo logan
 
 char complement (char n)
-{   
+{	
 	switch(n)
 	{   
 	case 'A':
@@ -42,7 +42,7 @@ char complement (char n)
 		return 'C';
 	case 'C':
 		return 'G';
-	}   
+	}	
 	assert(false);
 	return ' ';
 }
@@ -68,7 +68,7 @@ vector<std::string> split (const std::string &s, char delim)
 //=======================================================================
 
 // typedef std::tuple< int, int, int, int, double > myinfo;	// score, start seed, end seed, runtime
-myinfo seqanXdrop(Dna5String& readV, Dna5String& readH, int posV, int posH, int mat, int mis, int gap int kmerLen, int xdrop)
+myinfo seqanXdrop(Dna5String& readV, Dna5String& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
 {
 
 	Score<int, Simple> scoringScheme(mat, mis, gap);
@@ -90,7 +90,7 @@ myinfo seqanXdrop(Dna5String& readV, Dna5String& readH, int posV, int posH, int 
 }
 
 // typedef std::tuple< int, int, int, int, double > myinfo;	// score, start seed, end seed, runtime
-myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, int mat, int mis, int gap int kmerLen, int xdrop)
+myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
 {
 
 	ScoringScheme penalties(mat, mis, gap);
@@ -103,19 +103,19 @@ myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, in
 	// perform match extension	
 	auto start = std::chrono::system_clock::now();
 	// GGGG: double check call function
-	result = extendSeed(seed, readH, readV, EXTEND_BOTH, scoringScheme, xdrop, GappedXDrop());
+	result = extendSeed(seed, readH, readV, EXTEND_BOTHL, penalties, xdrop, kmerLen);
 	auto end = std::chrono::system_clock::now();
 	diff = end-start;
 
 	double time = diff.count();
-	loganresult = std::make_tuple(result.score, beginPositionV(result.seed), endPositionV(result.seed), beginPositionH(result.seed), endPositionH(result.seed), time);
+	loganresult = std::make_tuple(result.score, getBeginPositionV(result.myseed), getEndPositionV(result.myseed), getBeginPositionH(result.myseed), getEndPositionH(result.myseed), time);
 	return loganresult;
 }
 
 //=======================================================================
-// 
+//
 // Function call main
-// 
+//
 //=======================================================================
 
 int main(int argc, char **argv)
@@ -124,8 +124,8 @@ int main(int argc, char **argv)
 	ifstream input(argv[1]);		// file name with sequences and seed positions
 	int kmerLen = atoi(argv[2]);	// kmerLen
 	int xdrop = atoi(argv[3]);		// xdrop
-	int mat = 1, mis = gap = -1;	// GGGG: make these input parameters
-	std::string filename = "benchmark.txt"; // GGGG: make filename input parameter
+	int mat = 1, mis = -1, gap = -1;	// GGGG: make these input parameters
+	char* filename = "benchmark.txt"; // GGGG: make filename input parameter
 
 	int maxt = 1;
 #pragma omp parallel
@@ -137,7 +137,7 @@ int main(int argc, char **argv)
 	input.seekg(0, std::ios_base::beg);
 
 	vector<std::string> entries;
-	vector<myresult> local(maxt);		
+	vector<std::stringstream> local(maxt);      
 
 	/* read input file */
 	if(input)
@@ -175,32 +175,39 @@ int main(int argc, char **argv)
 
 			Dna5String seqHseqan(seqH), seqVseqan(seqV);
 
-			// GGGG: call alignment
 			myinfo seqanresult;
 			myinfo loganresult;
 
 			seqanresult = seqanXdrop(seqVseqan, seqHseqan, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
 
-			// GGGG: use a stringstream here
-			local[ithread].push_back(std::make_tuple(i, seqanresult, loganresult)); // local thread information
+			// GGGG: use a custom data struct instead of tuples 	(readability)
+			local[ithread] << i << "\t" << get<0>(seqanresult) << "\t" << get<1>(seqanresult) << "\t" 
+				<< get<2>(seqanresult) << "\t" << get<3>(seqanresult) << "\t" << get<4>(seqanresult)
+					<< "\t" << get<5>(seqanresult) << "\t" << get<0>(loganresult) << "\t" << get<1>(loganresult) << "\t" << 
+						get<2>(loganresult) << "\t" << get<3>(loganresult) << "\t" << get<4>(loganresult) 
+							<< "\t" << get<5>(loganresult) << endl;
 		}
 		else
 		{
 			Dna5String seqHseqan(seqH), seqVseqan(seqV);
 
-			// GGGG: call alignment
 			myinfo seqanresult;
 			myinfo loganresult;
 
 			seqanresult = seqanXdrop(seqVseqan, seqHseqan, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
 
-			local[ithread].push_back(std::make_tuple(i, seqanresult, loganresult)); // local thread information
+			// GGGG: use a custom data struct instead of tuples 	
+			local[ithread] << i << "\t" << get<0>(seqanresult) << "\t" << get<1>(seqanresult) << "\t" 
+				<< get<2>(seqanresult) << "\t" << get<3>(seqanresult) << "\t" << get<4>(seqanresult)
+					<< "\t" << get<5>(seqanresult) << "\t" << get<0>(loganresult) << "\t" << get<1>(loganresult) << "\t" << 
+						get<2>(loganresult) << "\t" << get<3>(loganresult) << "\t" << get<4>(loganresult) 
+							<< "\t" << get<5>(loganresult) << endl;
 		}
 	}
 
-	// write to a new file
+	// write to a new file 	
 	int64_t * bytes = new int64_t[maxt];
 	for(int i = 0; i < maxt; ++i)
 	{
