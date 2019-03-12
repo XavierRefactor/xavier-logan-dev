@@ -5,12 +5,31 @@
 // Date:   12 March 2019
 //========================================================================================================
 
-#include <string.h>
-#include <stdio.h>
-#include <numeric>
-#include <string>
-#include <chrono>
 #include <omp.h>
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <cstdlib>
+#include <cstdio>
+#include <algorithm>
+#include <cmath>
+#include <numeric>
+#include <vector>
+#include <sys/types.h> 
+#include <sys/stat.h> 
+#include <math.h>
+#include <limits.h>
+#include <bitset>
+#include <map>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <unistd.h>
+#include <ctype.h> 
+#include <sstream>
+#include <set>
+#include <memory>
+#include <typeinfo>
 #include <seqan/sequence.h>
 #include <seqan/align.h>
 #include <seqan/seeds.h>
@@ -27,10 +46,10 @@ using namespace seqan;
 // 
 //=======================================================================
 
-typedef Seed<Simple> TSeed;
+typedef seqan::Seed<Simple> TSeed;
 typedef std::tuple< int, int, int, int, int, double > myinfo;	// score, start seedV, end seedV, start seedH, end seedH, runtime
 
-char complement (char n)
+char dummycomplement (char n)
 {	
 	switch(n)
 	{   
@@ -93,17 +112,17 @@ myinfo seqanXdrop(Dna5String& readV, Dna5String& readH, int posV, int posH, int 
 myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
 {
 
-	ScoringScheme penalties(mat, mis, gap);
+	ScoringSchemeL penalties(mat, mis, gap);
 	Result result(kmerLen);
 	myinfo loganresult;
 
 	chrono::duration<double> diff;
-	Seed seed(posH, posV, kmerLen);
+	SeedL seed(posH, posV, kmerLen);
 
 	// perform match extension	
 	auto start = std::chrono::system_clock::now();
 	// GGGG: double check call function
-	result = extendSeed(seed, readH, readV, EXTEND_BOTHL, penalties, xdrop, kmerLen);
+	result = extendSeedL(seed, EXTEND_BOTHL, readH, readV, penalties, xdrop, kmerLen);
 	auto end = std::chrono::system_clock::now();
 	diff = end-start;
 
@@ -125,7 +144,9 @@ int main(int argc, char **argv)
 	int kmerLen = atoi(argv[2]);	// kmerLen
 	int xdrop = atoi(argv[3]);		// xdrop
 	int mat = 1, mis = -1, gap = -1;	// GGGG: make these input parameters
-	char* filename = "benchmark.txt"; // GGGG: make filename input parameter
+	const char* filename =  (char*) malloc(20 * sizeof(char));
+	std::string temp = "benchmark.txt"; // GGGG: make filename input parameter
+	filename = temp.c_str();
 
 	int maxt = 1;
 #pragma omp parallel
@@ -170,7 +191,7 @@ int main(int argc, char **argv)
 				std::begin(seqH),
 				std::end(seqH),
 				std::begin(seqH),
-			complement);
+			dummycomplement);
 			posH = seqH.length()-posH-kmerLen;
 
 			Dna5String seqHseqan(seqH), seqVseqan(seqV);
@@ -208,7 +229,7 @@ int main(int argc, char **argv)
 	}
 
 	// write to a new file 	
-	int64_t * bytes = new int64_t[maxt];
+	int64_t* bytes = new int64_t[maxt];
 	for(int i = 0; i < maxt; ++i)
 	{
 		local[i].seekg(0, ios::end);

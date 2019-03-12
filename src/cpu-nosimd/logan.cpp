@@ -6,7 +6,7 @@
 //==================================================================
 
 // -----------------------------------------------------------------
-// Function extendSeed                         [GappedXDrop, noSIMD]
+// Function extendSeedL                         [GappedXDrop, noSIMD]
 // -----------------------------------------------------------------
 
 //#define DEBUG
@@ -17,7 +17,7 @@
 #include"score.h"
 
 // #include <bits/stdc++.h> 
-enum ExtensionDirection
+enum ExtensionDirectionL
 {
     EXTEND_NONEL  = 0,
     EXTEND_LEFTL  = 1,
@@ -25,10 +25,10 @@ enum ExtensionDirection
     EXTEND_BOTHL  = 3
 };
 
-//template<typename TSeed, typename int, typename int>
+//template<typename TSeedL, typename int, typename int>
 inline void
-updateExtendedSeed(Seed& seed,
-					ExtensionDirection direction, //as there are only 4 directions we may consider even smaller data types
+updateExtendedSeedL(SeedL& seed,
+					ExtensionDirectionL direction, //as there are only 4 directions we may consider even smaller data types
 					int cols,
 					int rows,
 					int lowerDiag,
@@ -89,7 +89,7 @@ calcExtendedUpperDiag(int & upperDiag,
 }
 
 void
-extendSeedGappedXDropOneDirectionLimitScoreMismatch(ScoringScheme & scoringScheme,
+extendSeedLGappedXDropOneDirectionLimitScoreMismatch(ScoringSchemeL & scoringScheme,
 													 int minErrScore)
 {
 	setScoreMismatch(scoringScheme, std::max(scoreMismatch(scoringScheme), minErrScore));
@@ -159,16 +159,16 @@ initAntiDiags(std::vector<int> & ,
 }
 
 int
-extendSeedGappedXDropOneDirection(
-		Seed & seed,
+extendSeedLGappedXDropOneDirection(
+		SeedL & seed,
 		std::string const & querySeg,
 		std::string const & databaseSeg,
-		ExtensionDirection direction,
-		ScoringScheme scoringScheme,
+		ExtensionDirectionL direction,
+		ScoringSchemeL scoringScheme,
 		int scoreDropOff)
 {
 	//typedef typename Size<TQuerySegment>::Type int;
-	//typedef typename Seed<Simple,TConfig>::int int;
+	//typedef typename SeedL<Simple,TConfig>::int int;
 
 	int cols = querySeg.size()+1;
 	int rows = databaseSeg.size()+1;
@@ -180,7 +180,7 @@ extendSeedGappedXDropOneDirection(
 	setScoreGap(scoringScheme, std::max(scoreGap(scoringScheme), minErrScore));
 	//std::string * tag = 0;
 	//(void)tag;
-	extendSeedGappedXDropOneDirectionLimitScoreMismatch(scoringScheme, minErrScore);
+	extendSeedLGappedXDropOneDirectionLimitScoreMismatch(scoringScheme, minErrScore);
 
 	int gapCost = scoreGap(scoringScheme);
 	int undefined = std::numeric_limits<int>::min() - gapCost;
@@ -321,16 +321,16 @@ extendSeedGappedXDropOneDirection(
 
 	// update seed
 	if (longestExtensionScore != undefined)
-		updateExtendedSeed(seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
+		updateExtendedSeedL(seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
 	return longestExtensionScore;
 }
 
 inline Result
-extendSeed(Seed& seed,
-			ExtensionDirection direction,
+extendSeedL(SeedL& seed,
+			ExtensionDirectionL direction,
 			std::string const& target,
 			std::string const& query,
-			ScoringScheme const& penalties,
+			ScoringSchemeL const& penalties,
 			int& XDrop,
 			int kmer_length)
 {
@@ -350,7 +350,7 @@ extendSeed(Seed& seed,
 		std::string targetPrefix = target.substr(0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
 		std::string queryPrefix = query.substr(0, getBeginPositionV(seed));	// from read start til start seed (seed not included)
 
-		scoreLeft = extendSeedGappedXDropOneDirection(seed, queryPrefix, targetPrefix, EXTEND_LEFTL, penalties, XDrop);
+		scoreLeft = extendSeedLGappedXDropOneDirection(seed, queryPrefix, targetPrefix, EXTEND_LEFTL, penalties, XDrop);
 	}
 
 	if (direction == EXTEND_RIGHTL || direction == EXTEND_BOTHL)
@@ -360,7 +360,7 @@ extendSeed(Seed& seed,
 		std::string targetSuffix = target.substr(getEndPositionH(seed)); 	// from end seed until the end (seed not included)
 		std::string querySuffix = query.substr(getEndPositionV(seed));		// from end seed until the end (seed not included)
 
-		scoreRight = extendSeedGappedXDropOneDirection(seed, querySuffix, targetSuffix, EXTEND_RIGHTL, penalties, XDrop);
+		scoreRight = extendSeedLGappedXDropOneDirection(seed, querySuffix, targetSuffix, EXTEND_RIGHTL, penalties, XDrop);
 	}
 
 	Result myalignment(kmer_length); // do not add KMER_LENGTH later
@@ -375,7 +375,7 @@ extendSeed(Seed& seed,
 
 //AAAA TODO??? might need some attention since TAlphabet is a graph
 // void
-// extendSeedGappedXDropOneDirectionLimitScoreMismatch(Score & scoringScheme,
+// extendSeedLGappedXDropOneDirectionLimitScoreMismatch(Score & scoringScheme,
 // 													 int minErrScore,
 // 													 TAlphabet * /*tag*/)
 // {
@@ -397,14 +397,14 @@ extendSeed(Seed& seed,
 int main(int argc, char const *argv[])
 {
 	//DEBUG ONLY
-	Seed myseed;
-	ScoringScheme myscore;
-	ExtensionDirection dir = static_cast<ExtensionDirection>(atoi(argv[1]));
+	SeedL myseed;
+	ScoringSchemeL myscore;
+	ExtensionDirectionL dir = static_cast<ExtensionDirectionL>(atoi(argv[1]));
 	std::string target = argv[2];
 	std::string query = argv[3];
 	int xdrop = atoi(argv[4]);
 	int kmer_length = atoi(argv[5]);
-	Result r = extendSeed(myseed, dir, target, query, myscore, xdrop, kmer_length);
+	Result r = extendSeedL(myseed, dir, target, query, myscore, xdrop, kmer_length);
 	std::cout << r.score << std::endl;
 	return 0;
 }

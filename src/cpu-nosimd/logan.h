@@ -8,7 +8,7 @@
 #include <algorithm> 
 #include <cassert>
 
-struct Seed
+struct SeedL
 {
 	int beginPositionH;
 	int beginPositionV;
@@ -21,10 +21,10 @@ struct Seed
 	int endDiagonal;
 	int score;
 
-	Seed(): beginPositionH(0), beginPositionV(0), endPositionH(0), endPositionV(0), lowerDiagonal(0), upperDiagonal(0), score(0)
+	SeedL(): beginPositionH(0), beginPositionV(0), endPositionH(0), endPositionV(0), lowerDiagonal(0), upperDiagonal(0), score(0)
 	{}
 
-	Seed(int beginPositionH, int beginPositionV, int seedLength):
+	SeedL(int beginPositionH, int beginPositionV, int seedLength):
 		beginPositionH(beginPositionH), beginPositionV(beginPositionV), endPositionH(beginPositionH + seedLength),
 		endPositionV(beginPositionV + seedLength), lowerDiagonal((beginPositionH - beginPositionV)),
 		upperDiagonal((beginPositionH - beginPositionV)), beginDiagonal(beginPositionH - beginPositionV),
@@ -33,7 +33,7 @@ struct Seed
 		assert(upperDiagonal >= lowerDiagonal);
 	}
 
-	Seed(int beginPositionH, int beginPositionV, int endPositionH, int endPositionV):
+	SeedL(int beginPositionH, int beginPositionV, int endPositionH, int endPositionV):
 		beginPositionH(beginPositionH),
 		beginPositionV(beginPositionV),
 		endPositionH(endPositionH),
@@ -47,7 +47,7 @@ struct Seed
 		assert(upperDiagonal >= lowerDiagonal);
 	}
 
-	Seed(Seed const& other):
+	SeedL(SeedL const& other):
 		beginPositionH(other.beginPositionH),
 		beginPositionV(other.beginPositionV),
 		endPositionH(other.endPositionH),
@@ -65,18 +65,18 @@ struct Seed
 
 struct Result
 {
-	Seed myseed;
+	SeedL myseed;
 	int score; 			// alignment score
 	int length;			// overlap length / max extension
 
 	Result() : score(0), length(0)//check
 	{
-		myseed=Seed();
+		myseed=SeedL();
 	}
 
 	Result(int kmerLen) : score(0), length(kmerLen)
 	{
-		myseed=Seed();
+		myseed=SeedL();
 	}
 
 };
@@ -85,102 +85,102 @@ struct Result
 // AAAA add setter also
 
 inline int
-getAlignScore(Seed const &myseed){
+getAlignScore(SeedL const &myseed){
 	return myseed.score;
 }
 
 inline int
-getBeginPositionH(Seed const &myseed){
+getBeginPositionH(SeedL const &myseed){
 	return myseed.beginPositionH;
 }
 
 inline int
-getBeginPositionV(Seed const &myseed){
+getBeginPositionV(SeedL const &myseed){
 	return myseed.beginPositionV;
 }
 
 inline int
-getEndPositionH(Seed const &myseed){
+getEndPositionH(SeedL const &myseed){
 	return myseed.endPositionH;
 }
 
 inline int
-getEndPositionV(Seed const &myseed){
+getEndPositionV(SeedL const &myseed){
 	return myseed.endPositionV;
 }
 
 inline int
-getSeedLength(Seed const &myseed){
+getSeedLLength(SeedL const &myseed){
 	return myseed.seedLength;
 }
 
 inline int
-getLowerDiagonal(Seed const &myseed){
+getLowerDiagonal(SeedL const &myseed){
 	return myseed.lowerDiagonal;
 }
 
 inline int
-getUpperDiagonal(Seed const &myseed){
+getUpperDiagonal(SeedL const &myseed){
 	return myseed.upperDiagonal;
 }
 
 inline int
-getBeginDiagonal(Seed const &myseed){
+getBeginDiagonal(SeedL const &myseed){
 	return myseed.beginDiagonal;
 }
 
 inline int
-getEndDiagonal(Seed const &myseed){
+getEndDiagonal(SeedL const &myseed){
 	return myseed.endDiagonal;
 }
 
 inline void
-setAlignScore(Seed &myseed,int const value){
+setAlignScore(SeedL &myseed,int const value){
 	myseed.score = value;
 }
 
 inline void
-setBeginPositionH(Seed &myseed,int const value){
+setBeginPositionH(SeedL &myseed,int const value){
 	myseed.beginPositionH = value;
 }
 
 inline void
-setBeginPositionV(Seed &myseed,int const value){
+setBeginPositionV(SeedL &myseed,int const value){
 	myseed.beginPositionV = value;
 }
 
 inline void
-setEndPositionH(Seed &myseed,int const value){
+setEndPositionH(SeedL &myseed,int const value){
 	myseed.endPositionH = value;
 }
 
 inline void
-setEndPositionV(Seed &myseed,int const value){
+setEndPositionV(SeedL &myseed,int const value){
 	myseed.endPositionV = value;
 }
 
 inline void
-setSeedLength(Seed &myseed,int const value){
+setSeedLLength(SeedL &myseed,int const value){
 	myseed.seedLength = value;
 }
 
 inline void
-setLowerDiagonal(Seed &myseed,int const value){
+setLowerDiagonal(SeedL &myseed,int const value){
 	myseed.lowerDiagonal = value;
 }
 
 inline void
-setUpperDiagonal(Seed &myseed,int const value){
+setUpperDiagonal(SeedL &myseed,int const value){
 	myseed.upperDiagonal = value;
 }
 
 inline void
-setBeginDiagonal(Seed &myseed,int const value){
+setBeginDiagonal(SeedL &myseed,int const value){
 	myseed.beginDiagonal = value;
 }
 
 inline void
-setEndDiagonal(Seed &myseed,int const value){
+setEndDiagonal(SeedL &myseed,int const value){
 	myseed.endDiagonal = value;
 }
 
