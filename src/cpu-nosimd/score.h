@@ -4,7 +4,7 @@
 // Date:   8 March 2019
 //==================================================================
 
-typedef struct 
+struct ScoringScheme
 {
 		int match_score;      // match
 		int mismatch_score;   // substitution
@@ -12,22 +12,28 @@ typedef struct
 		int gap_open_score;   // gap opening (indels)
 
 		ScoringScheme()
-				: match_score(1), mismatch_score(-1), gap_extend_score(-1),
-					data_gap_open(-1) {
+				: match_score(1), mismatch_score(-1), gap_extend_score(-1), gap_open_score(-1) {
 		}
 
 		// liner gap penalty
-		ScoringScheme(int _match, int _mismatch, int _gap)
-				: match_score(_match), mismatch_score(_mismatch),
-					gap_extend_score(_gap), gap_open_score(_gap) {
+		ScoringScheme(int match, int mismatch, int gap)
+				: match_score(match), mismatch_score(mismatch),
+					gap_extend_score(gap), gap_open_score(gap) {
 		}
 
 		// affine gap penalty
-		ScoringScheme(int _match, int _mismatch, int _gap_extend, int _gap_open) 
-				: match_score(_match), mismatch_score(_mismatch),
-					gap_extend_score(_gap_extend), gap_open_score(_gap_open) {
+		ScoringScheme(int match, int mismatch, int gap_extend, int gap_open) 
+				: match_score(match), mismatch_score(mismatch),
+					gap_extend_score(gap_extend), gap_open_score(gap_open) {
 		}
-} ScoringScheme;
+};
+
+//returns the selected char of the sequence at the indicated position 
+inline char
+sequenceEntryForScore(ScoringScheme & /*scoringScheme*/, std::string const & seq, int pos)
+{
+    return seq[pos];
+}
 
 // return match score
 inline int
@@ -37,7 +43,7 @@ scoreMatch(ScoringScheme const& me) {
 
 // individually set match score
 inline void
-setScoreMatch(ScoringScheme const& me, int const& value) {
+setScoreMatch(ScoringScheme & me, int const& value) {
 	me.match_score = value;
 }
 
@@ -49,7 +55,7 @@ scoreMismatch(ScoringScheme const& me) {
 
 // individually set mismatch score
 inline void
-setScoreMismatch(ScoringScheme const& me, int const& value) {
+setScoreMismatch(ScoringScheme & me, int const& value) {
 	me.mismatch_score = value;
 }
 
@@ -61,7 +67,7 @@ scoreGapExtend(ScoringScheme const& me) {
 
 // individually set gap extension score
 inline void
-setScoreGapExtend(ScoringScheme const& me, int const& value) {
+setScoreGapExtend(ScoringScheme & me, int const& value) {
 	me.gap_extend_score = value;
 }
 
@@ -71,8 +77,31 @@ scoreGapOpen(ScoringScheme const& me) {
 	return me.gap_open_score;
 }
 
+//returns the gap_open_score NB: valid only for linear gap
+inline int
+scoreGap(ScoringScheme const & me){
+	return me.gap_open_score;
+}
+
 // individually set gap opening score
 inline void
-setScoreGapOpen(ScoringScheme const& me, int const& value) {
+setScoreGapOpen(ScoringScheme & me, int const& value) {
 	me.gap_open_score = value;
 }
+
+// set gap opening and gap extend scores
+inline void
+setScoreGap(ScoringScheme & me, int const& value) {
+	me.gap_extend_score = value;
+	me.gap_open_score = value;
+}
+
+inline int
+score(ScoringScheme const & me, char valH, char valV) {
+    if (valH == valV)
+        return scoreMatch(me);
+    else
+        return scoreMismatch(me);
+}
+
+
