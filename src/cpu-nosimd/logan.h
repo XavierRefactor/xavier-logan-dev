@@ -8,7 +8,6 @@
 #include <algorithm> 
 #include <cassert>
 
-#define KMER_LENGTH 100//AAAA to set
 struct Seed
 {
 	int beginPositionH;

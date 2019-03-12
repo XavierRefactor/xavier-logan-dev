@@ -332,7 +332,8 @@ extendSeed(Seed& seed,
 			std::string const& target,
 			std::string const& query,
 			ScoringScheme const& penalties,
-			int& XDrop)
+			int& XDrop,
+			int kmer_length)
 {
 	assert(scoreGapExtend(penalties) < 0); 
 	assert(scoreGapOpen(penalties) < 0); 	// this is the same ad GapExtend for linear scoring scheme
@@ -363,7 +364,7 @@ extendSeed(Seed& seed,
 		scoreRight = extendSeedGappedXDropOneDirection(seed, querySuffix, targetSuffix, EXTEND_RIGHT, penalties, XDrop);
 	}
 
-	Result myalignment(KMER_LENGTH); // do not add KMER_LENGTH later
+	Result myalignment(kmer_length); // do not add KMER_LENGTH later
 
 	myalignment.score = scoreLeft + scoreRight; // we have already accounted for seed match score
 	myalignment.myseed = seed;	// extended begin and end of the seed
@@ -394,13 +395,15 @@ extendSeed(Seed& seed,
 
 int main(int argc, char const *argv[])
 {
+	//DEBUG ONLY
 	Seed myseed;
 	ScoringScheme myscore;
-	ExtensionDirection dir = static_cast<ExtensionDirection>(atoi(argv[2]));
-	std::string target = argv[3];
-	std::string query = argv[4];
-	int xdrop = atoi(argv[5]);
-	Result r = extendSeed(myseed, dir, target, query, myscore, xdrop);
+	ExtensionDirection dir = static_cast<ExtensionDirection>(atoi(argv[1]));
+	std::string target = argv[2];
+	std::string query = argv[3];
+	int xdrop = atoi(argv[4]);
+	int kmer_length = atoi(argv[5]);
+	Result r = extendSeed(myseed, dir, target, query, myscore, xdrop, kmer_length);
 	std::cout << r.score << std::endl;
 	return 0;
 }
