@@ -147,7 +147,7 @@ int main(int argc, char **argv)
 	const char* filename =  (char*) malloc(20 * sizeof(char));
 	std::string temp = "benchmark.txt"; // GGGG: make filename input parameter
 	filename = temp.c_str();
-
+	cout << "starting benchmark" << endl;
 	int maxt = 1;
 #pragma omp parallel
 	{
@@ -200,8 +200,9 @@ int main(int argc, char **argv)
 			myinfo loganresult;
 
 			seqanresult = seqanXdrop(seqVseqan, seqHseqan, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			//cout << "seqan ok" << endl;
 			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
-
+			//cout << "logan ok" << endl;
 			// GGGG: use a custom data struct instead of tuples 	(readability)
 			local[ithread] << i << "\t" << get<0>(seqanresult) << "\t" << get<1>(seqanresult) << "\t" 
 				<< get<2>(seqanresult) << "\t" << get<3>(seqanresult) << "\t" << get<4>(seqanresult)
@@ -217,8 +218,9 @@ int main(int argc, char **argv)
 			myinfo loganresult;
 
 			seqanresult = seqanXdrop(seqVseqan, seqHseqan, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			//cout << "seqan ok" << endl;
 			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
-
+			//cout << "logan ok" << endl;
 			// GGGG: use a custom data struct instead of tuples 	
 			local[ithread] << i << "\t" << get<0>(seqanresult) << "\t" << get<1>(seqanresult) << "\t" 
 				<< get<2>(seqanresult) << "\t" << get<3>(seqanresult) << "\t" << get<4>(seqanresult)

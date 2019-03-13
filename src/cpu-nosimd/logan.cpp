@@ -219,6 +219,7 @@ extendSeedLGappedXDropOneDirection(
 		initAntiDiag3(antiDiag3, offset3, maxCol, antiDiagNo, best - scoreDropOff, gapCost, undefined);
 
 		int antiDiagBest = antiDiagNo * gapCost;
+		//AAAA this must be parallelized
 		for (int col = minCol; col < maxCol; ++col) {
 			// indices on anti-diagonals
 			int i3 = col - offset3;
@@ -305,7 +306,7 @@ extendSeedLGappedXDropOneDirection(
 		}
 	}
 
-	if (longestExtensionScore == undefined)
+	if (longestExtensionScore <= undefined)//AAAA it was ==
 	{
 		// general case
 		for (int i = 0; i < antiDiag1.size(); ++i)
@@ -320,7 +321,7 @@ extendSeedLGappedXDropOneDirection(
 	}
 
 	// update seed
-	if (longestExtensionScore != undefined)
+	if (longestExtensionScore > undefined)//AAAA it was !=
 		updateExtendedSeedL(seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
 	return longestExtensionScore;
 }
