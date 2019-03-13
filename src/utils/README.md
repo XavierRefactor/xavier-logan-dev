@@ -1,5 +1,10 @@
+To build:
+```
 make test
+```
+To run:
+```
 ./test <file> <kmer-len> <x-drop>
-
-kmer-len between 15 and 21
-x-drop between 7 and 51
+```
+Common values of kmer-len (for long-read alignment) are between 15 and 21.
+Common values of x-drop are between 7 and 100.
