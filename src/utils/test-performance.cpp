@@ -99,7 +99,7 @@ myinfo seqanXdrop(Dna5String& readV, Dna5String& readH, int posV, int posH, int 
 
 	// perform match extension	
 	auto start = std::chrono::system_clock::now();
-	score = extendSeed(seed, readH, readV, EXTEND_RIGHT, scoringScheme, xdrop, GappedXDrop(), kmerLen);
+	score = extendSeed(seed, readH, readV, EXTEND_BOTH, scoringScheme, xdrop, GappedXDrop(), kmerLen);
 	auto end = std::chrono::system_clock::now();
 	diff = end-start;
 
@@ -122,7 +122,7 @@ myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, in
 	// perform match extension	
 	auto start = std::chrono::system_clock::now();
 	// GGGG: double check call function
-	result = extendSeedL(seed, EXTEND_RIGHTL, readH, readV, penalties, xdrop, kmerLen);
+	result = extendSeedL(seed, EXTEND_BOTHL, readH, readV, penalties, xdrop, kmerLen);
 	auto end = std::chrono::system_clock::now();
 	diff = end-start;
 
@@ -149,7 +149,8 @@ int main(int argc, char **argv)
 	filename = temp.c_str();
 	cout << "starting benchmark" << endl;
 	int maxt = 1;
-#pragma omp parallel
+	// omp_set_nested(1);
+//#pragma omp parallel
 	{
 		maxt = omp_get_num_threads();
 	}
@@ -171,7 +172,7 @@ int main(int argc, char **argv)
 	input.close();
 
 	// compute pairwise alignments
-#pragma omp parallel for
+//#pragma omp parallel for
 	for(uint64_t i = 0; i < numpair; i++) 
 	{
 		int ithread = omp_get_thread_num();
