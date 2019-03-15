@@ -807,10 +807,11 @@ extendSeed(Seed<Simple, TConfig> & seed,
     SEQAN_ASSERT_LT(scoreGapOpen(scoringScheme), 0);
     SEQAN_ASSERT_LT(scoreGapExtend(scoringScheme), 0);
     SEQAN_ASSERT_EQ(scoreGapExtend(scoringScheme), scoreGapOpen(scoringScheme));
-    TScoreValue longestExtensionScoreLeft;
-    TScoreValue longestExtensionScoreRight;
-    TScoreValue longestExtensionScore;
-
+    TScoreValue longestExtensionScoreLeft=0;
+    TScoreValue longestExtensionScoreRight=0;
+    TScoreValue longestExtensionScore=0;
+    //AAAA this was not initialized, initializing all values to zero fixes the bugs
+    //std::cout<<"scoreLeft before calculation: "<<longestExtensionScoreLeft << std::endl;
     if (direction == EXTEND_LEFT || direction == EXTEND_BOTH)
     {
         // Do not extend to the left if we are already at the beginning of an
@@ -842,7 +843,7 @@ extendSeed(Seed<Simple, TConfig> & seed,
         // TODO(holtgrew): Update _extendSeedGappedXDropOneDirection and switch query/database order.
         longestExtensionScoreRight =  _extendSeedGappedXDropOneDirection(seed, querySuffix, databaseSuffix, EXTEND_RIGHT, scoringScheme, scoreDropOff);
     }
-    std::cout<<"scoreLeft: "<<longestExtensionScoreLeft<<" scoreRight: "<<longestExtensionScoreRight<<std::endl;
+    //std::cout<<"scoreLeft: "<<longestExtensionScoreLeft<<" scoreRight: "<<longestExtensionScoreRight<<std::endl;
     longestExtensionScore = longestExtensionScoreRight + longestExtensionScoreLeft;
     return (int)longestExtensionScore+kmerLen;
     //return (int)longestExtensionScore+KMER_LENGTH;

@@ -341,8 +341,8 @@ extendSeedL(SeedL& seed,
 	assert(scoreMatch(penalties) > 0); 
 	assert(scoreGapOpen(penalties) == scoreGapExtend(extend));
 
-	int scoreLeft;
-	int scoreRight;
+	int scoreLeft=0;
+	int scoreRight=0;
 	Result scoreFinal;
 
 	if (direction == EXTEND_LEFTL || direction == EXTEND_BOTHL)
@@ -366,7 +366,7 @@ extendSeedL(SeedL& seed,
 	}
 
 	Result myalignment(kmer_length); // do not add KMER_LENGTH later
-	std::cout<<"scoreLeft logan: "<<scoreLeft<<" scoreRight logan: "<<scoreRight<<std::endl;
+	//std::cout<<"scoreLeft logan: "<<scoreLeft<<" scoreRight logan: "<<scoreRight<<std::endl;
 	myalignment.score = scoreLeft + scoreRight + kmer_length; // we have already accounted for seed match score
 	myalignment.myseed = seed;	// extended begin and end of the seed
 
