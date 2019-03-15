@@ -99,7 +99,7 @@ myinfo seqanXdrop(Dna5String& readV, Dna5String& readH, int posV, int posH, int 
 
 	// perform match extension	
 	auto start = std::chrono::system_clock::now();
-	score = extendSeed(seed, readH, readV, EXTEND_BOTH, scoringScheme, xdrop, GappedXDrop());
+	score = extendSeed(seed, readH, readV, EXTEND_RIGHT, scoringScheme, xdrop, GappedXDrop(), kmerLen);
 	auto end = std::chrono::system_clock::now();
 	diff = end-start;
 
@@ -122,7 +122,7 @@ myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, in
 	// perform match extension	
 	auto start = std::chrono::system_clock::now();
 	// GGGG: double check call function
-	result = extendSeedL(seed, EXTEND_BOTHL, readH, readV, penalties, xdrop, kmerLen);
+	result = extendSeedL(seed, EXTEND_RIGHTL, readH, readV, penalties, xdrop, kmerLen);
 	auto end = std::chrono::system_clock::now();
 	diff = end-start;
 

@@ -792,7 +792,8 @@ extendSeed(Seed<Simple, TConfig> & seed,
            ExtensionDirection direction,
            Score<TScoreValue, TScoreSpec> const & scoringScheme,
            TScoreValue scoreDropOff,
-           GappedXDrop const &)
+           GappedXDrop const &,
+           int kmerLen)
 {
     // For gapped X-drop extension of Simple Seeds, we can simply
     // update the begin and end values in each dimension as well as the diagonals.
@@ -841,9 +842,12 @@ extendSeed(Seed<Simple, TConfig> & seed,
         // TODO(holtgrew): Update _extendSeedGappedXDropOneDirection and switch query/database order.
         longestExtensionScoreRight =  _extendSeedGappedXDropOneDirection(seed, querySuffix, databaseSuffix, EXTEND_RIGHT, scoringScheme, scoreDropOff);
     }
-    
+    std::cout<<"scoreLeft: "<<longestExtensionScoreLeft<<" scoreRight: "<<longestExtensionScoreRight<<std::endl;
     longestExtensionScore = longestExtensionScoreRight + longestExtensionScoreLeft;
-    return (int)longestExtensionScore+KMER_LENGTH;
+    return (int)longestExtensionScore+kmerLen;
+    //return (int)longestExtensionScore+KMER_LENGTH;
+    //AAAA KMER_LENGTH is fixed to 17 that's why we got a different value
+    //now it changes accordingly to the kmer-length set by the user
     // TODO(holtgrew): Update seed's score?!
 }
 

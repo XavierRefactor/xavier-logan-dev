@@ -71,12 +71,12 @@ struct Result
 
 	Result() : score(0), length(0)//check
 	{
-		myseed=SeedL();
+		//myseed=SeedL();
 	}
 
 	Result(int kmerLen) : score(0), length(kmerLen)
 	{
-		myseed=SeedL();
+		//myseed=SeedL();
 	}
 
 };

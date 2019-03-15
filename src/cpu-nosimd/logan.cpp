@@ -276,7 +276,7 @@ extendSeedLGappedXDropOneDirection(
 		calcExtendedUpperDiag(upperDiag, maxCol - 1, antiDiagNo);
 
 		// end of databaseSeg reached?
-		minCol = std::max((int)minCol, (int)antiDiagNo + 2 - (int)rows);
+		minCol = std::max(minCol, antiDiagNo + 2 - rows);
 		// end of querySeg reached?
 		maxCol = std::min(maxCol, cols);
 	}
@@ -306,7 +306,7 @@ extendSeedLGappedXDropOneDirection(
 		}
 	}
 
-	if (longestExtensionScore <= undefined)//AAAA it was ==
+	if (longestExtensionScore == undefined)
 	{
 		// general case
 		for (int i = 0; i < antiDiag1.size(); ++i)
@@ -321,7 +321,7 @@ extendSeedLGappedXDropOneDirection(
 	}
 
 	// update seed
-	if (longestExtensionScore > undefined)//AAAA it was !=
+	if (longestExtensionScore != undefined)//AAAA it was !=
 		updateExtendedSeedL(seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
 	return longestExtensionScore;
 }
@@ -339,6 +339,7 @@ extendSeedL(SeedL& seed,
 	assert(scoreGapOpen(penalties) < 0); 	// this is the same ad GapExtend for linear scoring scheme
 	assert(scoreMismatch(penalties) < 0);
 	assert(scoreMatch(penalties) > 0); 
+	assert(scoreGapOpen(penalties) == scoreGapExtend(extend));
 
 	int scoreLeft;
 	int scoreRight;
@@ -365,8 +366,8 @@ extendSeedL(SeedL& seed,
 	}
 
 	Result myalignment(kmer_length); // do not add KMER_LENGTH later
-
-	myalignment.score = scoreLeft + scoreRight; // we have already accounted for seed match score
+	std::cout<<"scoreLeft logan: "<<scoreLeft<<" scoreRight logan: "<<scoreRight<<std::endl;
+	myalignment.score = scoreLeft + scoreRight + kmer_length; // we have already accounted for seed match score
 	myalignment.myseed = seed;	// extended begin and end of the seed
 
 	return myalignment;
