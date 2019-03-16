@@ -4,9 +4,8 @@
 // Date:   6 March 2019
 //==================================================================
 
-#include<string>
-#include <algorithm> 
-#include <cassert>
+#include<algorithm> 
+#include<cassert>
 
 struct SeedL
 {
@@ -183,4 +182,3 @@ inline void
 setEndDiagonal(SeedL &myseed,int const value){
 	myseed.endDiagonal = value;
 }
-

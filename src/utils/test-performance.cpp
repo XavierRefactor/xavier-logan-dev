@@ -109,25 +109,26 @@ myinfo seqanXdrop(Dna5String& readV, Dna5String& readH, int posV, int posH, int 
 }
 
 // typedef std::tuple< int, int, int, int, double > myinfo;	// score, start seed, end seed, runtime
-myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
+myinfo loganXdrop(Dna5String& readV, Dna5String& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
 {
 
 	ScoringSchemeL penalties(mat, mis, gap);
-	Result result(kmerLen);
+	//Result result(kmerLen);
+	int result;
 	myinfo loganresult;
 
-	chrono::duration<double> diff;
+	chrono::duration<double> diff_l;
 	SeedL seed(posH, posV, kmerLen);
 
 	// perform match extension	
-	auto start = std::chrono::system_clock::now();
+	auto start_l = std::chrono::system_clock::now();
 	// GGGG: double check call function
 	result = extendSeedL(seed, EXTEND_BOTHL, readH, readV, penalties, xdrop, kmerLen);
-	auto end = std::chrono::system_clock::now();
-	diff = end-start;
+	auto end_l = std::chrono::system_clock::now();
+	diff_l = end_l-start_l;
 
-	double time = diff.count();
-	loganresult = std::make_tuple(result.score, getBeginPositionV(result.myseed), getEndPositionV(result.myseed), getBeginPositionH(result.myseed), getEndPositionH(result.myseed), time);
+	double time = diff_l.count();
+	loganresult = std::make_tuple(result, getBeginPositionV(seed), getEndPositionV(seed), getBeginPositionH(seed), getEndPositionH(seed), time);
 	return loganresult;
 }
 
@@ -196,13 +197,16 @@ int main(int argc, char **argv)
 			posH = seqH.length()-posH-kmerLen;
 
 			Dna5String seqHseqan(seqH), seqVseqan(seqV);
-
+			//AAAA change here if using 4 bases and to new type 
+			Dna5String seqHLogan(seqH), seqVLogan(seqV);
 			myinfo seqanresult;
 			myinfo loganresult;
 
-			seqanresult = seqanXdrop(seqVseqan, seqHseqan, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			
 			//cout << "seqan ok" << endl;
-			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			loganresult = loganXdrop(seqVseqan, seqHseqan, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			seqanresult = seqanXdrop(seqVseqan, seqHseqan, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			//cout << "logan ok" << endl;
 			// GGGG: use a custom data struct instead of tuples 	(readability)
 			local[ithread] << i << "\t" << get<0>(seqanresult) << "\t" << get<1>(seqanresult) << "\t" 
@@ -214,13 +218,17 @@ int main(int argc, char **argv)
 		else
 		{
 			Dna5String seqHseqan(seqH), seqVseqan(seqV);
+			//AAAA change here if using 4 bases and to new type 
+			Dna5String seqHLogan(seqH), seqVLogan(seqV);
 
 			myinfo seqanresult;
 			myinfo loganresult;
 
-			seqanresult = seqanXdrop(seqVseqan, seqHseqan, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			
 			//cout << "seqan ok" << endl;
-			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			loganresult = loganXdrop(seqVLogan, seqHLogan, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			seqanresult = seqanXdrop(seqVseqan, seqHseqan, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			//cout << "logan ok" << endl;
 			// GGGG: use a custom data struct instead of tuples 	
 			local[ithread] << i << "\t" << get<0>(seqanresult) << "\t" << get<1>(seqanresult) << "\t" 
