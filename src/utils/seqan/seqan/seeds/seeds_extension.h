@@ -627,6 +627,7 @@ _extendSeedGappedXDropOneDirection(
         Score<TScoreValue, TScoreSpec> scoringScheme,
         TScoreValue scoreDropOff)
 {
+    // std::chrono::duration<double>  diff;
     typedef typename Size<TQuerySegment>::Type TSize;
     typedef typename Seed<Simple,TConfig>::TDiagonal TDiagonal;
 
@@ -669,8 +670,12 @@ _extendSeedGappedXDropOneDirection(
     TDiagonal lowerDiag = 0;
     TDiagonal upperDiag = 0;
 
+
+    //int index = 0;
     while (minCol < maxCol)
     {
+
+    
         ++antiDiagNo;
         _swapAntiDiags(antiDiag1, antiDiag2, antiDiag3);
         offset1 = offset2;
@@ -679,8 +684,10 @@ _extendSeedGappedXDropOneDirection(
         _initAntiDiag3(antiDiag3, offset3, maxCol, antiDiagNo, best - scoreDropOff, gapCost, undefined);
 
         TScoreValue antiDiagBest = antiDiagNo * gapCost;
+            
         for (TSize col = minCol; col < maxCol; ++col) {
             // indices on anti-diagonals
+
             TSize i3 = col - offset3;
             TSize i2 = col - offset2;
             TSize i1 = col - offset1;
@@ -697,11 +704,13 @@ _extendSeedGappedXDropOneDirection(
                 queryPos = cols - 1 - col;
                 dbPos = rows - 1 + col - antiDiagNo;
             }
-
+            
             // Calculate matrix entry (-> antiDiag3[col])
             TScoreValue tmp = _max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
             tmp = _max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, sequenceEntryForScore(scoringScheme, querySeg, queryPos),
                                                       sequenceEntryForScore(scoringScheme, databaseSeg, dbPos)));
+
+            // auto start = std::chrono::high_resolution_clock::now();
             if (tmp < best - scoreDropOff)
             {
                 antiDiag3[i3] = undefined;
@@ -711,7 +720,12 @@ _extendSeedGappedXDropOneDirection(
                 antiDiag3[i3] = tmp;
                 antiDiagBest = _max(antiDiagBest, tmp);
             }
+            // auto end = std::chrono::high_resolution_clock::now();       
+            // diff += end-start;
+            
         }
+        
+       
         best = _max(best, antiDiagBest);
 
         // Calculate new minCol and minCol
@@ -737,8 +751,16 @@ _extendSeedGappedXDropOneDirection(
         minCol = _max((int)minCol, (int)antiDiagNo + 2 - (int)rows);
         // end of querySeg reached?
         maxCol = _min(maxCol, cols);
-    }
+        //index++;
+        
+        
 
+    }
+    
+    // std::cout << "seqan time: " <<  diff.count() <<std::endl; 
+          
+    //std::cout << "cycles " << index << std::endl;
+    
     // find positions of longest extension
 
     // reached ends of both segments
@@ -781,6 +803,8 @@ _extendSeedGappedXDropOneDirection(
     // update seed
     if (longestExtensionScore != undefined)
         _updateExtendedSeed(seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
+   
+
     return longestExtensionScore;
 }
 

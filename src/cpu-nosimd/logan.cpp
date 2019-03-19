@@ -9,6 +9,8 @@
 // Function extendSeedL                         [GappedXDrop, noSIMD]
 // -----------------------------------------------------------------
 
+//remove asserts to speedup 
+
 //#define DEBUG
 
 #include<vector>
@@ -17,7 +19,7 @@
 #include"logan.h"
 #include"score.h"
 #include"stringL.h"
-using namespace seqan;
+//using namespace seqan;
 // #include <bits/stdc++.h> 
 enum ExtensionDirectionL
 {
@@ -31,71 +33,67 @@ enum ExtensionDirectionL
 inline void
 updateExtendedSeedL(SeedL& seed,
 					ExtensionDirectionL direction, //as there are only 4 directions we may consider even smaller data types
-					int cols,
-					int rows,
-					int lowerDiag,
-					int upperDiag)
+					unsigned short cols,
+					unsigned short rows,
+					unsigned short lowerDiag,
+					unsigned short upperDiag)
 {
 	//TODO 
 	//functions that return diagonal from seed
 	//functions set diagonal for seed
-
+	
 	if (direction == EXTEND_LEFTL)
 	{
-		int beginDiag = seed.beginDiagonal;
-		int sumUp = beginDiag + upperDiag;
-		int sumLow = beginDiag + lowerDiag;
+		unsigned short beginDiag = seed.beginDiagonal;
 		// Set lower and upper diagonals.
 		
-		if (seed.lowerDiagonal > sumLow)
-			seed.lowerDiagonal = sumLow;
-		if (seed.upperDiagonal < sumUp)
-			seed.upperDiagonal = sumUp;
+		if (getLowerDiagonal(seed) > beginDiag + lowerDiag)
+			setLowerDiagonal(seed, beginDiag + lowerDiag);
+		if (getUpperDiagonal(seed) < beginDiag + upperDiag)
+			setUpperDiagonal(seed, beginDiag + upperDiag);
 
 		// Set new start position of seed.
-		seed.beginPositionH -= rows;
-		seed.beginPositionV -= cols;
+		setBeginPositionH(seed, getBeginPositionH(seed) - rows);
+		setBeginPositionV(seed, getBeginPositionV(seed) - cols);
 	} else {  // direction == EXTEND_RIGHTL
 		// Set new lower and upper diagonals.
-		int endDiag = seed.endDiagonal;
-		int diffUp = endDiag - upperDiag;
-		int diffLow = endDiag - lowerDiag;
-		if (seed.upperDiagonal < diffLow)
-			seed.upperDiagonal = diffLow;
-		if (seed.lowerDiagonal > diffUp)
-			seed.lowerDiagonal = diffUp;
+		unsigned short endDiag = seed.endDiagonal;
+		if (getUpperDiagonal(seed) < endDiag - lowerDiag)
+			setUpperDiagonal(seed, (endDiag - lowerDiag));
+		if (getLowerDiagonal(seed) > (endDiag - upperDiag))
+			setLowerDiagonal(seed, endDiag - upperDiag);
 
 		// Set new end position of seed.
-		seed.endPositionH += rows;
-		seed.endPositionV += cols;
+		setEndPositionH(seed, getEndPositionH(seed) + rows);
+		setEndPositionV(seed, getEndPositionV(seed) + cols);
+		
 	}
-	assert(seed.upperDiagonal >= seed.lowerDiagonal);
-	assert(seed.upperDiagonal >= seed.beginDiagonal);
-	assert(seed.upperDiagonal >= seed.endDiagonal);
-	assert(seed.beginDiagonal >= seed.lowerDiagonal);
-	assert(seed.endDiagonal >= seed.lowerDiagonal);
+	// assert(seed.upperDiagonal >= seed.lowerDiagonal);
+	// assert(seed.upperDiagonal >= seed.beginDiagonal);
+	// assert(seed.upperDiagonal >= seed.endDiagonal);
+	// assert(seed.beginDiagonal >= seed.lowerDiagonal);
+	// assert(seed.endDiagonal >= seed.lowerDiagonal);
+	
 }
 
 inline void
-calcExtendedLowerDiag(int& lowerDiag,
-					   int const & minCol,
-					   int const & antiDiagNo)
+calcExtendedLowerDiag(unsigned short& lowerDiag,
+					   unsigned short const & minCol,
+					   unsigned short const & antiDiagNo)
 {
-	int minRow = antiDiagNo - minCol;
-	int diff = minCol - minRow;
-	if (diff < lowerDiag)
-		lowerDiag = diff;
+	unsigned short minRow = antiDiagNo - minCol;
+	if (minCol - minRow < lowerDiag)
+		lowerDiag = minCol - minRow;
 }
 
 inline void
-calcExtendedUpperDiag(int & upperDiag,
-					   int const &maxCol,
-					   int const &antiDiagNo)
+calcExtendedUpperDiag(unsigned short & upperDiag,
+					   unsigned short const &maxCol,
+					   unsigned short const &antiDiagNo)
 {
-	int maxRow = antiDiagNo + 1 - maxCol;
-	int diff = maxCol - 1 - maxRow;
-	if (diff > upperDiag)
-		upperDiag = diff;
+	unsigned short maxRow = antiDiagNo + 1 - maxCol;
+	if (maxCol - 1 - maxRow > upperDiag)
+		upperDiag = maxCol - 1 - maxRow;
 }
 
 void
@@ -117,12 +115,12 @@ swapAntiDiags(std::vector<int> & antiDiag1,
 }
 
 inline int
-initAntiDiag3(std::vector<int> & antiDiag3,
-			   int const & offset,
-			   int const & maxCol,
-			   int const & antiDiagNo,
+initAntiDiag3(std::vector<int>& antiDiag3,
+			   unsigned short const & offset,
+			   unsigned short const & maxCol,
+			   unsigned short const & antiDiagNo,
 			   int const & minScore,
-			   int const & gapCost,
+			   short const & gapCost,
 			   int const & undefined)
 {
 	antiDiag3.resize(maxCol + 1 - offset);
@@ -141,20 +139,19 @@ initAntiDiag3(std::vector<int> & antiDiag3,
 }
 
 inline void
-initAntiDiags(std::vector<int> & ,
-			   std::vector<int> & antiDiag2,
+initAntiDiags(std::vector<int> & antiDiag2,
 			   std::vector<int> & antiDiag3,
-			   int const& dropOff,
-			   int const& gapCost,
+			   short const& dropOff,
+			   short const& gapCost,
 			   int const& undefined)
 {
 	// antiDiagonals will be swaped in while loop BEFORE computation of antiDiag3 entries
 	//  -> no initialization of antiDiag1 necessary
 
-	antiDiag2.resize(1);
+	//antiDiag2.resize(1);
 	antiDiag2[0] = 0;
 
-	antiDiag3.resize(2);
+	//antiDiag3.resize(2);
 	if (-gapCost > dropOff)
 	{
 		antiDiag3[0] = undefined;
@@ -170,56 +167,61 @@ initAntiDiags(std::vector<int> & ,
 int
 extendSeedLGappedXDropOneDirection(
 		SeedL & seed,
-		Dna5String const & querySeg,
-		Dna5String const & databaseSeg,
+		std::string const & querySeg,
+		std::string const & databaseSeg,
 		ExtensionDirectionL const & direction,
 		ScoringSchemeL &scoringScheme,
-		int const &scoreDropOff)
+		short const &scoreDropOff)
 {
 	//typedef typename Size<TQuerySegment>::Type int;
 	//typedef typename SeedL<Simple,TConfig>::int int;
-
-	int cols = length(querySeg)+1;
-	int rows = length(databaseSeg)+1;
+	
+	// std::chrono::duration<double>  diff;
+	unsigned short cols = querySeg.length()+1;
+	unsigned short rows = databaseSeg.length()+1;
 	if (rows == 1 || cols == 1)
 		return 0;
 
-	int len = 2 * std::max(cols, rows); // number of antidiagonals
+	unsigned short len = 2 * std::max(cols, rows); // number of antidiagonals
 	int const minErrScore = std::numeric_limits<int>::min() / len; // minimal allowed error penalty
 	setScoreGap(scoringScheme, std::max(scoreGap(scoringScheme), minErrScore));
 	//std::string * tag = 0;
 	//(void)tag;
 	extendSeedLGappedXDropOneDirectionLimitScoreMismatch(scoringScheme, minErrScore);
 
-	int gapCost = scoreGap(scoringScheme);
+	short gapCost = scoreGap(scoringScheme);
 	int undefined = std::numeric_limits<int>::min() - gapCost;
 
 	// DP matrix is calculated by anti-diagonals
 	std::vector<int> antiDiag1;    //smallest anti-diagonal
-	std::vector<int> antiDiag2;
-	std::vector<int> antiDiag3;    //current anti-diagonal
+	std::vector<int> antiDiag2(1);
+	std::vector<int> antiDiag3(2);    //current anti-diagonal
 
 	// Indices on anti-diagonals include gap column/gap row:
 	//   - decrease indices by 1 for position in query/database segment
 	//   - first calculated entry is on anti-diagonal n\B0 2
 
-	int minCol = 1;
-	int maxCol = 2;
+	unsigned short minCol = 1;
+	unsigned short maxCol = 2;
 
-	int offset1 = 0; // number of leading columns that need not be calculated in antiDiag1
-	int offset2 = 0; //                                                       in antiDiag2
-	int offset3 = 0; //                                                       in antiDiag3
+	unsigned short offset1 = 0; // number of leading columns that need not be calculated in antiDiag1
+	unsigned short offset2 = 0; //                                                       in antiDiag2
+	unsigned short offset3 = 0; //                                                       in antiDiag3
 
-	initAntiDiags(antiDiag1, antiDiag2, antiDiag3, scoreDropOff, gapCost, undefined);
-	int antiDiagNo = 1; // the currently calculated anti-diagonal
+	initAntiDiags(antiDiag2, antiDiag3, scoreDropOff, gapCost, undefined);
+	unsigned short antiDiagNo = 1; // the currently calculated anti-diagonal
 
-	int best = 0; // maximal score value in the DP matrix (for drop-off calculation)
+	unsigned short best = 0; // maximal score value in the DP matrix (for drop-off calculation)
 
-	int lowerDiag = 0;
-	int upperDiag = 0;
+	unsigned short lowerDiag = 0;
+	unsigned short upperDiag = 0;
 	//AAAA part to parallelize???
+	//int index = 0;
+	
 	while (minCol < maxCol)
-	{
+	{	
+
+		
 		++antiDiagNo;
 		swapAntiDiags(antiDiag1, antiDiag2, antiDiag3);
 		offset1 = offset2;
@@ -230,8 +232,10 @@ extendSeedLGappedXDropOneDirection(
 		int antiDiagBest = antiDiagNo * gapCost;
 		//AAAA this must be parallelized
 		//#pragma omp parallel for
-		for (int col = minCol; col < maxCol; ++col) {
+		
+		for (short col = minCol; col < maxCol; ++col) {
 			// indices on anti-diagonals
+			
 			int i3 = col - offset3;
 			int i2 = col - offset2;
 			int i1 = col - offset1;
@@ -248,12 +252,13 @@ extendSeedLGappedXDropOneDirection(
 				queryPos = cols - 1 - col;
 				dbPos = rows - 1 + col - antiDiagNo;
 			}
-
+			
+			
 			// Calculate matrix entry (-> antiDiag3[col])
 			int tmp = std::max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
-			tmp = std::max(tmp, antiDiag1[i1 - 1] + 
-				score(scoringScheme, sequenceEntryForScore(scoringScheme, querySeg, queryPos),
-													  sequenceEntryForScore(scoringScheme, databaseSeg, dbPos)));
+			tmp = std::max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
+			
+			// auto start = std::chrono::high_resolution_clock::now();
 			if (tmp < best - scoreDropOff)
 			{
 				antiDiag3[i3] = undefined;
@@ -261,11 +266,16 @@ extendSeedLGappedXDropOneDirection(
 			else
 			{
 				antiDiag3[i3] = tmp;
-				//antiDiagBest = std::max(antiDiagBest, tmp);
+				antiDiagBest = std::max(antiDiagBest, tmp);
 			}
+			// auto end = std::chrono::high_resolution_clock::now();
+			// diff += end-start;
 		}
-		antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
-		best = std::max(best, antiDiagBest);
+		
+		
+		
+		//antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
+		best = (best > antiDiagBest) ? best : antiDiagBest;
 
 		// Calculate new minCol and minCol
 		while (minCol - offset3 < antiDiag3.size() && antiDiag3[minCol - offset3] == undefined &&
@@ -287,11 +297,19 @@ extendSeedLGappedXDropOneDirection(
 		calcExtendedUpperDiag(upperDiag, maxCol - 1, antiDiagNo);
 
 		// end of databaseSeg reached?
-		minCol = std::max(minCol, antiDiagNo + 2 - rows);
+		minCol = (minCol > (antiDiagNo + 2 - rows)) ? minCol : (antiDiagNo + 2 - rows);
 		// end of querySeg reached?
-		maxCol = std::min(maxCol, cols);
+		maxCol = (maxCol < cols) ? maxCol : cols;
+			
+		
+		//index++;
 	}
+	// std::cout << "logan time: " <<  diff.count() <<std::endl;
+	
 
+	
+	//std::cout << "cycles logan" << index << std::endl;
+	
 	// find positions of longest extension
 
 	// reached ends of both segments
@@ -301,18 +319,17 @@ extendSeedLGappedXDropOneDirection(
 
 	if (longestExtensionScore == undefined)
 	{
-		int antiDiag2size = antiDiag2.size();
-		if (antiDiag2[antiDiag2size-2] != undefined)
+		if (antiDiag2[antiDiag2.size()-2] != undefined)
 		{
 			// reached end of query segment
 			longestExtensionCol = antiDiag2.size() + offset2 - 2;
 			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
 			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
 		}
-		else if (antiDiag2size > 2 && antiDiag2[antiDiag2size-3] != undefined)
+		else if (antiDiag2.size() > 2 && antiDiag2[antiDiag2.size()-3] != undefined)
 		{
 			// reached end of database segment
-			longestExtensionCol = antiDiag2size + offset2 - 3;
+			longestExtensionCol = antiDiag2.size() + offset2 - 3;
 			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
 			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
 		}
@@ -335,14 +352,16 @@ extendSeedLGappedXDropOneDirection(
 	// update seed
 	if (longestExtensionScore != undefined)//AAAA it was !=
 		updateExtendedSeedL(seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
+
 	return longestExtensionScore;
+
 }
 
 inline int
 extendSeedL(SeedL& seed,
 			ExtensionDirectionL direction,
-			Dna5String const& target,
-			Dna5String const& query,
+			std::string const& target,
+			std::string const& query,
 			ScoringSchemeL & penalties,
 			int const& XDrop,
 			int const& kmer_length)
@@ -361,8 +380,8 @@ extendSeedL(SeedL& seed,
 	{
 		// string substr (size_t pos = 0, size_t len = npos) const;
 		// returns a newly constructed string object with its value initialized to a copy of a substring of this object
-		Dna5String targetPrefix = prefix(target, getBeginPositionH(seed));	// from read start til start seed (seed not included)
-		Dna5String queryPrefix = prefix(query, getBeginPositionV(seed));	// from read start til start seed (seed not included)
+		std::string targetPrefix = target.substr(0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
+		std::string queryPrefix = query.substr(0, getBeginPositionV(seed));	// from read start til start seed (seed not included)
 
 		scoreLeft = extendSeedLGappedXDropOneDirection(seed, queryPrefix, targetPrefix, EXTEND_LEFTL, penalties, XDrop);
 	}
@@ -371,8 +390,8 @@ extendSeedL(SeedL& seed,
 	{
 		// Do not extend to the right if we are already at the beginning of an
 		// infix or the sequence itself.
-		Dna5String targetSuffix = suffix(target, getEndPositionH(seed)); 	// from end seed until the end (seed not included)
-		Dna5String querySuffix = suffix(query, getEndPositionV(seed));		// from end seed until the end (seed not included)
+		std::string targetSuffix = target.substr(getEndPositionH(seed), target.length()); 	// from end seed until the end (seed not included)
+		std::string querySuffix = query.substr(getEndPositionV(seed), query.length());		// from end seed until the end (seed not included)
 
 		scoreRight = extendSeedLGappedXDropOneDirection(seed, querySuffix, targetSuffix, EXTEND_RIGHTL, penalties, XDrop);
 	}

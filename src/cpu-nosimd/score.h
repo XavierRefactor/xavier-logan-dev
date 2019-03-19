@@ -29,11 +29,11 @@ struct ScoringSchemeL
 };
 
 //returns the selected char of the sequence at the indicated position 
-inline char
-sequenceEntryForScore(ScoringSchemeL & /*scoringScheme*/, std::string const & seq, int pos)
-{
-    return seq[pos];
-}
+// inline char
+// sequenceEntryForScore(ScoringSchemeL & scoringScheme, std::string const & seq, int pos)
+// {
+//     return seq[pos];
+// }
 
 // return match score
 inline int
