@@ -96,13 +96,6 @@ calcExtendedUpperDiag(unsigned short & upperDiag,
 		upperDiag = maxCol - 1 - maxRow;
 }
 
-void
-extendSeedLGappedXDropOneDirectionLimitScoreMismatch(ScoringSchemeL & scoringScheme,
-													 int const & minErrScore)
-{
-	setScoreMismatch(scoringScheme, std::max(scoreMismatch(scoringScheme), minErrScore));
-}
-
 inline void
 swapAntiDiags(std::vector<int> & antiDiag1,
 			   std::vector<int> & antiDiag2,
@@ -182,12 +175,12 @@ extendSeedLGappedXDropOneDirection(
 	if (rows == 1 || cols == 1)
 		return 0;
 
-	unsigned short len = 2 * std::max(cols, rows); // number of antidiagonals
+	unsigned short len = 2 * std::max(cols, rows); // number of antidiagonals (does not change in any implementation)
 	int const minErrScore = std::numeric_limits<int>::min() / len; // minimal allowed error penalty
 	setScoreGap(scoringScheme, std::max(scoreGap(scoringScheme), minErrScore));
 	//std::string * tag = 0;
 	//(void)tag;
-	extendSeedLGappedXDropOneDirectionLimitScoreMismatch(scoringScheme, minErrScore);
+	setScoreMismatch(scoringScheme, std::max(scoreMismatch(scoringScheme), minErrScore));
 
 	short gapCost = scoreGap(scoringScheme);
 	int undefined = std::numeric_limits<int>::min() - gapCost;
@@ -224,6 +217,9 @@ extendSeedLGappedXDropOneDirection(
 		
 		++antiDiagNo;
 		swapAntiDiags(antiDiag1, antiDiag2, antiDiag3);
+		//antiDiag2 -> antiDiag1
+		//antiDiag3 -> antiDiag2
+		//antiDiag1 -> antiDiag3
 		offset1 = offset2;
 		offset2 = offset3;
 		offset3 = minCol-1;
@@ -266,7 +262,7 @@ extendSeedLGappedXDropOneDirection(
 			else
 			{
 				antiDiag3[i3] = tmp;
-				antiDiagBest = std::max(antiDiagBest, tmp);
+				//antiDiagBest = std::max(antiDiagBest, tmp);
 			}
 			// auto end = std::chrono::high_resolution_clock::now();
 			// diff += end-start;
@@ -274,7 +270,7 @@ extendSeedLGappedXDropOneDirection(
 		
 		
 		
-		//antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
+		antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 
 		// Calculate new minCol and minCol
