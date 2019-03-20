@@ -18,7 +18,6 @@
 #include<omp.h>
 #include"logan.h"
 #include"score.h"
-#include"stringL.h"
 //using namespace seqan;
 // #include <bits/stdc++.h> 
 enum ExtensionDirectionL
@@ -169,7 +168,7 @@ extendSeedLGappedXDropOneDirection(
 	//typedef typename Size<TQuerySegment>::Type int;
 	//typedef typename SeedL<Simple,TConfig>::int int;
 	
-	// std::chrono::duration<double>  diff;
+	//std::chrono::duration<double>  diff;
 	unsigned short cols = querySeg.length()+1;
 	unsigned short rows = databaseSeg.length()+1;
 	if (rows == 1 || cols == 1)
@@ -228,7 +227,7 @@ extendSeedLGappedXDropOneDirection(
 		int antiDiagBest = antiDiagNo * gapCost;
 		//AAAA this must be parallelized
 		//#pragma omp parallel for
-		
+		//auto start = std::chrono::high_resolution_clock::now();
 		for (short col = minCol; col < maxCol; ++col) {
 			// indices on anti-diagonals
 			
@@ -254,7 +253,7 @@ extendSeedLGappedXDropOneDirection(
 			int tmp = std::max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
 			tmp = std::max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
 			
-			// auto start = std::chrono::high_resolution_clock::now();
+			
 			if (tmp < best - scoreDropOff)
 			{
 				antiDiag3[i3] = undefined;
@@ -262,15 +261,15 @@ extendSeedLGappedXDropOneDirection(
 			else
 			{
 				antiDiag3[i3] = tmp;
-				//antiDiagBest = std::max(antiDiagBest, tmp);
+				antiDiagBest = std::max(antiDiagBest, tmp);
 			}
-			// auto end = std::chrono::high_resolution_clock::now();
-			// diff += end-start;
+			
+			
 		}
+		//auto end = std::chrono::high_resolution_clock::now();
+		//diff += end-start;
 		
-		
-		
-		antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
+		//antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 
 		// Calculate new minCol and minCol
@@ -300,7 +299,7 @@ extendSeedLGappedXDropOneDirection(
 		
 		//index++;
 	}
-	// std::cout << "logan time: " <<  diff.count() <<std::endl;
+	//std::cout << "logan time: " <<  diff.count() <<std::endl;
 	
 
 	

@@ -627,7 +627,7 @@ _extendSeedGappedXDropOneDirection(
         Score<TScoreValue, TScoreSpec> scoringScheme,
         TScoreValue scoreDropOff)
 {
-    // std::chrono::duration<double>  diff;
+    //std::chrono::duration<double>  diff;
     typedef typename Size<TQuerySegment>::Type TSize;
     typedef typename Seed<Simple,TConfig>::TDiagonal TDiagonal;
 
@@ -684,10 +684,10 @@ _extendSeedGappedXDropOneDirection(
         _initAntiDiag3(antiDiag3, offset3, maxCol, antiDiagNo, best - scoreDropOff, gapCost, undefined);
 
         TScoreValue antiDiagBest = antiDiagNo * gapCost;
-            
+        //auto start = std::chrono::high_resolution_clock::now(); 
         for (TSize col = minCol; col < maxCol; ++col) {
             // indices on anti-diagonals
-
+             
             TSize i3 = col - offset3;
             TSize i2 = col - offset2;
             TSize i1 = col - offset1;
@@ -720,11 +720,11 @@ _extendSeedGappedXDropOneDirection(
                 antiDiag3[i3] = tmp;
                 antiDiagBest = _max(antiDiagBest, tmp);
             }
-            // auto end = std::chrono::high_resolution_clock::now();       
-            // diff += end-start;
+            
             
         }
-        
+        //auto end = std::chrono::high_resolution_clock::now();
+        //diff += end-start;
        
         best = _max(best, antiDiagBest);
 
@@ -757,7 +757,7 @@ _extendSeedGappedXDropOneDirection(
 
     }
     
-    // std::cout << "seqan time: " <<  diff.count() <<std::endl; 
+    //std::cout << "seqan time: " <<  diff.count() <<std::endl; 
           
     //std::cout << "cycles " << index << std::endl;
     

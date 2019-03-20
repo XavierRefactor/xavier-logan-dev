@@ -35,10 +35,10 @@
 #include <seqan/seeds.h>
 #include <seqan/score.h>
 #include <seqan/modifier.h>
-#include "../cpu-nosimd/logan.cpp"
+#include "../cpu-nosimd/logan-functions.h"
 
 using namespace std;
-using namespace seqan;
+//using namespace seqan;
 
 //=======================================================================
 // 
@@ -46,7 +46,7 @@ using namespace seqan;
 // 
 //=======================================================================
 
-typedef seqan::Seed<Simple> TSeed;
+typedef seqan::Seed<seqan::Simple> TSeed;
 typedef std::tuple< int, int, int, int, int, double > myinfo;	// score, start seedV, end seedV, start seedH, end seedH, runtime
 
 char dummycomplement (char n)
@@ -86,11 +86,11 @@ vector<std::string> split (const std::string &s, char delim)
 // 
 //=======================================================================
 
-// typedef std::tuple< int, int, int, int, double > myinfo;	// score, start seed, end seed, runtime
-myinfo seqanXdrop(Dna5String& readV, Dna5String& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
+//typedef std::tuple< int, int, int, int, double > myinfo;	// score, start seed, end seed, runtime
+myinfo seqanXdrop(seqan::Dna5String& readV, seqan::Dna5String& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
 {
 
-	Score<int, Simple> scoringScheme(mat, mis, gap);
+	seqan::Score<int, seqan::Simple> scoringScheme(mat, mis, gap);
 	int score;
 	myinfo seqanresult;
 
@@ -99,13 +99,13 @@ myinfo seqanXdrop(Dna5String& readV, Dna5String& readH, int posV, int posH, int 
 
 	// perform match extension	
 	auto start = std::chrono::high_resolution_clock::now();
-	score = extendSeed(seed, readH, readV, EXTEND_BOTH, scoringScheme, xdrop, GappedXDrop(), kmerLen);
+	score = seqan::extendSeed(seed, readH, readV, seqan::EXTEND_BOTH, scoringScheme, xdrop, seqan::GappedXDrop(), kmerLen);
 	auto end = std::chrono::high_resolution_clock::now();
 	diff = end-start;
 
-	//std::cout << "seqan time: " <<  diff.count() <<std::endl;
-	double time = diff.count();
-	seqanresult = std::make_tuple(score, beginPositionV(seed), endPositionV(seed), beginPositionH(seed), endPositionH(seed), time);
+	std::cout << "seqan time: " <<  diff.count() <<std::endl;
+	//double time = diff.count();
+	seqanresult = std::make_tuple(score, beginPositionV(seed), endPositionV(seed), beginPositionH(seed), endPositionH(seed), diff.count());
 	return seqanresult;
 }
 
@@ -128,9 +128,9 @@ myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, in
 	auto end_l = std::chrono::high_resolution_clock::now();
 	diff_l = end_l-start_l;
 
-	//std::cout << "logan time: " <<  diff_l.count() <<std::endl;
-	double time_l = diff_l.count();
-	loganresult = std::make_tuple(result, getBeginPositionV(seed), getEndPositionV(seed), getBeginPositionH(seed), getEndPositionH(seed), time_l);
+	std::cout << "logan time: " <<  diff_l.count() <<std::endl;
+	//double time_l = diff_l.count();
+	loganresult = std::make_tuple(result, getBeginPositionV(seed), getEndPositionV(seed), getBeginPositionH(seed), getEndPositionH(seed), diff_l.count());
 	return loganresult;
 }
 
@@ -198,7 +198,7 @@ int main(int argc, char **argv)
 			dummycomplement);
 			posH = seqH.length()-posH-kmerLen;
 
-			Dna5String seqHseqan(seqH), seqVseqan(seqV);
+			seqan::Dna5String seqHseqan(seqH), seqVseqan(seqV);
 			//AAAA change here if using 4 bases and to new type 
 			//Dna5String seqHLogan(seqH), seqVLogan(seqV);
 			myinfo seqanresult;
@@ -206,9 +206,9 @@ int main(int argc, char **argv)
 
 			
 			//cout << "seqan ok" << endl;
-			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
-			seqanresult = seqanXdrop(seqVseqan, seqHseqan, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			seqanresult = seqanXdrop(seqVseqan, seqHseqan, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			
 			//cout << "logan ok" << endl;
 			// GGGG: use a custom data struct instead of tuples 	(readability)
@@ -220,7 +220,7 @@ int main(int argc, char **argv)
 		}
 		else
 		{
-			Dna5String seqHseqan(seqH), seqVseqan(seqV);
+			seqan::Dna5String seqHseqan(seqH), seqVseqan(seqV);
 			//AAAA change here if using 4 bases and to new type 
 			//Dna5String seqHLogan(seqH), seqVLogan(seqV);
 
@@ -229,9 +229,9 @@ int main(int argc, char **argv)
 
 			
 			//cout << "seqan ok" << endl;
-			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
-			seqanresult = seqanXdrop(seqVseqan, seqHseqan, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			seqanresult = seqanXdrop(seqVseqan, seqHseqan, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			
 			//cout << "logan ok" << endl;
 			// GGGG: use a custom data struct instead of tuples 	
