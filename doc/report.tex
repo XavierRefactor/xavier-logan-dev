@@ -51,6 +51,8 @@
 \newcommand{\mB}{\mathbf{B}} 
 \newcommand{\mC}{\mathbf{C}} 
 \newcommand{\transpose}     {^{\mbox{\scriptsize \sf T}}}
+\newcommand{\CC}{C\nolinebreak\hspace{-.05em}\raisebox{.4ex}{\tiny\bf +}\nolinebreak\hspace{-.10em}\raisebox{.4ex}{\tiny\bf +}}
+\def\CC{{C\nolinebreak[4]\hspace{-.05em}\raisebox{.4ex}{\tiny\bf ++}}\xspace}
 
 
 \newcommand{\perc}{}
@@ -83,8 +85,9 @@
 
 \begin{document}
 \maketitle
-\section*{Introduction and Motivation}
+\input{sections/introduction}
 \section*{Proposed Solution}
+\input{sections/proposal}
 \bibliographystyle{natbib}
 \bibliography{document}
 
