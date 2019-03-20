@@ -1,0 +1,91 @@
+\documentclass[11pt,onecolumn]{article}
+\usepackage[margin=1in]{geometry}
+%\renewcommand{\baselinestretch}{1.1}
+
+\usepackage{algorithm,algpseudocode}
+\usepackage{algorithmicx}
+\usepackage{amsmath}
+\usepackage{adjustbox}
+\usepackage{mathtools}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{booktabs, array}
+\usepackage{siunitx}
+\usepackage{scrextend}
+\usepackage{caption}
+\usepackage{placeins}
+\usepackage{subcaption}
+\usepackage{natbib}
+\captionsetup[table]{singlelinecheck=off}
+\usepackage{subcaption}
+\usepackage{hyperref}
+
+\usepackage{xspace}
+\usepackage{balance}
+
+\makeatletter
+\newcommand{\mathleft}{\@fleqntrue\@mathmargin25pt}
+\newcommand{\mathcenter}{\@fleqnfalse}
+\makeatother
+
+\newcommand{\denovo}{\textit{de novo}\xspace}
+\newcommand{\Denovo}{\textit{De novo}\xspace}
+\newcommand{\bella}{BELLA\xspace}
+\newcommand{\spgemm}{SpGEMM\xspace}
+\newcommand{\suppl}{Supplementary~Material\xspace}
+
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage[document]{ragged2e}
+
+% for commenting
+\newcommand{\Aydin}		[1]{{{\color{red}(Aydin) #1}}}
+\newcommand{\Kathy}		[1]{{{\color{violet}(Kathy) #1}}}
+\newcommand{\Giulia}	[1]{{{\color{blue}(Giulia) #1}}}
+\newcommand{\Marquita}	[1]{{{\color{orange}(Marquita) #1}}}
+
+\newcommand{\mA}{\mathbf{A}}
+\newcommand{\mLo}{\mathbf{L1}}
+\newcommand{\mLt}{\mathbf{L2}}
+\newcommand{\mK}{\mathbf{K}}
+\newcommand{\mB}{\mathbf{B}} 
+\newcommand{\mC}{\mathbf{C}} 
+\newcommand{\transpose}     {^{\mbox{\scriptsize \sf T}}}
+
+
+\newcommand{\perc}{}
+\mathcode`*=\string"8000
+\begingroup
+\catcode`*=\active
+\xdef*{\noexpand\textup{\string*}}
+\endgroup
+
+\usepackage{amsfonts}
+\newcommand\given[1][]{\:#1\vert\:}
+\setlength{\tabcolsep}{3.5pt}
+\algdef{SE}[DOWHILE]{Do}{doWhile}{\algorithmicdo}[1]{\algorithmicwhile\ #1}%
+\newcommand{\pluseq}{\mathrel{+}=}
+% Commands for typesetting constants, procedure names, identifiers, and
+% fixed functions.
+% \newcommand{\const}[1]{\textnormal{\scshape#1}}
+\newcommand{\proc}[1]{\textnormal{\scshape#1}}
+\newcommand{\id}[1]{%
+  \ensuremath{\mathop{\mathit{#1}}\nolimits}}
+
+%opening
+\title{CS267 Project Proposal \\ LOGAN: a SIMD $x$-drop sequence alignment algorithm
+}
+\author{Giulia~Guidi and Ed~Younis}
+\date{
+\today\\
+}
+
+
+\begin{document}
+\maketitle
+\section*{Introduction and Motivation}
+\section*{Proposed Solution}
+\bibliographystyle{natbib}
+\bibliography{document}
+
+\end{document}
