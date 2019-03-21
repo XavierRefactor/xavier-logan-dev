@@ -1,8 +1,25 @@
 \justify
+
+Our project would consist of a high-performance seed-and-extend $x$-drop alignment implementation which would benefit both BELLA and many other computational biology applications.
+The project would exploit two different levels of parallelism:
 \begin{itemize}
-	\item \Giulia{SIMD image}
-	\item \Giulia{Brief SIMD description}
-	\item \Giulia{SIMD image applied to $x$-drop}
-	\item \Giulia{List of things we plan to do}
-	\item \Giulia{List of \textit{bonus} things we plan to do}
+	\item Intra-pair parallelism;
+	\item Inter-pair parallelism.
 \end{itemize}
+
+The first component of our project would aim at improving performance at single pairwise alignment level exploiting instruction level parallelism. 	
+Our implementation would initially target AVX2 extensions and it would result in a \textit{banded} $x$-drop alignment.
+The vector width would dictate the band width of the alignment.
+The width of the SIMD register file for AVX2 is 256 bits.
+Thus, assuming our scoring system uses integer values at 16 bits, we would be able to fit 16 values in a vector, obtaining a band width of 16. 
+Each anti-diagonal in the matrix would be computed in parallel through the vectorization, after which we would check the termination condition ($x$-drop) and update the alignment extension using vector masking. 	
+Once implemented a first working version using AVX2 extension, we would consider to implement it also for AVX512 extension, resulting in a doubled band width of the alignment.
+%A further implementation might consist in removing the band limit. 	
+
+The second component would instead use multi-core parallelism resulting in multiple seed-and-extend $x$-drop pairwise alignments occurring in parallel. This might result in either a one-to-many or many-to-many implementation.
+A one-to-many implementation might be more convenient for BELLA as, given its overlap matrix before the alignment, each column is a sequence and each non-zero of that column is an overlapping sequence with one or two common seeds.
+For both components, we might consider to exploit an intrinsic parallelism of the seed-and-extend paradigm, that is computing the left and right alignment extensions simultaneously. This might be achieved exploiting hyper-threading, and properly pinning threads to cores.
+Finally, we would merge these two levels of parallelism in a single multi-core SIMD implementation.
+
+%* Roofline model for the SIMD version.
+%* How is data reuse in multi-core implementation.
