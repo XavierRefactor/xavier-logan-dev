@@ -90,7 +90,7 @@ vector<std::string> split (const std::string &s, char delim)
 myinfo seqanXdrop(seqan::Dna5String& readV, seqan::Dna5String& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
 {
 
-	seqan::Score<int, seqan::Simple> scoringScheme(mat, mis, gap);
+	seqan::Score<int, seqan::Simple> scoringScheme(mat, mis, 0, gap);
 	int score;
 	myinfo seqanresult;
 
@@ -103,7 +103,7 @@ myinfo seqanXdrop(seqan::Dna5String& readV, seqan::Dna5String& readH, int posV, 
 	auto end = std::chrono::high_resolution_clock::now();
 	diff = end-start;
 
-	std::cout << "seqan time: " <<  diff.count() <<std::endl;
+	std::cout << "seqan score:\t" << score << "\tseqan time:\t" <<  diff.count() <<std::endl;
 	//double time = diff.count();
 	seqanresult = std::make_tuple(score, beginPositionV(seed), endPositionV(seed), beginPositionH(seed), endPositionH(seed), diff.count());
 	return seqanresult;
@@ -113,7 +113,7 @@ myinfo seqanXdrop(seqan::Dna5String& readV, seqan::Dna5String& readH, int posV, 
 myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
 {
 
-	ScoringSchemeL penalties(mat, mis, gap);
+	ScoringSchemeL penalties(mat, mis, 0, gap);
 	//Result result(kmerLen);
 	int result;
 	myinfo loganresult;
@@ -128,7 +128,7 @@ myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, in
 	auto end_l = std::chrono::high_resolution_clock::now();
 	diff_l = end_l-start_l;
 
-	std::cout << "logan time: " <<  diff_l.count() <<std::endl;
+	std::cout << "logan score:\t" << result << "\tlogan time:\t" <<  diff_l.count() <<std::endl;
 	//double time_l = diff_l.count();
 	loganresult = std::make_tuple(result, getBeginPositionV(seed), getEndPositionV(seed), getBeginPositionH(seed), getEndPositionH(seed), diff_l.count());
 	return loganresult;
