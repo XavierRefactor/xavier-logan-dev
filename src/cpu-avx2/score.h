@@ -80,7 +80,7 @@ scoreGapOpen(ScoringSchemeL const& me) {
 //returns the gap_open_score NB: valid only for linear gap
 inline int
 scoreGap(ScoringSchemeL const & me){
-	return me.gap_open_score;
+	return me.gap_extend_score;
 }
 
 // individually set gap opening score

@@ -18,8 +18,9 @@
 #include<omp.h>
 #include"logan.h"
 #include"score.h"
-//using namespace seqan;
-// #include <bits/stdc++.h> 
+#include <immintrin.h> // For AVX instructions
+// #include <bits/stdc++.h>
+
 enum ExtensionDirectionL
 {
     EXTEND_NONEL  = 0,
@@ -95,69 +96,69 @@ calcExtendedUpperDiag(unsigned short & upperDiag,
 		upperDiag = maxCol - 1 - maxRow;
 }
 
-inline void
-swapAntiDiags(std::vector<int> & antiDiag1,
-			   std::vector<int> & antiDiag2,
-			   std::vector<int> & antiDiag3)
-{
-	std::vector<int> temp = antiDiag1;
-	antiDiag1 = antiDiag2;
-	antiDiag2 = antiDiag3;
-	antiDiag3 = temp;
-}
+//inline void
+//swapAntiDiags(std::vector<int> & antiDiag1,
+//			   std::vector<int> & antiDiag2,
+//			   std::vector<int> & antiDiag3)
+//{
+//	std::vector<int> temp = antiDiag1;
+//	antiDiag1 = antiDiag2;
+//	antiDiag2 = antiDiag3;
+//	antiDiag3 = temp;
+//}
 
-inline int
-initAntiDiag3(std::vector<int>& antiDiag3,
-			   unsigned short const & offset,
-			   unsigned short const & maxCol,
-			   unsigned short const & antiDiagNo,
-			   int const & minScore,
-			   short const & gapCost,
-			   int const & undefined)
-{
-	antiDiag3.resize(maxCol + 1 - offset);
+//inline int
+//initAntiDiag3(std::vector<int>& antiDiag3,
+//			   unsigned short const & offset,
+//			   unsigned short const & maxCol,
+//			   unsigned short const & antiDiagNo,
+//			   int const & minScore,
+//			   short const & gapCost,
+//			   int const & undefined)
+//{
+//	antiDiag3.resize(maxCol + 1 - offset);
+//
+//	antiDiag3[0] = undefined;
+//	antiDiag3[maxCol - offset] = undefined;
+//
+//	if (antiDiagNo * gapCost > minScore)
+//	{
+//		if (offset == 0) // init first column
+//			antiDiag3[0] = antiDiagNo * gapCost;
+//		if (antiDiagNo - maxCol == 0) // init first row
+//			antiDiag3[maxCol - offset] = antiDiagNo * gapCost;
+//	}
+//	return offset;
+//}
 
-	antiDiag3[0] = undefined;
-	antiDiag3[maxCol - offset] = undefined;
-
-	if (antiDiagNo * gapCost > minScore)
-	{
-		if (offset == 0) // init first column
-			antiDiag3[0] = antiDiagNo * gapCost;
-		if (antiDiagNo - maxCol == 0) // init first row
-			antiDiag3[maxCol - offset] = antiDiagNo * gapCost;
-	}
-	return offset;
-}
-
-inline void
-initAntiDiags(std::vector<int> & antiDiag2,
-			   std::vector<int> & antiDiag3,
-			   short const& dropOff,
-			   short const& gapCost,
-			   int const& undefined)
-{
-	// antiDiagonals will be swaped in while loop BEFORE computation of antiDiag3 entries
-	//  -> no initialization of antiDiag1 necessary
-
-	//antiDiag2.resize(1);
-	antiDiag2[0] = 0;
-
-	//antiDiag3.resize(2);
-	if (-gapCost > dropOff)
-	{
-		antiDiag3[0] = undefined;
-		antiDiag3[1] = undefined;
-	}
-	else
-	{
-		antiDiag3[0] = gapCost;
-		antiDiag3[1] = gapCost;
-	}
-}
+//inline void
+//initAntiDiags(std::vector<int> & antiDiag2,
+//			   std::vector<int> & antiDiag3,
+//			   short const& dropOff,
+//			   short const& gapCost,
+//			   int const& undefined)
+//{
+//	// antiDiagonals will be swaped in while loop BEFORE computation of antiDiag3 entries
+//	//  -> no initialization of antiDiag1 necessary
+//
+//	//antiDiag2.resize(1);
+//	antiDiag2[0] = 0;
+//
+//	//antiDiag3.resize(2);
+//	if (-gapCost > dropOff)
+//	{
+//		antiDiag3[0] = undefined;
+//		antiDiag3[1] = undefined;
+//	}
+//	else
+//	{
+//		antiDiag3[0] = gapCost;
+//		antiDiag3[1] = gapCost;
+//	}
+//}
 
 int
-extendSeedLGappedXDropOneDirection(
+extendSeedLGappedXDropOneDirectionAVX2(
 		SeedL & seed,
 		std::string const & querySeg,
 		std::string const & databaseSeg,
@@ -175,19 +176,19 @@ extendSeedLGappedXDropOneDirection(
 		return 0;
 
 	unsigned short len = 2 * std::max(cols, rows); // number of antidiagonals (does not change in any implementation)
-	int const minErrScore = std::numeric_limits<int>::min() / len; // minimal allowed error penalty
+	short const minErrScore = std::numeric_limits<short>::min() / len; // minimal allowed error penalty
 	setScoreGap(scoringScheme, std::max(scoreGap(scoringScheme), minErrScore));
 	//std::string * tag = 0;
 	//(void)tag;
 	setScoreMismatch(scoringScheme, std::max(scoreMismatch(scoringScheme), minErrScore));
 
 	short gapCost = scoreGap(scoringScheme);
-	int undefined = std::numeric_limits<int>::min() - gapCost;
+	short undefined = std::numeric_limits<short>::min() - gapCost;
 
 	// DP matrix is calculated by anti-diagonals
-	std::vector<int> antiDiag1;    //smallest anti-diagonal
-	std::vector<int> antiDiag2(1);
-	std::vector<int> antiDiag3(2);    //current anti-diagonal
+	register __m256i antiDiag1; 	// 16 (vector width) 16-bit integers
+	register __m256i antiDiag2; 	// 16 (vector width) 16-bit integers
+	register __m256i antiDiag3; 	// 16 (vector width) 16-bit integers
 
 	// Indices on anti-diagonals include gap column/gap row:
 	//   - decrease indices by 1 for position in query/database segment
@@ -200,29 +201,75 @@ extendSeedLGappedXDropOneDirection(
 	unsigned short offset2 = 0; //                                                       in antiDiag2
 	unsigned short offset3 = 0; //                                                       in antiDiag3
 
-	initAntiDiags(antiDiag2, antiDiag3, scoreDropOff, gapCost, undefined);
-	unsigned short antiDiagNo = 1; // the currently calculated anti-diagonal
+	//initAntiDiags(antiDiag2, antiDiag3, scoreDropOff, gapCost, undefined);
+	// antiDiagonals will be swaped in while loop BEFORE computation of antiDiag3 entries
+	//  -> no initialization of antiDiag1 necessary
 
-	unsigned short best = 0; // maximal score value in the DP matrix (for drop-off calculation)
+	//antiDiag2[0] = 0;
+	antiDiag2 = _mm256_setzero_si256 (); 	
+
+	//antiDiag3.resize(2);
+	if (-gapCost > dropOff)
+	{
+		// antiDiag3[0] = undefined;
+		// antiDiag3[1] = undefined;
+		antiDiag3 = _mm256_set1_epi16 (undefined); 	// broadcast 16-bit integer a to all elements of dst
+	}
+	else
+	{
+		// antiDiag3[0] = gapCost;
+		// antiDiag3[1] = gapCost;
+		antiDiag3 = _mm256_set1_epi16 (gapCost); 	// broadcast 16-bit integer a to all elements of dst
+	}
+
+	unsigned short antiDiagNo = 1; 	// the currently calculated anti-diagonal
+	unsigned short best = 0; 		// maximal score value in the DP matrix (for drop-off calculation)
 
 	unsigned short lowerDiag = 0;
 	unsigned short upperDiag = 0;
-	//AAAA part to parallelize???
-	//int index = 0;
-	
-	while (minCol < maxCol)
-	{	
 
-		
+	// This is fixed so no need to load within the loop
+	__m256i undef  = _mm256_set1_epi16(undefined);
+	// mask that set to zero the first element	
+	short neg = -1;
+	short pos =  1;
+	// I need to set the first value to undefined not zero 	
+	__m256i fpmask = _mm256_setr_epi16 (pos, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg);
+
+	while (minCol < maxCol) // this diff cannot be greater than 16
+	{
+
 		++antiDiagNo;
-		swapAntiDiags(antiDiag1, antiDiag2, antiDiag3);
-		//antiDiag2 -> antiDiag1
-		//antiDiag3 -> antiDiag2
-		//antiDiag1 -> antiDiag3
+		// temp = antiDiag1;
+		// swap antiDiags
+		// check memory alignment
+		register __m256i temp;
+		// __m256i _mm256_setr_epi16 eet packed 16-bit integers in dst with the supplied values in reverse order
+		temp 	  = _mm256_load_epi16 (&antiDiag1);
+		antiDiag1 = _mm256_load_epi16 (&antiDiag2);
+		antiDiag2 = _mm256_load_epi16 (&antiDiag3);
+		antiDiag3 = _mm256_load_epi16 (&temp);
+
 		offset1 = offset2;
 		offset2 = offset3;
 		offset3 = minCol-1;
-		initAntiDiag3(antiDiag3, offset3, maxCol, antiDiagNo, best - scoreDropOff, gapCost, undefined);
+
+		// antiDiag3 = _mm256_maskload_epi16 (antiDiag3, fpmask); // antiDiag3 has the first position set to 0 (check consistency positions)
+		// antiDiag3[maxCol - offset] = undefined; // which position is this?
+
+		if (antiDiagNo * gapCost > minScore)
+		{
+			if (offset == 0) // init first column
+			{
+				__m256i val = _mm256_set1_epi16(antiDiagNo * gapCost);
+				antiDiag3 = _mm256_maskload_epi16 (antiDiag3, fpmask); // antiDiag3 has the first position set to 0 (check consistency positions)
+				// first element set to val (check consistency positions)
+				//antiDiag3[0] = antiDiagNo * gapCost;
+				// till here
+			}
+			if (antiDiagNo - maxCol == 0) // init first row
+				antiDiag3[maxCol - offset] = antiDiagNo * gapCost;
+		}
 
 		int antiDiagBest = antiDiagNo * gapCost;
 
@@ -376,7 +423,7 @@ extendSeedL(SeedL& seed,
 		std::string targetPrefix = target.substr(0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
 		std::string queryPrefix = query.substr(0, getBeginPositionV(seed));	// from read start til start seed (seed not included)
 
-		scoreLeft = extendSeedLGappedXDropOneDirection(seed, queryPrefix, targetPrefix, EXTEND_LEFTL, penalties, XDrop);
+		scoreLeft = extendSeedLGappedXDropOneDirectionAVX2(seed, queryPrefix, targetPrefix, EXTEND_LEFTL, penalties, XDrop);
 	}
 
 	if (direction == EXTEND_RIGHTL || direction == EXTEND_BOTHL)
@@ -386,7 +433,7 @@ extendSeedL(SeedL& seed,
 		std::string targetSuffix = target.substr(getEndPositionH(seed), target.length()); 	// from end seed until the end (seed not included)
 		std::string querySuffix = query.substr(getEndPositionV(seed), query.length());		// from end seed until the end (seed not included)
 
-		scoreRight = extendSeedLGappedXDropOneDirection(seed, querySuffix, targetSuffix, EXTEND_RIGHTL, penalties, XDrop);
+		scoreRight = extendSeedLGappedXDropOneDirectionAVX2(seed, querySuffix, targetSuffix, EXTEND_RIGHTL, penalties, XDrop);
 	}
 
 	//Result myalignment(kmer_length); // do not add KMER_LENGTH later
