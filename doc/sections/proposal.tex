@@ -19,7 +19,7 @@ Once implemented a first working version using AVX2 extension, we would consider
 The second component would instead use multi-core parallelism resulting in multiple seed-and-extend $x$-drop pairwise alignments occurring in parallel. This might result in either a one-to-many or many-to-many implementation.
 A one-to-many implementation might be more convenient for BELLA as, given its overlap matrix before the alignment, each column is a sequence and each non-zero of that column is an overlapping sequence with one or two common seeds.
 For both components, we might consider to exploit an intrinsic parallelism of the seed-and-extend paradigm, that is computing the left and right alignment extensions simultaneously. This might be achieved exploiting hyper-threading, and properly pinning threads to cores.
-Finally, we would merge these two levels of parallelism in a single multi-core SIMD implementation.
+Finally, we would merge these two levels of parallelism in a single multi-core SIMD implementation and combine a data reuse study and roofline models of our implementation, time permitting.
 
 %* Roofline model for the SIMD version.
 %* How is data reuse in multi-core implementation.
