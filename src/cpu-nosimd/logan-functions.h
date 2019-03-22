@@ -182,6 +182,7 @@ extendSeedLGappedXDropOneDirection(
 	setScoreMismatch(scoringScheme, std::max(scoreMismatch(scoringScheme), minErrScore));
 
 	short gapCost = scoreGap(scoringScheme);
+	//std::cout<<gapCost<<std::endl;
 	int undefined = std::numeric_limits<int>::min() - gapCost;
 
 	// DP matrix is calculated by anti-diagonals
