@@ -3,21 +3,22 @@ Pairwise sequence alignment is amongst the most compute intensive operations in 
 Particularly, we are going to focus on the \denovo long-read genome assembly problem.
 
 \Denovo assembly is the process of accurately reconstructing a genome sequence from overlapping, error-containing DNA sequence fragments (reads) that redundantly sample a genome. 
-Let's imagine you need to reconstruct a puzzle where the reference image is unknown and the puzzle pieces are extremely small, redundant, and erroneous. 
-Furthermore, in that bunch of pieces, you have a large amount of, for example, blue pieces (corresponding to repetitive regions in the genome, or to a big blue sky over the ocean in your puzzle).
-Those pieces make your task even harder. While longer reads (i.e., bigger puzzle pieces) simplify genome assembly and improve the contiguity of the reconstruction, current long-read technologies come with higher error rates, increasing the computational cost of assembling a genome.
+%Let's imagine you need to reconstruct a puzzle where the reference image is unknown and the puzzle pieces are extremely small, redundant, and erroneous. 
+%Furthermore, in that bunch of pieces, you have a large amount of, for example, blue pieces (corresponding to repetitive regions in the genome, or to a big blue sky over the ocean in your puzzle).
+%Those pieces make your task even harder. While longer reads (i.e., bigger puzzle pieces) simplify genome assembly and improve the contiguity of the reconstruction, current long-read technologies come with higher error rates, increasing the computational cost of assembling a genome.
 
-The first module of \denovo assembly consists in finding overlaps amongst noisy long reads.
+The first module of \denovo long-read assembly consists in finding overlaps amongst noisy long reads.
 Particularly, we are going to focus on a newly developed algorithm~\citep{guidi2018bella}, namely Berkeley Long-Read to Long-Read Aligner and Overlapper (BELLA).
-To efficiently detect overlaps, BELLA uses sparse matrix-matrix multiplication. 
+BELLA uses sparse matrix-matrix multiplication to efficiently detect overlaps.
 Then, it filters candidate read pairs by performing pairwise alignments.
-For pairwise alignment, BELLA employs a seed-and-extend alignment algorithm. BELLA's alignment module is based on a dynamic programming $x$-drop implementation proposed by~\citet{zhang2000greedy} and implemented in the SeqAn library~\citep{doring2008seqan}, a \CC library for sequence analysis. 
+For pairwise alignment, BELLA employs a seed-and-extend alignment algorithm, which is based on a dynamic programming $x$-drop implementation proposed by~\citet{zhang2000greedy} and implemented in the SeqAn library~\citep{doring2008seqan}, a \CC library for sequence analysis. 
 
 Let $A = a_1a_2 \dots a_M$ and $B = b_1b_2 \dots b_N$ be DNA sequences whose initial portions may be identical except for sequencing errors.
 The goal is to see whether they are, in fact, extremely similar and, if so, how far that similarity extends.
-Given that only sequencing errors are present, rather than evolutionary changes, we should not utilize \textit{affine} gap costs (which penalize each run of consecutive gap columns an additional \textit{gap open} penalty), and this simplifies the algorithm.
+%Given that only sequencing errors are present, rather than evolutionary changes, we should not utilize \textit{affine} gap costs (which penalize each run of consecutive gap columns an additional \textit{gap open} penalty), and this simplifies the algorithm.
 The $x$-drop approach~\citep{zhang2000greedy} provides a mechanism that limits the band width and provides an appropriate termination condition.
-If the alignment score of an optimal alignment of  the score of an optimal alignment of $a_1a_2 \dots a_M$ and $b_1b_2 \dots b_N$ falls more than $-x$ belowe the best score seen so far, then we don't want to consider extensions of tha alignment. Thus, the alignment ends before achieving the actual edges of the sequences. 
+If the alignment score of an optimal alignment of the score of an optimal alignment of $a_1a_2 \dots a_M$ and $b_1b_2 \dots b_N$ falls more than $-x$ belowe the best score seen so far, then we don't want to consider extensions of tha alignment.
+Thus, the alignment ends before achieving the actual edges of the sequences. 
 For example, if the best score seen thus far were $200$ with $x = 3$, the algorithm would stop the alignment when the score dropped to $197$ or lower.
 The errors could be non-consecutive: supposing a linear scoring matrix, the score could go down to $198$, get back to $199$ and finally go down again to $197$, at which point the stop criterion is verified and the alignment ends.
 For each sequence pair detected through sparse matrix-matrix multiplication, BELLA computes the pairwise alignment using this $x$-drop algorithm. 
