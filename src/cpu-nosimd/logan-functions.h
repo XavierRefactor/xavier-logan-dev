@@ -372,9 +372,15 @@ extendSeedL(SeedL& seed,
 			int const& kmer_length)
 {
 	if(scoreGapExtend(penalties) >= 0)
-		std::cout<<"|| Warning || Logan will execute with a extension gap penalty >= 0\n";
+	{
+		std::cout<<"Error: Logan does not support gap extension penalty >= 0\n";
+		exit(1);
+	}
 	if(scoreGapOpen(penalties) >= 0)
-		std::cout<<"|| Warning || Logan will execute with a open gap penalty >= 0\n";
+	{
+		std::cout<<"Error: Logan does not support gap opening penalty >= 0\n";
+		exit(1);
+	}
 	//assert(scoreMismatch(penalties) < 0);
 	//assert(scoreMatch(penalties) > 0); 
 	assert(scoreGapOpen(penalties) == scoreGapExtend(extend));
