@@ -166,24 +166,29 @@ extendSeedLGappedXDropOneDirectionAVX2(
 		ScoringSchemeL &scoringScheme,
 		short const &scoreDropOff)
 {
-	//typedef typename Size<TQuerySegment>::Type int;
-	//typedef typename SeedL<Simple,TConfig>::int int;
-	
+
 	//std::chrono::duration<double>  diff;
 	unsigned short cols = querySeg.length()+1;
 	unsigned short rows = databaseSeg.length()+1;
+
 	if (rows == 1 || cols == 1)
 		return 0;
 
 	unsigned short len = 2 * std::max(cols, rows); // number of antidiagonals (does not change in any implementation)
 	short const minErrScore = std::numeric_limits<short>::min() / len; // minimal allowed error penalty
 	setScoreGap(scoringScheme, std::max(scoreGap(scoringScheme), minErrScore));
-	//std::string * tag = 0;
-	//(void)tag;
+
 	setScoreMismatch(scoringScheme, std::max(scoreMismatch(scoringScheme), minErrScore));
 
 	short gapCost = scoreGap(scoringScheme);
 	short undefined = std::numeric_limits<short>::min() - gapCost;
+
+	__m256i best     = _mm_set1_epi16(undefined);
+	__m256i zero_    = _mm_set1_epi16(0);
+	__m256i sc_mch_  = _mm_set1_epi16(scoreMatch(scoringScheme));
+	__m256i sc_mis_  = _mm_set1_epi16(scoreMismatch(scoringScheme));
+	__m256i sc_gapo_ = _mm_set1_epi16(scoreGapExtend(scoringScheme));
+	__m256i sc_gape_ = _mm_set1_epi16(scoreGapExtend(scoringScheme));
 
 	// DP matrix is calculated by anti-diagonals
 	register __m256i antiDiag1; 	// 16 (vector width) 16-bit integers
@@ -257,9 +262,9 @@ extendSeedLGappedXDropOneDirectionAVX2(
 		// antiDiag3 = _mm256_maskload_epi16 (antiDiag3, fpmask); // antiDiag3 has the first position set to 0 (check consistency positions)
 		// antiDiag3[maxCol - offset] = undefined; // which position is this?
 
-		if (antiDiagNo * gapCost > minScore)
+		if (antiDiagNo * gapCost > best - scoreDropOff)
 		{
-			if (offset == 0) // init first column
+			if (offset3 == 0) // init first column
 			{
 				__m256i val = _mm256_set1_epi16(antiDiagNo * gapCost);
 				antiDiag3 = _mm256_maskload_epi16 (antiDiag3, fpmask); // antiDiag3 has the first position set to 0 (check consistency positions)
@@ -268,7 +273,7 @@ extendSeedLGappedXDropOneDirectionAVX2(
 				// till here
 			}
 			if (antiDiagNo - maxCol == 0) // init first row
-				antiDiag3[maxCol - offset] = antiDiagNo * gapCost;
+				antiDiag3[maxCol - offset3] = antiDiagNo * gapCost;
 		}
 
 		int antiDiagBest = antiDiagNo * gapCost;
@@ -276,7 +281,7 @@ extendSeedLGappedXDropOneDirectionAVX2(
 		// GGGG: loop to be unrolled by factor vector width
 		for (short col = minCol; col < maxCol; ++col) {
 			// indices on anti-diagonals
-			
+
 			int i3 = col - offset3;
 			int i2 = col - offset2;
 			int i1 = col - offset1;
@@ -293,8 +298,7 @@ extendSeedLGappedXDropOneDirectionAVX2(
 				queryPos = cols - 1 - col;
 				dbPos = rows - 1 + col - antiDiagNo;
 			}
-			
-			
+
 			// Calculate matrix entry (-> antiDiag3[col])
 			int tmp = std::max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
 			tmp = std::max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
@@ -309,8 +313,6 @@ extendSeedLGappedXDropOneDirectionAVX2(
 				antiDiag3[i3] = tmp;
 				antiDiagBest = std::max(antiDiagBest, tmp);
 			}
-			
-			
 		}
 
 		//antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
@@ -345,11 +347,8 @@ extendSeedLGappedXDropOneDirectionAVX2(
 		//index++;
 	}
 	//std::cout << "logan time: " <<  diff.count() <<std::endl;
-	
 
-	
 	//std::cout << "cycles logan" << index << std::endl;
-	
 	// find positions of longest extension
 
 	// reached ends of both segments
