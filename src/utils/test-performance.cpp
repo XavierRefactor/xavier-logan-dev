@@ -90,7 +90,7 @@ vector<std::string> split (const std::string &s, char delim)
 myinfo seqanXdrop(seqan::Dna5String& readV, seqan::Dna5String& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
 {
 
-	seqan::Score<int, seqan::Simple> scoringScheme(mat, mis, 0, gap);
+	seqan::Score<int, seqan::Simple> scoringScheme(mat, mis, -2, gap);
 	int score;
 	myinfo seqanresult;
 
@@ -113,7 +113,7 @@ myinfo seqanXdrop(seqan::Dna5String& readV, seqan::Dna5String& readH, int posV, 
 myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
 {
 
-	ScoringSchemeL penalties(mat, mis, 0, gap);
+	ScoringSchemeL penalties(mat, mis, -2, gap);
 	//Result result(kmerLen);
 	int result;
 	myinfo loganresult;
@@ -150,7 +150,7 @@ int main(int argc, char **argv)
 	const char* filename =  (char*) malloc(20 * sizeof(char));
 	std::string temp = "benchmark.txt"; // GGGG: make filename input parameter
 	filename = temp.c_str();
-	cout << "starting benchmark" << endl;
+	std::cout << "starting benchmark" << std::endl;
 	int maxt = 1;
 	// omp_set_nested(1);
 //#pragma omp parallel
@@ -198,16 +198,17 @@ int main(int argc, char **argv)
 			dummycomplement);
 			posH = seqH.length()-posH-kmerLen;
 
-			seqan::Dna5String seqHseqan(seqH), seqVseqan(seqV);
+			seqan::Dna5String seqH5(seqH), seqV5(seqV);
 			//AAAA change here if using 4 bases and to new type 
 			//Dna5String seqHLogan(seqH), seqVLogan(seqV);
+
 			myinfo seqanresult;
 			myinfo loganresult;
 
 			
 			//cout << "seqan ok" << endl;
 			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
-			seqanresult = seqanXdrop(seqVseqan, seqHseqan, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			seqanresult = seqanXdrop(seqV5, seqH5, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			
 			//cout << "logan ok" << endl;
@@ -220,7 +221,7 @@ int main(int argc, char **argv)
 		}
 		else
 		{
-			seqan::Dna5String seqHseqan(seqH), seqVseqan(seqV);
+			seqan::Dna5String seqH5(seqH), seqV5(seqV);
 			//AAAA change here if using 4 bases and to new type 
 			//Dna5String seqHLogan(seqH), seqVLogan(seqV);
 
@@ -230,7 +231,7 @@ int main(int argc, char **argv)
 			
 			//cout << "seqan ok" << endl;
 			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
-			seqanresult = seqanXdrop(seqVseqan, seqHseqan, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			seqanresult = seqanXdrop(seqV5, seqH5, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			
 			//cout << "logan ok" << endl;

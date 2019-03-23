@@ -96,9 +96,9 @@ calcExtendedUpperDiag(unsigned short & upperDiag,
 }
 
 inline void
-swapAntiDiags(std::vector<int> & antiDiag1,
-			   std::vector<int> & antiDiag2,
-			   std::vector<int> & antiDiag3)
+swapAntiDiags(std::vector<int>  & antiDiag1,
+			   std::vector<int>  & antiDiag2,
+			   std::vector<int>  & antiDiag3)
 {
 	std::vector<int> temp = antiDiag1;
 	antiDiag1 = antiDiag2;
@@ -107,7 +107,7 @@ swapAntiDiags(std::vector<int> & antiDiag1,
 }
 
 inline int
-initAntiDiag3(std::vector<int>& antiDiag3,
+initAntiDiag3(std::vector<int> & antiDiag3,
 			   unsigned short const & offset,
 			   unsigned short const & maxCol,
 			   unsigned short const & antiDiagNo,
@@ -140,10 +140,13 @@ initAntiDiags(std::vector<int> & antiDiag2,
 	// antiDiagonals will be swaped in while loop BEFORE computation of antiDiag3 entries
 	//  -> no initialization of antiDiag1 necessary
 
-	//antiDiag2.resize(1);
+	antiDiag2.resize(1);
+
+	//resize(antiDiag2, 1);
 	antiDiag2[0] = 0;
 
-	//antiDiag3.resize(2);
+	antiDiag3.resize(2);
+	//resize(antiDiag3, 2);
 	if (-gapCost > dropOff)
 	{
 		antiDiag3[0] = undefined;
@@ -174,12 +177,12 @@ extendSeedLGappedXDropOneDirection(
 	if (rows == 1 || cols == 1)
 		return 0;
 
-	unsigned short len = 2 * std::max(cols, rows); // number of antidiagonals (does not change in any implementation)
+	unsigned short len = 2 * max(cols, rows); // number of antidiagonals (does not change in any implementation)
 	int const minErrScore = std::numeric_limits<int>::min() / len; // minimal allowed error penalty
-	setScoreGap(scoringScheme, std::max(scoreGap(scoringScheme), minErrScore));
+	setScoreGap(scoringScheme, max(scoreGap(scoringScheme), minErrScore));
 	//std::string * tag = 0;
 	//(void)tag;
-	setScoreMismatch(scoringScheme, std::max(scoreMismatch(scoringScheme), minErrScore));
+	setScoreMismatch(scoringScheme, max(scoreMismatch(scoringScheme), minErrScore));
 
 	short gapCost = scoreGap(scoringScheme);
 	//std::cout<<gapCost<<std::endl;
@@ -187,9 +190,11 @@ extendSeedLGappedXDropOneDirection(
 
 	// DP matrix is calculated by anti-diagonals
 	std::vector<int> antiDiag1;    //smallest anti-diagonal
-	std::vector<int> antiDiag2(1);
-	std::vector<int> antiDiag3(2);    //current anti-diagonal
-
+    std::vector<int> antiDiag2;
+    std::vector<int> antiDiag3;   //current anti-diagonal
+    antiDiag1.reserve(max(cols,rows));    //smallest anti-diagonal
+    antiDiag2.reserve(max(cols,rows));
+    antiDiag3.reserve(max(cols,rows)); 
 	// Indices on anti-diagonals include gap column/gap row:
 	//   - decrease indices by 1 for position in query/database segment
 	//   - first calculated entry is on anti-diagonal n\B0 2
@@ -210,7 +215,8 @@ extendSeedLGappedXDropOneDirection(
 	unsigned short upperDiag = 0;
 	//AAAA part to parallelize???
 	//int index = 0;
-	
+	// std::chrono::duration<double>  diff;
+	// auto start = std::chrono::high_resolution_clock::now();
 	while (minCol < maxCol)
 	{	
 
@@ -251,8 +257,8 @@ extendSeedLGappedXDropOneDirection(
 			
 			
 			// Calculate matrix entry (-> antiDiag3[col])
-			int tmp = std::max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
-			tmp = std::max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
+			int tmp = max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
+			tmp = max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
 			
 			
 			if (tmp < best - scoreDropOff)
@@ -262,7 +268,7 @@ extendSeedLGappedXDropOneDirection(
 			else
 			{
 				antiDiag3[i3] = tmp;
-				antiDiagBest = std::max(antiDiagBest, tmp);
+				antiDiagBest = max(antiDiagBest, tmp);
 			}
 			
 			
@@ -274,8 +280,8 @@ extendSeedLGappedXDropOneDirection(
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 
 		// Calculate new minCol and minCol
-		while (minCol - offset3 < antiDiag3.size() && antiDiag3[minCol - offset3] == undefined &&
-			   minCol - offset2 - 1 < antiDiag2.size() && antiDiag2[minCol - offset2 - 1] == undefined)
+		while (minCol - offset3 < seqan::length(antiDiag3) && antiDiag3[minCol - offset3] == undefined &&
+			   minCol - offset2 - 1 < seqan::length(antiDiag2) && antiDiag2[minCol - offset2 - 1] == undefined)
 		{
 			++minCol;
 		}
@@ -293,15 +299,18 @@ extendSeedLGappedXDropOneDirection(
 		calcExtendedUpperDiag(upperDiag, maxCol - 1, antiDiagNo);
 
 		// end of databaseSeg reached?
-		minCol = (minCol > (antiDiagNo + 2 - rows)) ? minCol : (antiDiagNo + 2 - rows);
+		minCol = max(minCol,(antiDiagNo + 2 - rows));
 		// end of querySeg reached?
-		maxCol = (maxCol < cols) ? maxCol : cols;
+		maxCol = min(maxCol, cols);
 			
 		
 		//index++;
 	}
 	//std::cout << "logan time: " <<  diff.count() <<std::endl;
-	
+	// auto end = std::chrono::high_resolution_clock::now();
+	// diff += end-start;
+	// std::cout << "logan: "<<diff.count() <<std::endl;
+
 
 	
 	//std::cout << "cycles logan" << index << std::endl;
@@ -309,23 +318,23 @@ extendSeedLGappedXDropOneDirection(
 	// find positions of longest extension
 
 	// reached ends of both segments
-	int longestExtensionCol = antiDiag3.size() + offset3 - 2;
+	int longestExtensionCol = seqan::length(antiDiag3) + offset3 - 2;
 	int longestExtensionRow = antiDiagNo - longestExtensionCol;
 	int longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
 
 	if (longestExtensionScore == undefined)
 	{
-		if (antiDiag2[antiDiag2.size()-2] != undefined)
+		if (antiDiag2[seqan::length(antiDiag2)-2] != undefined)
 		{
 			// reached end of query segment
-			longestExtensionCol = antiDiag2.size() + offset2 - 2;
+			longestExtensionCol = seqan::length(antiDiag2) + offset2 - 2;
 			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
 			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
 		}
-		else if (antiDiag2.size() > 2 && antiDiag2[antiDiag2.size()-3] != undefined)
+		else if (seqan::length(antiDiag2) > 2 && antiDiag2[seqan::length(antiDiag2)-3] != undefined)
 		{
 			// reached end of database segment
-			longestExtensionCol = antiDiag2.size() + offset2 - 3;
+			longestExtensionCol = seqan::length(antiDiag2) + offset2 - 3;
 			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
 			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
 		}
@@ -334,7 +343,7 @@ extendSeedLGappedXDropOneDirection(
 	if (longestExtensionScore == undefined)
 	{
 		// general case
-		for (int i = 0; i < antiDiag1.size(); ++i)
+		for (int i = 0; i < seqan::length(antiDiag1); ++i)
 		{
 			if (antiDiag1[i] > longestExtensionScore)
 			{
@@ -362,8 +371,10 @@ extendSeedL(SeedL& seed,
 			int const& XDrop,
 			int const& kmer_length)
 {
-	assert(scoreGapExtend(penalties) < 0); 
-	assert(scoreGapOpen(penalties) < 0); 	// this is the same ad GapExtend for linear scoring scheme
+	if(scoreGapExtend(penalties) >= 0)
+		std::cout<<"|| Warning || Logan will execute with a extension gap penalty >= 0\n";
+	if(scoreGapOpen(penalties) >= 0)
+		std::cout<<"|| Warning || Logan will execute with a open gap penalty >= 0\n";
 	//assert(scoreMismatch(penalties) < 0);
 	//assert(scoreMatch(penalties) > 0); 
 	assert(scoreGapOpen(penalties) == scoreGapExtend(extend));
@@ -401,43 +412,43 @@ extendSeedL(SeedL& seed,
 	return res;
 }
 
-#ifdef DEBUG
+// #ifdef DEBUG
 
-//AAAA TODO??? might need some attention since TAlphabet is a graph
-// void
-// extendSeedLGappedXDropOneDirectionLimitScoreMismatch(Score & scoringScheme,
-// 													 int minErrScore,
-// 													 TAlphabet * /*tag*/)
-// {
-// 	// We cannot set a lower limit for the mismatch score since the score might be a scoring matrix such as Blosum62.
-// 	// Instead, we perform a check on the matrix scores.
-// #if SEQAN_ENABLE_DEBUG
-// 	{
-// 		for (unsigned i = 0; i < valueSize<TAlphabet>(); ++i)
-// 			for (unsigned j = 0; j <= i; ++j)
-// 				if(score(scoringScheme, TAlphabet(i), TAlphabet(j)) < minErrScore)
-// 					printf("Mismatch score too small!, i = %u, j = %u\n");
-// 	}
-// #else
-// 	(void)scoringScheme;
-// 	(void)minErrScore;
-// #endif  // #if SEQAN_ENABLE_DEBUG
-// }
+// //AAAA TODO??? might need some attention since TAlphabet is a graph
+// // void
+// // extendSeedLGappedXDropOneDirectionLimitScoreMismatch(Score & scoringScheme,
+// // 													 int minErrScore,
+// // 													 TAlphabet * /*tag*/)
+// // {
+// // 	// We cannot set a lower limit for the mismatch score since the score might be a scoring matrix such as Blosum62.
+// // 	// Instead, we perform a check on the matrix scores.
+// // #if SEQAN_ENABLE_DEBUG
+// // 	{
+// // 		for (unsigned i = 0; i < valueSize<TAlphabet>(); ++i)
+// // 			for (unsigned j = 0; j <= i; ++j)
+// // 				if(score(scoringScheme, TAlphabet(i), TAlphabet(j)) < minErrScore)
+// // 					printf("Mismatch score too small!, i = %u, j = %u\n");
+// // 	}
+// // #else
+// // 	(void)scoringScheme;
+// // 	(void)minErrScore;
+// // #endif  // #if SEQAN_ENABLE_DEBUG
+// // }
 
-// int main(int argc, char const *argv[])
-// {
-// 	//DEBUG ONLY
-// 	SeedL myseed;
-// 	ScoringSchemeL myscore;
-// 	ExtensionDirectionL dir = static_cast<ExtensionDirectionL>(atoi(argv[1]));
-// 	std::string target = argv[2];
-// 	std::string query = argv[3];
-// 	int xdrop = atoi(argv[4]);
-// 	int kmer_length = atoi(argv[5]);
-// 	Result r = extendSeedL(myseed, dir, target, query, myscore, xdrop, kmer_length);
-// 	std::cout << r.score << std::endl;
-// 	return 0;
-// }
+// // int main(int argc, char const *argv[])
+// // {
+// // 	//DEBUG ONLY
+// // 	SeedL myseed;
+// // 	ScoringSchemeL myscore;
+// // 	ExtensionDirectionL dir = static_cast<ExtensionDirectionL>(atoi(argv[1]));
+// // 	std::string target = argv[2];
+// // 	std::string query = argv[3];
+// // 	int xdrop = atoi(argv[4]);
+// // 	int kmer_length = atoi(argv[5]);
+// // 	Result r = extendSeedL(myseed, dir, target, query, myscore, xdrop, kmer_length);
+// // 	std::cout << r.score << std::endl;
+// // 	return 0;
+// // }
 
-#endif
+// #endif
 

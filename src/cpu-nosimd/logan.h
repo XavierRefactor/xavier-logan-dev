@@ -7,6 +7,40 @@
 #include<algorithm> 
 #include<cassert>
 
+template<typename Tx_>
+inline
+const Tx_& min(const Tx_& _Left, const Tx_& Right_)
+{   // return smaller of _Left and Right_
+    if (_Left < Right_)
+        return _Left;
+    else
+        return Right_;
+}
+
+template<typename Tx_, typename Ty_>
+inline
+Tx_ min(const Tx_& _Left, const Ty_& Right_)
+{   // return smaller of _Left and Right_
+    return (Right_ < _Left ? Right_ : _Left);
+}
+template<typename Ty_>
+inline Ty_ const &
+max(const Ty_& _Left, const Ty_& Right_)
+{   // return larger of _Left and Right_
+    if (_Left < Right_)
+        return Right_;
+    else
+        return _Left;
+}
+
+template<typename Tx_, typename Ty_>
+inline Tx_
+max(const Tx_& _Left, const Ty_& Right_)
+{   // return smaller of _Left and Right_
+    return (Right_ < _Left ? _Left : Right_);
+}
+
+
 struct SeedL
 {
 	int beginPositionH;

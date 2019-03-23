@@ -627,7 +627,6 @@ _extendSeedGappedXDropOneDirection(
         Score<TScoreValue, TScoreSpec> scoringScheme,
         TScoreValue scoreDropOff)
 {
-    //std::chrono::duration<double>  diff;
     typedef typename Size<TQuerySegment>::Type TSize;
     typedef typename Seed<Simple,TConfig>::TDiagonal TDiagonal;
 
@@ -669,7 +668,6 @@ _extendSeedGappedXDropOneDirection(
 
     TDiagonal lowerDiag = 0;
     TDiagonal upperDiag = 0;
-
 
     //int index = 0;
     while (minCol < maxCol)
