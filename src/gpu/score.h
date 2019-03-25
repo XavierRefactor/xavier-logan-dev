@@ -37,67 +37,67 @@ struct ScoringSchemeL
 
 // return match score
 inline int
-scoreMatch(ScoringSchemeL const& me) {
+__device__ scoreMatch(ScoringSchemeL const& me) {
 	return me.match_score;
 }
 
 // individually set match score
 inline void
-setScoreMatch(ScoringSchemeL & me, int const& value) {
+__device__ setScoreMatch(ScoringSchemeL & me, int const& value) {
 	me.match_score = value;
 }
 
 // return mismatch score
 inline int
-scoreMismatch(ScoringSchemeL const& me) {
+__device__ scoreMismatch(ScoringSchemeL const& me) {
 	return me.mismatch_score;
 }
 
 // individually set mismatch score
 inline void
-setScoreMismatch(ScoringSchemeL & me, int const& value) {
+__device__ setScoreMismatch(ScoringSchemeL & me, int const& value) {
 	me.mismatch_score = value;
 }
 
 // return gap extension score
 inline int
-scoreGapExtend(ScoringSchemeL const& me) {
+__device__ scoreGapExtend(ScoringSchemeL const& me) {
 	return me.gap_extend_score;
 }
 
 // individually set gap extension score
 inline void
-setScoreGapExtend(ScoringSchemeL & me, int const& value) {
+__device__ setScoreGapExtend(ScoringSchemeL & me, int const& value) {
 	me.gap_extend_score = value;
 }
 
 // return gap opening score
 inline int
-scoreGapOpen(ScoringSchemeL const& me) {
+__device__ scoreGapOpen(ScoringSchemeL const& me) {
 	return me.gap_open_score;
 }
 
 //returns the gap_open_score NB: valid only for linear gap
 inline int
-scoreGap(ScoringSchemeL const & me){
+__device__ scoreGap(ScoringSchemeL const & me){
 	return me.gap_extend_score;
 }
 
 // individually set gap opening score
 inline void
-setScoreGapOpen(ScoringSchemeL & me, int const& value) {
+__device__ setScoreGapOpen(ScoringSchemeL & me, int const& value) {
 	me.gap_open_score = value;
 }
 
 // set gap opening and gap extend scores
 inline void
-setScoreGap(ScoringSchemeL & me, int const& value) {
+__device__ setScoreGap(ScoringSchemeL & me, int const& value) {
 	me.gap_extend_score = value;
 	me.gap_open_score = value;
 }
 
 inline int
-score(ScoringSchemeL const & me, char valH, char valV) {
+__device__ score(ScoringSchemeL const & me, char valH, char valV) {
     if (valH == valV)
         return scoreMatch(me);
     else

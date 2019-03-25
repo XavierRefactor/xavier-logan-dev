@@ -124,7 +124,12 @@ myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, in
 	// perform match extension	
 	auto start_l = std::chrono::high_resolution_clock::now();
 	// GGGG: double check call function
-	result = extendSeedL(seed, EXTEND_BOTHL, readH, readV, penalties, xdrop, kmerLen);
+	char *read, *target;
+	read = (char *)malloc(sizeof(char)*readV.length());
+	target = (char *)malloc(sizeof(char)*readH.length());
+	memcpy(target, readH.c_str(), readH.length());
+	memcpy(read, readV.c_str(), readV.length());
+	result = extendSeedL(seed, EXTEND_BOTHL, target, read, penalties, xdrop, kmerLen,readH.length(),readV.length());
 	auto end_l = std::chrono::high_resolution_clock::now();
 	diff_l = end_l-start_l;
 

@@ -13,7 +13,7 @@
 
 //#define DEBUG
 
-#include<vector>
+//#include<vector>
 #include<iostream>
 // #include<boost/array.hpp>
 #include"logan.h"
@@ -30,7 +30,7 @@ enum ExtensionDirectionL
 
 //template<typename TSeedL, typename int, typename int>
 inline void
-updateExtendedSeedL(SeedL& seed,
+__device__ updateExtendedSeedL(SeedL& seed,
 					ExtensionDirectionL direction, //as there are only 4 directions we may consider even smaller data types
 					unsigned short cols,
 					unsigned short rows,
@@ -76,9 +76,9 @@ updateExtendedSeedL(SeedL& seed,
 }
 
 inline void
-computeAntidiag(std::vector<int> &antiDiag1,
-				std::vector<int> &antiDiag2,
-				std::vector<int> &antiDiag3,
+__device__ computeAntidiag(gpuVector<int> &antiDiag1,
+				gpuVector<int> &antiDiag2,
+				gpuVector<int> &antiDiag3,
 				unsigned short const &offset1,
 				unsigned short const &offset2,
 				unsigned short const &offset3,
@@ -86,8 +86,8 @@ computeAntidiag(std::vector<int> &antiDiag1,
 				unsigned short const &antiDiagNo,
 				short const &gapCost,
 				ScoringSchemeL &scoringScheme,
-				std::string const &querySeg,
-				std::string const &databaseSeg,
+				char *querySeg,
+				char *databaseSeg,
 				int const &undefined,
 				int const &best,
 				short const &scoreDropOff,
@@ -136,7 +136,7 @@ computeAntidiag(std::vector<int> &antiDiag1,
 	}
 }
 inline void
-calcExtendedLowerDiag(unsigned short& lowerDiag,
+__device__ calcExtendedLowerDiag(unsigned short& lowerDiag,
 					   unsigned short const & minCol,
 					   unsigned short const & antiDiagNo)
 {
@@ -146,7 +146,7 @@ calcExtendedLowerDiag(unsigned short& lowerDiag,
 }
 
 inline void
-calcExtendedUpperDiag(unsigned short & upperDiag,
+__device__ calcExtendedUpperDiag(unsigned short & upperDiag,
 					   unsigned short const &maxCol,
 					   unsigned short const &antiDiagNo)
 {
@@ -156,17 +156,18 @@ calcExtendedUpperDiag(unsigned short & upperDiag,
 }
 
 inline void
-swapAntiDiags(std::vector<int> &antiDiag1,
-			   std::vector<int> &antiDiag2,
-			   std::vector<int> &antiDiag3)
+__device__ swapAntiDiags(gpuVector<int> &antiDiag1,
+			   gpuVector<int> &antiDiag2,
+			   gpuVector<int> &antiDiag3)
 {
-	//std::vector<int> temp = antiDiag1;
-	swap(antiDiag1,antiDiag2);
-	swap(antiDiag2,antiDiag3);
+	gpuVector<int> temp = antiDiag1;
+	antiDiag1 = antiDiag2;
+	antiDiag2 = antiDiag3;
+	antiDiag3 = temp;
 }
 
 inline int
-initAntiDiag3(std::vector<int> &antiDiag3,
+__device__ initAntiDiag3(gpuVector<int> &antiDiag3,
 			   unsigned short const & offset,
 			   unsigned short const & maxCol,
 			   unsigned short const & antiDiagNo,
@@ -190,8 +191,8 @@ initAntiDiag3(std::vector<int> &antiDiag3,
 }
 
 inline void
-initAntiDiags(std::vector<int> &antiDiag2,
-			   std::vector<int> &antiDiag3,
+__device__ initAntiDiags(gpuVector<int> &antiDiag2,
+			   gpuVector<int> &antiDiag3,
 			   short const& dropOff,
 			   short const& gapCost,
 			   int const& undefined)
@@ -217,27 +218,42 @@ initAntiDiags(std::vector<int> &antiDiag2,
 		antiDiag3[1] = gapCost;
 	}
 }
+//AAAA to be optmized
+int
+__device__ maxElem(gpuVector<int> &antiDiag,
+			int const& undefined
+	){
+	int max=undefined;
+	for(int i=0; i<antiDiag.size(); i++){
+		if(antiDiag[i]>max)
+			max=antiDiag[i];
+	}
+	return max;
+}
 
 int
-extendSeedLGappedXDropOneDirection(
+__device__ extendSeedLGappedXDropOneDirection(
 		SeedL & seed,
-		std::string const & querySeg,
-		std::string const & databaseSeg,
+		char *querySeg,
+		char *databaseSeg,
 		ExtensionDirectionL const & direction,
 		ScoringSchemeL &scoringScheme,
-		short const &scoreDropOff)
+		short const &scoreDropOff,
+		unsigned short querySegLength,
+		unsigned short databaseSegLength
+		)
 {
 	//typedef typename Size<TQuerySegment>::Type int;
 	//typedef typename SeedL<Simple,TConfig>::int int;
 	
 	//std::chrono::duration<double>  diff;
-	unsigned short cols = querySeg.length()+1;
-	unsigned short rows = databaseSeg.length()+1;
+	unsigned short cols = querySegLength+1;
+	unsigned short rows = databaseSegLength+1;
 	if (rows == 1 || cols == 1)
 		return 0;
-
+	int minimumVal = -2147483648;//as the minimum value will always be calculated starting from an integer, we can fix it without the need to call the function
 	unsigned short len = 2 * max(cols, rows); // number of antidiagonals (does not change in any implementation)
-	int const minErrScore = std::numeric_limits<int>::min() / len; // minimal allowed error penalty
+	int const minErrScore = minimumVal / len; // minimal allowed error penalty
 	setScoreGap(scoringScheme, max(scoreGap(scoringScheme), minErrScore));
 	//std::string * tag = 0;
 	//(void)tag;
@@ -245,12 +261,12 @@ extendSeedLGappedXDropOneDirection(
 
 	short gapCost = scoreGap(scoringScheme);
 	//std::cout<<gapCost<<std::endl;
-	int undefined = std::numeric_limits<int>::min() - gapCost;
+	int undefined = minimumVal - gapCost;
 
 	// DP matrix is calculated by anti-diagonals
-	std::vector<int> antiDiag1;    //smallest anti-diagonal
-    std::vector<int> antiDiag2;
-    std::vector<int> antiDiag3;   //current anti-diagonal
+	gpuVector<int> antiDiag1;    //smallest anti-diagonal
+    gpuVector<int> antiDiag2;
+    gpuVector<int> antiDiag3;   //current anti-diagonal
 
 	// Indices on anti-diagonals include gap column/gap row:
 	//   - decrease indices by 1 for position in query/database segment
@@ -296,7 +312,7 @@ extendSeedLGappedXDropOneDirection(
 		//auto end = std::chrono::high_resolution_clock::now();
 		//diff += end-start;
 		
-		antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
+		antiDiagBest = maxElem(antiDiag3, undefined);
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 
 		// Calculate new minCol and minCol
@@ -381,24 +397,26 @@ extendSeedLGappedXDropOneDirection(
 	return longestExtensionScore;
 
 }
-
+//optimize this to run on GPU
 inline int
-extendSeedL(SeedL& seed,
+__device__ extendSeedL(SeedL& seed,
 			ExtensionDirectionL direction,
-			std::string const& target,
-			std::string const& query,
+			char* target,
+			char* query,
 			ScoringSchemeL & penalties,
 			int const& XDrop,
-			int const& kmer_length)
+			int const& kmer_length,
+			int const& query_l,
+			int const& target_l)
 {
 	if(scoreGapExtend(penalties) >= 0)
 	{
-		std::cout<<"Error: Logan does not support gap extension penalty >= 0\n";
+	//	std::cout<<"Error: Logan does not support gap extension penalty >= 0\n";
 		exit(1);
 	}
 	if(scoreGapOpen(penalties) >= 0)
 	{
-		std::cout<<"Error: Logan does not support gap opening penalty >= 0\n";
+	//	std::cout<<"Error: Logan does not support gap opening penalty >= 0\n";
 		exit(1);
 	}
 	//assert(scoreMismatch(penalties) < 0);
@@ -408,25 +426,30 @@ extendSeedL(SeedL& seed,
 	int scoreLeft=0;
 	int scoreRight=0;
 	Result scoreFinal;
+	char *queryPrefix, *querySuffix, *targetPrefix, *targetSuffix;
 
+	queryPrefix = (char *) malloc( sizeof(char) * query_l);
+	querySuffix = (char *) malloc( sizeof(char) * query_l);
+	targetPrefix = (char *) malloc( sizeof(char) * target_l);
+	targetSuffix = (char *) malloc( sizeof(char) * target_l);
 	if (direction == EXTEND_LEFTL || direction == EXTEND_BOTHL)
 	{
 		// string substr (size_t pos = 0, size_t len = npos) const;
 		// returns a newly constructed string object with its value initialized to a copy of a substring of this object
-		std::string targetPrefix = target.substr(0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
-		std::string queryPrefix = query.substr(0, getBeginPositionV(seed));	// from read start til start seed (seed not included)
+		memcpy(targetPrefix, target,getBeginPositionH(seed));	// from read start til start seed (seed not included)
+		memcpy(queryPrefix, query, getBeginPositionV(seed));  // from read start til start seed (seed not included)
 
-		scoreLeft = extendSeedLGappedXDropOneDirection(seed, queryPrefix, targetPrefix, EXTEND_LEFTL, penalties, XDrop);
+		scoreLeft = extendSeedLGappedXDropOneDirection(seed, queryPrefix, targetPrefix, EXTEND_LEFTL, penalties, XDrop,getBeginPositionV(seed),getBeginPositionH(seed));
 	}
 
 	if (direction == EXTEND_RIGHTL || direction == EXTEND_BOTHL)
 	{
 		// Do not extend to the right if we are already at the beginning of an
 		// infix or the sequence itself.
-		std::string targetSuffix = target.substr(getEndPositionH(seed), target.length()); 	// from end seed until the end (seed not included)
-		std::string querySuffix = query.substr(getEndPositionV(seed), query.length());		// from end seed until the end (seed not included)
+		memcpy(targetSuffix, target+getEndPositionH(seed), target_l);  // from end seed until the end (seed not included)
+		memcpy(querySuffix, query+getEndPositionV(seed), query_l);    // from end seed until the end (seed not included)
 
-		scoreRight = extendSeedLGappedXDropOneDirection(seed, querySuffix, targetSuffix, EXTEND_RIGHTL, penalties, XDrop);
+		scoreRight = extendSeedLGappedXDropOneDirection(seed, querySuffix, targetSuffix, EXTEND_RIGHTL, penalties, XDrop,query_l-getEndPositionV(seed),target_l-getEndPositionH(seed));
 	}
 
 	//Result myalignment(kmer_length); // do not add KMER_LENGTH later
@@ -434,6 +457,10 @@ extendSeedL(SeedL& seed,
 	//myalignment.score = scoreLeft + scoreRight + kmer_length; // we have already accounted for seed match score
 	int res = scoreLeft + scoreRight + kmer_length;
 	//myalignment.myseed = seed;	// extended begin and end of the seed
+	free(queryPrefix);
+	free(querySuffix);
+	free(targetPrefix);
+	free(targetSuffix);
 
 	return res;
 }
