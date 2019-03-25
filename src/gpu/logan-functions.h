@@ -403,7 +403,7 @@ extendSeedL(SeedL& seed,
 	}
 	//assert(scoreMismatch(penalties) < 0);
 	//assert(scoreMatch(penalties) > 0); 
-	assert(scoreGapOpen(penalties) == scoreGapExtend(extend));
+	assert(scoreGapOpen(penalties) == scoreGapExtend(penalties));
 
 	int scoreLeft=0;
 	int scoreRight=0;
