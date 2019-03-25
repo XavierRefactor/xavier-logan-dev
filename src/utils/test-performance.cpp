@@ -90,20 +90,22 @@ vector<std::string> split (const std::string &s, char delim)
 myinfo seqanXdrop(seqan::Dna5String& readV, seqan::Dna5String& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
 {
 
-	seqan::Score<int, seqan::Simple> scoringScheme(mat, mis, -2, gap);
+	seqan::Score<int, seqan::Simple> scoringScheme(mat, mis, gap);
 	int score;
 	myinfo seqanresult;
 
 	std::chrono::duration<double>  diff;
 	TSeed seed(posH, posV, kmerLen);
 
+	//std::cout << beginPositionV(seed) << "\t" << endPositionV(seed) << "\t" << beginPositionH(seed) << "\t" << endPositionH(seed) << endl;
 	// perform match extension	
 	auto start = std::chrono::high_resolution_clock::now();
 	score = seqan::extendSeed(seed, readH, readV, seqan::EXTEND_BOTH, scoringScheme, xdrop, seqan::GappedXDrop(), kmerLen);
 	auto end = std::chrono::high_resolution_clock::now();
 	diff = end-start;
 
-	std::cout << "seqan score:\t" << score << "\tseqan time:\t" <<  diff.count() <<std::endl;
+	//std::cout << "seqan score:\t" << score << "\tseqan time:\t" <<  diff.count() <<std::endl;
+	std::cout << "Best\t" << score << "\t" << beginPositionV(seed) << "\t" << endPositionV(seed) << "\t" << beginPositionH(seed) << "\t" << endPositionH(seed) << endl;
 	//double time = diff.count();
 	seqanresult = std::make_tuple(score, beginPositionV(seed), endPositionV(seed), beginPositionH(seed), endPositionH(seed), diff.count());
 	return seqanresult;
@@ -113,14 +115,14 @@ myinfo seqanXdrop(seqan::Dna5String& readV, seqan::Dna5String& readH, int posV, 
 myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
 {
 
-	ScoringSchemeL penalties(mat, mis, -2, gap);
+	ScoringSchemeL penalties(mat, mis, gap);
 	//Result result(kmerLen);
 	int result;
 	myinfo loganresult;
 
 	std::chrono::duration<double>  diff_l;
 	SeedL seed(posH, posV, kmerLen);
-
+	std::cout << "\t\t"<< getBeginPositionV(seed) << "\t" << getEndPositionV(seed) << "\t" << getBeginPositionH(seed) << "\t" << getEndPositionH(seed) << endl;
 	// perform match extension	
 	auto start_l = std::chrono::high_resolution_clock::now();
 	// GGGG: double check call function
@@ -128,7 +130,9 @@ myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, in
 	auto end_l = std::chrono::high_resolution_clock::now();
 	diff_l = end_l-start_l;
 
-	std::cout << "logan score:\t" << result << "\tlogan time:\t" <<  diff_l.count() <<std::endl;
+	//std::cout << "logan score:\t" << result << "\tlogan time:\t" <<  diff_l.count() <<std::endl;
+	std::cout << "Longest\t" << result << "\t" << getBeginPositionV(seed) << "\t" << getEndPositionV(seed) << "\t" << getBeginPositionH(seed) << "\t" << getEndPositionH(seed) << endl;
+
 	//double time_l = diff_l.count();
 	loganresult = std::make_tuple(result, getBeginPositionV(seed), getEndPositionV(seed), getBeginPositionH(seed), getEndPositionH(seed), diff_l.count());
 	return loganresult;
