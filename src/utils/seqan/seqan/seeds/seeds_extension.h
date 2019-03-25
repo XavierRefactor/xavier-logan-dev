@@ -47,6 +47,8 @@
 
 #ifndef SEQAN_SEEDS_SEEDS_EXTENSION_H_
 #define SEQAN_SEEDS_SEEDS_EXTENSION_H_
+#define BEST
+//#define LONGEST
 #define KMER_LENGTH 17
 
 namespace seqan {
@@ -669,6 +671,11 @@ _extendSeedGappedXDropOneDirection(
     TDiagonal lowerDiag = 0;
     TDiagonal upperDiag = 0;
 
+#ifdef BEST
+    TSize bestExtensionCol = 0;
+    TSize bestExtensionRow = 0;
+    TScoreValue bestExtensionScore = 0;
+#endif
     //int index = 0;
     while (minCol < maxCol)
     {
@@ -721,9 +728,16 @@ _extendSeedGappedXDropOneDirection(
             
             
         }
-        //auto end = std::chrono::high_resolution_clock::now();
-        //diff += end-start;
-       
+
+#ifdef BEST
+        // seed extension wrt best score
+        if (antiDiagBest >= best)
+        {
+            bestExtensionCol    = length(antiDiag3) + offset3 - 2;
+            bestExtensionRow    = antiDiagNo - bestExtensionCol;
+            bestExtensionScore  = best;
+        }
+#endif
         best = _max(best, antiDiagBest);
 
         // Calculate new minCol and minCol
@@ -750,22 +764,15 @@ _extendSeedGappedXDropOneDirection(
         // end of querySeg reached?
         maxCol = _min(maxCol, cols);
         //index++;
-        
-        
-
     }
-    
-    //std::cout << "seqan time: " <<  diff.count() <<std::endl; 
-          
-    //std::cout << "cycles " << index << std::endl;
-    
-    // find positions of longest extension
 
+#ifdef LONGEST
+    // find positions of longest extension
     // reached ends of both segments
     TSize longestExtensionCol = length(antiDiag3) + offset3 - 2;
     TSize longestExtensionRow = antiDiagNo - longestExtensionCol;
     TScoreValue longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
-
+    
     if (longestExtensionScore == undefined)
     {
         if (antiDiag2[length(antiDiag2)-2] != undefined)
@@ -797,13 +804,19 @@ _extendSeedGappedXDropOneDirection(
             }
         }
     }
-
-    // update seed
+    // update seed wrt longest score
     if (longestExtensionScore != undefined)
         _updateExtendedSeed(seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
-   
-
     return longestExtensionScore;
+#endif
+
+#ifdef BEST
+    // update seed wrt best score
+    if (bestExtensionScore != undefined)
+        _updateExtendedSeed(seed, direction, bestExtensionCol, bestExtensionRow, lowerDiag, upperDiag);
+    return bestExtensionScore;
+#endif
+
 }
 
 template <typename TConfig, typename TDatabase, typename TQuery, typename TScoreValue, typename TScoreSpec>
@@ -867,7 +880,7 @@ extendSeed(Seed<Simple, TConfig> & seed,
     }
     //std::cout<<"scoreLeft: "<<longestExtensionScoreLeft<<" scoreRight: "<<longestExtensionScoreRight<<std::endl;
     longestExtensionScore = longestExtensionScoreRight + longestExtensionScoreLeft;
-    return (int)longestExtensionScore+kmerLen;
+    return (int)longestExtensionScore + kmerLen;
     //return (int)longestExtensionScore+KMER_LENGTH;
     //AAAA KMER_LENGTH is fixed to 17 that's why we got a different value
     //now it changes accordingly to the kmer-length set by the user
