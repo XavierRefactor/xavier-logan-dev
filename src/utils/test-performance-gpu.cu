@@ -35,7 +35,7 @@
 #include <seqan/seeds.h>
 #include <seqan/score.h>
 #include <seqan/modifier.h>
-#include "../cpu-nosimd/logan-functions.h"
+#include "../gpu/logan-functions.h"
 
 using namespace std;
 //using namespace seqan;

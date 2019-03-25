@@ -1,4 +1,5 @@
 COMPILER = g++
+COMPILER_GPU = nvcc
 CC = gcc
 CFLAGS = -I. -O3 -Wall -Wextra -pedantic -ansi -c -Wno-write-strings
 SEQINCLUDE=	-Iseqan
@@ -6,9 +7,17 @@ SEQINCLUDE=	-Iseqan
 optlist.o:	../optlist/optlist.c ../optlist/optlist.h
 	$(CC) $(CFLAGS) $<
 
-test: test-performance.cpp
+test: test-performance-nosimd.cpp
 
-	$(COMPILER) -std=c++14 $(INCLUDE) -O3 -march=native $(SEQINCLUDE) -o test test-performance.cpp
+	$(COMPILER) -std=c++14 $(INCLUDE) -O3 -march=native $(SEQINCLUDE) -o test test-performance-nosimd.cpp
+
+gpu: test-performance-gpu.cu
+
+	$(COMPILER_GPU) -Xcompiler "-std=c++11" $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
+
+gpu_temp: test-performance-gpu-temp.cu
+
+	$(COMPILER_GPU) -Xcompiler "-std=c++11" $(INCLUDE) $(SEQINCLUDE) test-performance-gpu-temp.cu -o test
 
 clean:
 	rm -f *.o
