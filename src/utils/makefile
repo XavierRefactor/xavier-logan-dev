@@ -11,9 +11,9 @@ test: test-performance-nosimd.cpp
 
 	$(COMPILER) -std=c++14 $(INCLUDE) -O3 -march=native $(SEQINCLUDE) -o test test-performance-nosimd.cpp
 
-gpu: test-performance-gpu.cpp
+gpu: test-performance-gpu.cu
 
-	$(COMPILER_GPU) -std=c++14 $(INCLUDE) -O3 -march=native $(SEQINCLUDE) -o test test-performance-gpu.cpp
+	$(COMPILER_GPU) -Xcompiler "-std=c++1y" $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
 
 clean:
 	rm -f *.o
