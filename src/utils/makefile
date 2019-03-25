@@ -13,7 +13,11 @@ test: test-performance-nosimd.cpp
 
 gpu: test-performance-gpu.cu
 
-	$(COMPILER_GPU) -Xcompiler "-std=c++1y" $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
+	$(COMPILER_GPU) -Xcompiler "-std=c++11" $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
+
+gpu_temp: test-performance-gpu-temp.cpp
+
+	$(COMPILER_GPU) -Xcompiler "-std=c++11" $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
 
 clean:
 	rm -f *.o

@@ -5,7 +5,7 @@
 // Date:   12 March 2019
 //========================================================================================================
 
-#include <omp.h>
+//#include <omp.h>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -30,12 +30,12 @@
 #include <set>
 #include <memory>
 #include <typeinfo>
-#include <seqan/sequence.h>
-#include <seqan/align.h>
-#include <seqan/seeds.h>
-#include <seqan/score.h>
-#include <seqan/modifier.h>
-#include "../cpu-nosimd/logan-functions.h"
+// #include <seqan/sequence.h>
+// #include <seqan/align.h>
+// #include <seqan/seeds.h>
+// #include <seqan/score.h>
+// #include <seqan/modifier.h>
+#include "../gpu/logan-functions.h"
 
 using namespace std;
 //using namespace seqan;
@@ -46,7 +46,7 @@ using namespace std;
 // 
 //=======================================================================
 
-typedef seqan::Seed<seqan::Simple> TSeed;
+//typedef seqan::Seed<seqan::Simple> TSeed;
 typedef std::tuple< int, int, int, int, int, double > myinfo;	// score, start seedV, end seedV, start seedH, end seedH, runtime
 
 char dummycomplement (char n)
@@ -87,27 +87,27 @@ vector<std::string> split (const std::string &s, char delim)
 //=======================================================================
 
 //typedef std::tuple< int, int, int, int, double > myinfo;	// score, start seed, end seed, runtime
-myinfo seqanXdrop(seqan::Dna5String& readV, seqan::Dna5String& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
-{
+// myinfo seqanXdrop(seqan::Dna5String& readV, seqan::Dna5String& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
+// {
 
-	seqan::Score<int, seqan::Simple> scoringScheme(mat, mis, -1, gap);
-	int score;
-	myinfo seqanresult;
+// 	seqan::Score<int, seqan::Simple> scoringScheme(mat, mis, -2, gap);
+// 	int score;
+// 	myinfo seqanresult;
 
-	std::chrono::duration<double>  diff;
-	TSeed seed(posH, posV, kmerLen);
+// 	std::chrono::duration<double>  diff;
+// 	TSeed seed(posH, posV, kmerLen);
 
-	// perform match extension	
-	auto start = std::chrono::high_resolution_clock::now();
-	score = seqan::extendSeed(seed, readH, readV, seqan::EXTEND_BOTH, scoringScheme, xdrop, seqan::GappedXDrop(), kmerLen);
-	auto end = std::chrono::high_resolution_clock::now();
-	diff = end-start;
+// 	// perform match extension	
+// 	auto start = std::chrono::high_resolution_clock::now();
+// 	score = seqan::extendSeed(seed, readH, readV, seqan::EXTEND_BOTH, scoringScheme, xdrop, seqan::GappedXDrop(), kmerLen);
+// 	auto end = std::chrono::high_resolution_clock::now();
+// 	diff = end-start;
 
-	std::cout << "seqan score:\t" << score << "\tseqan time:\t" <<  diff.count() <<std::endl;
-	//double time = diff.count();
-	seqanresult = std::make_tuple(score, beginPositionV(seed), endPositionV(seed), beginPositionH(seed), endPositionH(seed), diff.count());
-	return seqanresult;
-}
+// 	std::cout << "seqan score:\t" << score << "\tseqan time:\t" <<  diff.count() <<std::endl;
+// 	//double time = diff.count();
+// 	seqanresult = std::make_tuple(score, beginPositionV(seed), endPositionV(seed), beginPositionH(seed), endPositionH(seed), diff.count());
+// 	return seqanresult;
+// }
 
 // typedef std::tuple< int, int, int, int, double > myinfo;	// score, start seed, end seed, runtime
 myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
@@ -151,11 +151,11 @@ int main(int argc, char **argv)
 	std::string temp = "benchmark.txt"; // GGGG: make filename input parameter
 	filename = temp.c_str();
 	std::cout << "starting benchmark" << std::endl;
-	int maxt = 1;
+	int maxt = 30;
 	// omp_set_nested(1);
 //#pragma omp parallel
 	{
-		maxt = omp_get_num_threads();
+		//maxt = omp_get_num_threads();
 	}
 
 	uint64_t numpair = std::count(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>(), '\n');
@@ -178,7 +178,7 @@ int main(int argc, char **argv)
 //#pragma omp parallel for
 	for(uint64_t i = 0; i < numpair; i++) 
 	{
-		int ithread = omp_get_thread_num();
+		int ithread = i;//omp_get_thread_num();
 		// format: seqV, posV, seqH, posH, strand -- GGGG: generate this input with BELLA
 		std::vector<std::string> v = split (entries[i], '\t');
 
@@ -198,7 +198,7 @@ int main(int argc, char **argv)
 			dummycomplement);
 			posH = seqH.length()-posH-kmerLen;
 
-			seqan::Dna5String seqH5(seqH), seqV5(seqV);
+			//seqan::Dna5String seqH5(seqH), seqV5(seqV);
 			//AAAA change here if using 4 bases and to new type 
 			//Dna5String seqHLogan(seqH), seqVLogan(seqV);
 
@@ -208,7 +208,7 @@ int main(int argc, char **argv)
 			
 			//cout << "seqan ok" << endl;
 			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
-			seqanresult = seqanXdrop(seqV5, seqH5, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			//seqanresult = seqanXdrop(seqV5, seqH5, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			
 			//cout << "logan ok" << endl;
@@ -221,7 +221,7 @@ int main(int argc, char **argv)
 		}
 		else
 		{
-			seqan::Dna5String seqH5(seqH), seqV5(seqV);
+			//seqan::Dna5String seqH5(seqH), seqV5(seqV);
 			//AAAA change here if using 4 bases and to new type 
 			//Dna5String seqHLogan(seqH), seqVLogan(seqV);
 
@@ -231,7 +231,7 @@ int main(int argc, char **argv)
 			
 			//cout << "seqan ok" << endl;
 			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
-			seqanresult = seqanXdrop(seqV5, seqH5, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			//seqanresult = seqanXdrop(seqV5, seqH5, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			
 			//cout << "logan ok" << endl;
@@ -262,10 +262,10 @@ int main(int argc, char **argv)
 	// this will likely create a sparse file so the actual disks won't spin yet 	
 	output.write("", 1); 
 	output.close();
-
-	#pragma omp parallel
+	for(int i =0; i<maxt; i++)
+	//#pragma omp parallel
 	{
-		int ithread = omp_get_thread_num(); 
+		int ithread = i; 
 
 		FILE *ffinal;
 		// then everyone fills it 	
