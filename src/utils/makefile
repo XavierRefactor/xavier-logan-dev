@@ -15,9 +15,9 @@ gpu: test-performance-gpu.cu
 
 	$(COMPILER_GPU) -Xcompiler "-std=c++11" $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
 
-gpu_temp: test-performance-gpu-temp.cpp
+gpu_temp: test-performance-gpu-temp.cu
 
-	$(COMPILER_GPU) -Xcompiler "-std=c++11" $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
+	$(COMPILER_GPU) -Xcompiler "-std=c++11" $(INCLUDE) $(SEQINCLUDE) test-performance-gpu-temp.cu -o test
 
 clean:
 	rm -f *.o
