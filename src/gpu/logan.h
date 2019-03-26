@@ -8,7 +8,6 @@
 #include<cassert>
 
 template<typename Tx_>
-inline
 const Tx_& 
 __device__ min(const Tx_& _Left, const Tx_& Right_)
 {   // return smaller of _Left and Right_
@@ -19,13 +18,13 @@ __device__ min(const Tx_& _Left, const Tx_& Right_)
 }
 
 template<typename Tx_, typename Ty_>
-inline Tx_ 
+Tx 
 __device__ min(const Tx_& _Left, const Ty_& Right_)
 {   // return smaller of _Left and Right_
     return (Right_ < _Left ? Right_ : _Left);
 }
 template<typename Ty_>
-inline Ty_ const &
+Ty_ const &
 __device__ max(const Ty_& _Left, const Ty_& Right_)
 {   // return larger of _Left and Right_
     if (_Left < Right_)
@@ -35,7 +34,7 @@ __device__ max(const Ty_& _Left, const Ty_& Right_)
 }
 
 template<typename Tx_, typename Ty_>
-inline Tx_
+Tx_
 __device__ max(const Tx_& _Left, const Ty_& Right_)
 {   // return smaller of _Left and Right_
     return (Right_ < _Left ? _Left : Right_);
@@ -192,102 +191,102 @@ struct Result
 // GGGG we can think about this later
 // AAAA add setter also
 
-inline int
+int
 __device__ getAlignScore(SeedL const &myseed){
 	return myseed.score;
 }
 
-inline int
+int
 __device__ getBeginPositionH(SeedL const &myseed){
 	return myseed.beginPositionH;
 }
 
-inline int
+int
 __device__ getBeginPositionV(SeedL const &myseed){
 	return myseed.beginPositionV;
 }
 
-inline int
+int
 __device__ getEndPositionH(SeedL const &myseed){
 	return myseed.endPositionH;
 }
 
-inline int
+int
 __device__ getEndPositionV(SeedL const &myseed){
 	return myseed.endPositionV;
 }
 
-inline int
+int
 __device__ getSeedLLength(SeedL const &myseed){
 	return myseed.seedLength;
 }
 
-inline int
+int
 __device__ getLowerDiagonal(SeedL const &myseed){
 	return myseed.lowerDiagonal;
 }
 
-inline int
+int
 __device__ getUpperDiagonal(SeedL const &myseed){
 	return myseed.upperDiagonal;
 }
 
-inline int
+int
 __device__ getBeginDiagonal(SeedL const &myseed){
 	return myseed.beginDiagonal;
 }
 
-inline int
+int
 __device__ getEndDiagonal(SeedL const &myseed){
 	return myseed.endDiagonal;
 }
 
-inline void
+void
 __device__ setAlignScore(SeedL &myseed,int const value){
 	myseed.score = value;
 }
 
-inline void
+void
 __device__ setBeginPositionH(SeedL &myseed,int const value){
 	myseed.beginPositionH = value;
 }
 
-inline void
+void
 __device__ setBeginPositionV(SeedL &myseed,int const value){
 	myseed.beginPositionV = value;
 }
 
-inline void
+void
 __device__ setEndPositionH(SeedL &myseed,int const value){
 	myseed.endPositionH = value;
 }
 
-inline void
+void
 __device__ setEndPositionV(SeedL &myseed,int const value){
 	myseed.endPositionV = value;
 }
 
-inline void
+void
 __device__ setSeedLLength(SeedL &myseed,int const value){
 	myseed.seedLength = value;
 }
 
-inline void
+void
 __device__ setLowerDiagonal(SeedL &myseed,int const value){
 	myseed.lowerDiagonal = value;
 }
 
-inline void
+void
 __device__ setUpperDiagonal(SeedL &myseed,int const value){
 	myseed.upperDiagonal = value;
 }
 
-inline void
+void
 __device__ setBeginDiagonal(SeedL &myseed,int const value){
 	myseed.beginDiagonal = value;
 }
 
-inline void
+void
 __device__ setEndDiagonal(SeedL &myseed,int const value){
 	myseed.endDiagonal = value;
 }

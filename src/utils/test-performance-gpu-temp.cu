@@ -208,6 +208,7 @@ int main(int argc, char **argv)
 			loganXdrop <<<1, 1024>>> (query, target, posV, posH, mat, mis, gap, kmerLen, xdrop, loganresult, query_l, target_l, result);
 			
 			auto end_l = std::chrono::high_resolution_clock::now();
+			cudaDeviceSynchronize();
 			diff_l = end_l-start_l;
 
 			std::cout << "logan score:\t" << result << "\tlogan time:\t" <<  diff_l.count() <<std::endl;
@@ -243,7 +244,7 @@ int main(int argc, char **argv)
 			auto start_l = std::chrono::high_resolution_clock::now();
 			//cout << "seqan ok" << endl;
 			loganXdrop <<<1, 1024>>> (query, target, posV, posH, mat, mis, gap, kmerLen, xdrop, loganresult, query_l, target_l, result);
-			
+			cudaDeviceSynchronize();
 			auto end_l = std::chrono::high_resolution_clock::now();
 			diff_l = end_l-start_l;
 

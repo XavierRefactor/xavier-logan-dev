@@ -29,7 +29,7 @@ enum ExtensionDirectionL
 };
 
 //template<typename TSeedL, typename int, typename int>
-inline void
+void
 __device__ updateExtendedSeedL(SeedL& seed,
 					ExtensionDirectionL direction, //as there are only 4 directions we may consider even smaller data types
 					unsigned short cols,
@@ -75,7 +75,7 @@ __device__ updateExtendedSeedL(SeedL& seed,
 	
 }
 
-inline void
+void
 __device__ computeAntidiag(gpuVector<int> &antiDiag1,
 				gpuVector<int> &antiDiag2,
 				gpuVector<int> &antiDiag3,
@@ -135,7 +135,7 @@ __device__ computeAntidiag(gpuVector<int> &antiDiag1,
 	
 	}
 }
-inline void
+void
 __device__ calcExtendedLowerDiag(unsigned short& lowerDiag,
 					   unsigned short const & minCol,
 					   unsigned short const & antiDiagNo)
@@ -145,7 +145,7 @@ __device__ calcExtendedLowerDiag(unsigned short& lowerDiag,
 		lowerDiag = minCol - minRow;
 }
 
-inline void
+void
 __device__ calcExtendedUpperDiag(unsigned short & upperDiag,
 					   unsigned short const &maxCol,
 					   unsigned short const &antiDiagNo)
@@ -155,7 +155,7 @@ __device__ calcExtendedUpperDiag(unsigned short & upperDiag,
 		upperDiag = maxCol - 1 - maxRow;
 }
 
-inline void
+void
 __device__ swapAntiDiags(gpuVector<int> &antiDiag1,
 			   gpuVector<int> &antiDiag2,
 			   gpuVector<int> &antiDiag3)
@@ -166,7 +166,7 @@ __device__ swapAntiDiags(gpuVector<int> &antiDiag1,
 	antiDiag3 = temp;
 }
 
-inline int
+int
 __device__ initAntiDiag3(gpuVector<int> &antiDiag3,
 			   unsigned short const & offset,
 			   unsigned short const & maxCol,
@@ -190,7 +190,7 @@ __device__ initAntiDiag3(gpuVector<int> &antiDiag3,
 	return offset;
 }
 
-inline void
+void
 __device__ initAntiDiags(gpuVector<int> &antiDiag2,
 			   gpuVector<int> &antiDiag3,
 			   short const& dropOff,
@@ -398,7 +398,7 @@ __device__ extendSeedLGappedXDropOneDirection(
 
 }
 //optimize this to run on GPU
-inline int
+int
 __device__ extendSeedL(SeedL& seed,
 			ExtensionDirectionL direction,
 			char* target,
