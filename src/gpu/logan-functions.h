@@ -409,16 +409,16 @@ __device__ extendSeedL(SeedL& seed,
 			int const& query_l,
 			int const& target_l)
 {
-	if(scoreGapExtend(penalties) >= 0)
-	{
-	//	std::cout<<"Error: Logan does not support gap extension penalty >= 0\n";
-		exit(1);
-	}
-	if(scoreGapOpen(penalties) >= 0)
-	{
-	//	std::cout<<"Error: Logan does not support gap opening penalty >= 0\n";
-		exit(1);
-	}
+	// if(scoreGapExtend(penalties) >= 0)
+	// {
+	// //	std::cout<<"Error: Logan does not support gap extension penalty >= 0\n";
+	// 	exit(1);
+	// }
+	// if(scoreGapOpen(penalties) >= 0)
+	// {
+	// //	std::cout<<"Error: Logan does not support gap opening penalty >= 0\n";
+	// 	exit(1);
+	// }
 	//assert(scoreMismatch(penalties) < 0);
 	//assert(scoreMatch(penalties) > 0); 
 	assert(scoreGapOpen(penalties) == scoreGapExtend(penalties));

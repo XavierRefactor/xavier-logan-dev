@@ -129,10 +129,10 @@ struct SeedL
 	int endDiagonal;
 	int score;
 
-	SeedL(): beginPositionH(0), beginPositionV(0), endPositionH(0), endPositionV(0), lowerDiagonal(0), upperDiagonal(0), score(0)
+	__host__ __device__ SeedL(): beginPositionH(0), beginPositionV(0), endPositionH(0), endPositionV(0), lowerDiagonal(0), upperDiagonal(0), score(0)
 	{}
 
-	SeedL(int beginPositionH, int beginPositionV, int seedLength):
+	__host__ __device__ SeedL(int beginPositionH, int beginPositionV, int seedLength):
 		beginPositionH(beginPositionH), beginPositionV(beginPositionV), endPositionH(beginPositionH + seedLength),
 		endPositionV(beginPositionV + seedLength), lowerDiagonal((beginPositionH - beginPositionV)),
 		upperDiagonal((beginPositionH - beginPositionV)), beginDiagonal(beginPositionH - beginPositionV),
@@ -141,13 +141,13 @@ struct SeedL
 		assert(upperDiagonal >= lowerDiagonal);
 	}
 
-	SeedL(int beginPositionH, int beginPositionV, int endPositionH, int endPositionV):
+	__host__ __device__ SeedL(int beginPositionH, int beginPositionV, int endPositionH, int endPositionV):
 		beginPositionH(beginPositionH),
 		beginPositionV(beginPositionV),
 		endPositionH(endPositionH),
 		endPositionV(endPositionV),
-		lowerDiagonal(std::min((beginPositionH - beginPositionV), (endPositionH - endPositionV))),
-		upperDiagonal(std::max((beginPositionH - beginPositionV), (endPositionH - endPositionV))),
+		lowerDiagonal(min((beginPositionH - beginPositionV), (endPositionH - endPositionV))),
+		upperDiagonal(max((beginPositionH - beginPositionV), (endPositionH - endPositionV))),
 		beginDiagonal((beginPositionH - beginPositionV)),
 		endDiagonal((endPositionH - endPositionV)),
 		score(0)
@@ -155,7 +155,7 @@ struct SeedL
 		assert(upperDiagonal >= lowerDiagonal);
 	}
 
-	SeedL(SeedL const& other):
+	__host__ __device__ SeedL(SeedL const& other):
 		beginPositionH(other.beginPositionH),
 		beginPositionV(other.beginPositionV),
 		endPositionH(other.endPositionH),
@@ -177,12 +177,12 @@ struct Result
 	int score; 			// alignment score
 	int length;			// overlap length / max extension
 
-	Result() : score(0), length(0)//check
+	__host__ __device__ Result() : score(0), length(0)//check
 	{
 		//myseed=SeedL();
 	}
 
-	Result(int kmerLen) : score(0), length(kmerLen)
+	__host__ __device__ Result(int kmerLen) : score(0), length(kmerLen)
 	{
 		//myseed=SeedL();
 	}

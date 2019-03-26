@@ -11,18 +11,18 @@ struct ScoringSchemeL
 		int gap_extend_score; // gap extension (indels)
 		int gap_open_score;   // gap opening (indels)
 
-		ScoringSchemeL()
+		__host__ __device__ ScoringSchemeL()
 				: match_score(1), mismatch_score(-1), gap_extend_score(-1), gap_open_score(-1) {
 		}
 
 		// liner gap penalty
-		ScoringSchemeL(int match, int mismatch, int gap)
+		__host__ __device__ ScoringSchemeL(int match, int mismatch, int gap)
 				: match_score(match), mismatch_score(mismatch),
 					gap_extend_score(gap), gap_open_score(gap) {
 		}
 
 		// affine gap penalty
-		ScoringSchemeL(int match, int mismatch, int gap_extend, int gap_open) 
+		__host__ __device__ ScoringSchemeL(int match, int mismatch, int gap_extend, int gap_open) 
 				: match_score(match), mismatch_score(mismatch),
 					gap_extend_score(gap_extend), gap_open_score(gap_open) {
 		}

@@ -110,33 +110,19 @@ vector<std::string> split (const std::string &s, char delim)
 // }
 
 // typedef std::tuple< int, int, int, int, double > myinfo;	// score, start seed, end seed, runtime
-myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
+__global__ void loganXdrop(char * query, char * target, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop, myinfo &loganresult, int query_l, int target_l, int &result)
 {
 
 	ScoringSchemeL penalties(mat, mis, -1, gap);
 	//Result result(kmerLen);
-	int result;
-	myinfo loganresult;
 
-	std::chrono::duration<double>  diff_l;
 	SeedL seed(posH, posV, kmerLen);
-
 	// perform match extension	
-	auto start_l = std::chrono::high_resolution_clock::now();
 	// GGGG: double check call function
-	char *read, *target;
-	read = (char *)malloc(sizeof(char)*readV.length());
-	target = (char *)malloc(sizeof(char)*readH.length());
-	memcpy(target, readH.c_str(), readH.length());
-	memcpy(read, readV.c_str(), readV.length());
-	result = extendSeedL(seed, EXTEND_BOTHL, target, read, penalties, xdrop, kmerLen,readH.length(),readV.length());
-	auto end_l = std::chrono::high_resolution_clock::now();
-	diff_l = end_l-start_l;
-
-	std::cout << "logan score:\t" << result << "\tlogan time:\t" <<  diff_l.count() <<std::endl;
+	result = extendSeedL(seed, EXTEND_BOTHL, target, query, penalties, xdrop, kmerLen,query_l,target_l);
 	//double time_l = diff_l.count();
-	loganresult = std::make_tuple(result, getBeginPositionV(seed), getEndPositionV(seed), getBeginPositionH(seed), getEndPositionH(seed), diff_l.count());
-	return loganresult;
+	//loganresult = std::make_tuple(result, getBeginPositionV(seed), getEndPositionV(seed), getBeginPositionH(seed), getEndPositionH(seed), diff_l.count());
+
 }
 
 //=======================================================================
@@ -192,7 +178,7 @@ int main(int argc, char **argv)
 		std::string seqV = v[0];		
 		std::string seqH = v[2];
 		std::string strand = v[4];
-
+		int result;
 		// reverse complement (use horizontal read) if needed
 		if(strand == "c")
 		{
@@ -202,7 +188,13 @@ int main(int argc, char **argv)
 				std::begin(seqH),
 			dummycomplement);
 			posH = seqH.length()-posH-kmerLen;
-
+			char *query, *target;
+			cudaMallocManaged(&query, sizeof(char)*seqV.length());
+			cudaMallocManaged(&target, sizeof(char)*seqH.length());
+			memcpy(target, seqH.c_str(), seqH.length());
+			memcpy(query, seqV.c_str(), seqV.length());
+			int query_l = seqV.length();
+			int target_l = seqH.length();
 			//seqan::Dna5String seqH5(seqH), seqV5(seqV);
 			//AAAA change here if using 4 bases and to new type 
 			//Dna5String seqHLogan(seqH), seqVLogan(seqV);
@@ -210,12 +202,19 @@ int main(int argc, char **argv)
 			myinfo seqanresult;
 			myinfo loganresult;
 
-			
+			std::chrono::duration<double>  diff_l;
+			auto start_l = std::chrono::high_resolution_clock::now();
 			//cout << "seqan ok" << endl;
-			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			loganXdrop <<<1, 1024>>> (query, target, posV, posH, mat, mis, gap, kmerLen, xdrop, loganresult, query_l, target_l, result);
+			
+			auto end_l = std::chrono::high_resolution_clock::now();
+			diff_l = end_l-start_l;
+
+			std::cout << "logan score:\t" << result << "\tlogan time:\t" <<  diff_l.count() <<std::endl;
 			//seqanresult = seqanXdrop(seqV5, seqH5, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
-			
+			cudaFree(target);
+			cudaFree(query);
 			//cout << "logan ok" << endl;
 			// GGGG: use a custom data struct instead of tuples 	(readability)
 			local[ithread] << i << "\t" << get<0>(seqanresult) << "\t" << get<1>(seqanresult) << "\t" 
@@ -232,13 +231,28 @@ int main(int argc, char **argv)
 
 			myinfo seqanresult;
 			myinfo loganresult;
-
+			char *query, *target;
+			cudaMallocManaged(&query, sizeof(char)*seqV.length());
+			cudaMallocManaged(&target, sizeof(char)*seqH.length());
+			memcpy(target, seqH.c_str(), seqH.length());
+			memcpy(query, seqV.c_str(), seqV.length());
+			int query_l = seqV.length();
+			int target_l = seqH.length();
 			
+			std::chrono::duration<double>  diff_l;
+			auto start_l = std::chrono::high_resolution_clock::now();
 			//cout << "seqan ok" << endl;
-			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			loganXdrop <<<1, 1024>>> (query, target, posV, posH, mat, mis, gap, kmerLen, xdrop, loganresult, query_l, target_l, result);
+			
+			auto end_l = std::chrono::high_resolution_clock::now();
+			diff_l = end_l-start_l;
+
+			std::cout << "logan score:\t" << result << "\tlogan time:\t" <<  diff_l.count() <<std::endl;	
+
 			//seqanresult = seqanXdrop(seqV5, seqH5, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
-			
+			cudaFree(target);
+			cudaFree(query);
 			//cout << "logan ok" << endl;
 			// GGGG: use a custom data struct instead of tuples 	
 			local[ithread] << i << "\t" << get<0>(seqanresult) << "\t" << get<1>(seqanresult) << "\t" 
