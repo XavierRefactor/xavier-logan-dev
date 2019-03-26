@@ -461,7 +461,6 @@ __device__ extendSeedL(SeedL& seed,
 	free(querySuffix);
 	free(targetPrefix);
 	free(targetSuffix);
-
 	return res;
 }
 
