@@ -120,8 +120,8 @@ __global__ void loganXdrop(char * query, char * target, int posV, int posH, int 
 	SeedL seed(posH, posV, kmerLen);
 	// perform match extension	
 	// GGGG: double check call function
-	int r = extendSeedL(seed, EXTEND_BOTHL, target, query, penalties, xdrop, kmerLen,query_l,target_l);
-	printf("%d\n", r);
+	*result= extendSeedL(seed, EXTEND_BOTHL, target, query, penalties, xdrop, kmerLen,query_l,target_l);
+	printf("%d\n",*result);
 	//double time_l = diff_l.count();
 	//loganresult = std::make_tuple(result, getBeginPositionV(seed), getEndPositionV(seed), getBeginPositionH(seed), getEndPositionH(seed), diff_l.count());
 
@@ -207,7 +207,7 @@ int main(int argc, char **argv)
 			std::chrono::duration<double>  diff_l;
 			auto start_l = std::chrono::high_resolution_clock::now();
 			//cout << "seqan ok" << endl;
-			loganXdrop <<<1, 1024>>> (query, target, posV, posH, mat, mis, gap, kmerLen, xdrop, loganresult, query_l, target_l, &result);
+			loganXdrop <<<1,1>>> (query, target, posV, posH, mat, mis, gap, kmerLen, xdrop, loganresult, query_l, target_l, &result);
 			cudaDeviceSynchronize();
 			auto end_l = std::chrono::high_resolution_clock::now();
 			diff_l = end_l-start_l;
@@ -244,7 +244,7 @@ int main(int argc, char **argv)
 			std::chrono::duration<double>  diff_l;
 			auto start_l = std::chrono::high_resolution_clock::now();
 			//cout << "seqan ok" << endl;
-			loganXdrop <<<1,1024>>> (query, target, posV, posH, mat, mis, gap, kmerLen, xdrop, loganresult, query_l, target_l, &result);
+			loganXdrop <<<1,1>>> (query, target, posV, posH, mat, mis, gap, kmerLen, xdrop, loganresult, query_l, target_l, &result);
 			cudaDeviceSynchronize();
 			auto end_l = std::chrono::high_resolution_clock::now();
 			diff_l = end_l-start_l;

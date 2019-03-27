@@ -456,6 +456,7 @@ __device__ extendSeedL(SeedL& seed,
 	//std::cout<<"scoreLeft logan: "<<scoreLeft<<" scoreRight logan: "<<scoreRight<<std::endl;
 	//myalignment.score = scoreLeft + scoreRight + kmer_length; // we have already accounted for seed match score
 	int res = scoreLeft + scoreRight + kmer_length;
+	//printf("Print |||||| %d\n",res);
 	//myalignment.myseed = seed;	// extended begin and end of the seed
 	free(queryPrefix);
 	free(querySuffix);
