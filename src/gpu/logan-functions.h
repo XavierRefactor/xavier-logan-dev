@@ -30,7 +30,7 @@ enum ExtensionDirectionL
 
 //template<typename TSeedL, typename int, typename int>
 void
-__device__ updateExtendedSeedL(SeedL& seed,
+ updateExtendedSeedL(SeedL& seed,
 					ExtensionDirectionL direction, //as there are only 4 directions we may consider even smaller data types
 					unsigned short cols,
 					unsigned short rows,
@@ -75,10 +75,9 @@ __device__ updateExtendedSeedL(SeedL& seed,
 	
 }
 
-void
-__device__ computeAntidiag(gpuVector<int> &antiDiag1,
-				gpuVector<int> &antiDiag2,
-				gpuVector<int> &antiDiag3,
+__global__ void computeAntidiag(int *antiDiag1,
+				int *antiDiag2,
+				int *antiDiag3,
 				unsigned short const &offset1,
 				unsigned short const &offset2,
 				unsigned short const &offset3,
@@ -96,9 +95,10 @@ __device__ computeAntidiag(gpuVector<int> &antiDiag1,
 				unsigned short  const &maxCol,
 				unsigned short  const &minCol)
 {
-	for (short col = minCol; col < maxCol; ++col) {
+	short col = threadIdx.x;
+	if(col < maxCol){
+
 	// indices on anti-diagonals
-	
 		int i3 = col - offset3;
 		int i2 = col - offset2;
 		int i1 = col - offset1;
@@ -131,12 +131,11 @@ __device__ computeAntidiag(gpuVector<int> &antiDiag1,
 			antiDiag3[i3] = tmp;
 			//antiDiagBest = max(antiDiagBest, tmp);
 		}
-	
-	
 	}
+	
 }
 void
-__device__ calcExtendedLowerDiag(unsigned short& lowerDiag,
+ calcExtendedLowerDiag(unsigned short& lowerDiag,
 					   unsigned short const & minCol,
 					   unsigned short const & antiDiagNo)
 {
@@ -146,7 +145,7 @@ __device__ calcExtendedLowerDiag(unsigned short& lowerDiag,
 }
 
 void
-__device__ calcExtendedUpperDiag(unsigned short & upperDiag,
+ calcExtendedUpperDiag(unsigned short & upperDiag,
 					   unsigned short const &maxCol,
 					   unsigned short const &antiDiagNo)
 {
@@ -156,18 +155,18 @@ __device__ calcExtendedUpperDiag(unsigned short & upperDiag,
 }
 
 void
-__device__ swapAntiDiags(gpuVector<int> &antiDiag1,
-			   gpuVector<int> &antiDiag2,
-			   gpuVector<int> &antiDiag3)
+ swapAntiDiags(std::vector<int> &antiDiag1,
+			   std::vector<int> &antiDiag2,
+			   std::vector<int> &antiDiag3)
 {
-	gpuVector<int> temp = antiDiag1;
+	std::vector<int> temp = antiDiag1;
 	antiDiag1 = antiDiag2;
 	antiDiag2 = antiDiag3;
 	antiDiag3 = temp;
 }
 
 int
-__device__ initAntiDiag3(gpuVector<int> &antiDiag3,
+ initAntiDiag3(std::vector<int> &antiDiag3,
 			   unsigned short const & offset,
 			   unsigned short const & maxCol,
 			   unsigned short const & antiDiagNo,
@@ -191,8 +190,8 @@ __device__ initAntiDiag3(gpuVector<int> &antiDiag3,
 }
 
 void
-__device__ initAntiDiags(gpuVector<int> &antiDiag2,
-			   gpuVector<int> &antiDiag3,
+ initAntiDiags(std::vector<int> &antiDiag2,
+			   std::vector<int> &antiDiag3,
 			   short const& dropOff,
 			   short const& gapCost,
 			   int const& undefined)
@@ -219,8 +218,7 @@ __device__ initAntiDiags(gpuVector<int> &antiDiag2,
 	}
 }
 //AAAA to be optmized
-int
-__device__ maxElem(gpuVector<int> &antiDiag,
+int maxElem(std::vector<int> &antiDiag,
 			int const& undefined
 	){
 	int max=undefined;
@@ -231,8 +229,7 @@ __device__ maxElem(gpuVector<int> &antiDiag,
 	return max;
 }
 
-int
-__device__ extendSeedLGappedXDropOneDirection(
+int extendSeedLGappedXDropOneDirection(
 		SeedL & seed,
 		char *querySeg,
 		char *databaseSeg,
@@ -264,9 +261,9 @@ __device__ extendSeedLGappedXDropOneDirection(
 	int undefined = minimumVal - gapCost;
 
 	// DP matrix is calculated by anti-diagonals
-	gpuVector<int> antiDiag1;    //smallest anti-diagonal
-    gpuVector<int> antiDiag2;
-    gpuVector<int> antiDiag3;   //current anti-diagonal
+	std::vector<int> antiDiag1;    //smallest anti-diagonal
+    std::vector<int> antiDiag2;
+    std::vector<int> antiDiag3;   //current anti-diagonal
 
 	// Indices on anti-diagonals include gap column/gap row:
 	//   - decrease indices by 1 for position in query/database segment
@@ -305,13 +302,27 @@ __device__ extendSeedLGappedXDropOneDirection(
 		initAntiDiag3(antiDiag3, offset3, maxCol, antiDiagNo, best - scoreDropOff, gapCost, undefined);
 
 		int antiDiagBest = antiDiagNo * gapCost;
-		//AAAA this must be parallelized
-		//#pragma omp parallel for
-		//auto start = std::chrono::high_resolution_clock::now();
-		computeAntidiag(antiDiag1,antiDiag2,antiDiag3,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,querySeg,databaseSeg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
-		//auto end = std::chrono::high_resolution_clock::now();
-		//diff += end-start;
+
+		int *a1, *a2, *a3;
+
+		cudaMallocManaged(&a1, sizeof(int) * antiDiag1.size());
+		cudaMallocManaged(&a2, sizeof(int) * antiDiag2.size());
+		cudaMallocManaged(&a3, sizeof(int) * antiDiag3.size());
 		
+		std::copy(antiDiag1.begin(), antiDiag1.end(), a1);
+		std::copy(antiDiag2.begin(), antiDiag2.end(), a2);
+		std::copy(antiDiag3.begin(), antiDiag3.end(), a3);
+
+		computeAntidiag <<<1,1024>>> (a1,a2,a3,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,querySeg,databaseSeg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
+
+		cudaDeviceSynchronize();
+		antiDiag1.assign(a1, a1+antiDiag1.size());
+		antiDiag2.assign(a2, a2+antiDiag2.size());
+		antiDiag3.assign(a3, a3+antiDiag3.size());
+		
+		cudaFree(a1);
+		cudaFree(a2);
+		cudaFree(a3);
 		antiDiagBest = maxElem(antiDiag3, undefined);
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 
@@ -398,8 +409,7 @@ __device__ extendSeedLGappedXDropOneDirection(
 
 }
 //optimize this to run on GPU
-int
-__device__ extendSeedL(SeedL& seed,
+int extendSeedL(SeedL& seed,
 			ExtensionDirectionL direction,
 			char* target,
 			char* query,
@@ -464,44 +474,4 @@ __device__ extendSeedL(SeedL& seed,
 	free(targetSuffix);
 	return res;
 }
-
-// #ifdef DEBUG
-
-// //AAAA TODO??? might need some attention since TAlphabet is a graph
-// // void
-// // extendSeedLGappedXDropOneDirectionLimitScoreMismatch(Score & scoringScheme,
-// // 													 int minErrScore,
-// // 													 TAlphabet * /*tag*/)
-// // {
-// // 	// We cannot set a lower limit for the mismatch score since the score might be a scoring matrix such as Blosum62.
-// // 	// Instead, we perform a check on the matrix scores.
-// // #if SEQAN_ENABLE_DEBUG
-// // 	{
-// // 		for (unsigned i = 0; i < valueSize<TAlphabet>(); ++i)
-// // 			for (unsigned j = 0; j <= i; ++j)
-// // 				if(score(scoringScheme, TAlphabet(i), TAlphabet(j)) < minErrScore)
-// // 					printf("Mismatch score too small!, i = %u, j = %u\n");
-// // 	}
-// // #else
-// // 	(void)scoringScheme;
-// // 	(void)minErrScore;
-// // #endif  // #if SEQAN_ENABLE_DEBUG
-// // }
-
-// // int main(int argc, char const *argv[])
-// // {
-// // 	//DEBUG ONLY
-// // 	SeedL myseed;
-// // 	ScoringSchemeL myscore;
-// // 	ExtensionDirectionL dir = static_cast<ExtensionDirectionL>(atoi(argv[1]));
-// // 	std::string target = argv[2];
-// // 	std::string query = argv[3];
-// // 	int xdrop = atoi(argv[4]);
-// // 	int kmer_length = atoi(argv[5]);
-// // 	Result r = extendSeedL(myseed, dir, target, query, myscore, xdrop, kmer_length);
-// // 	std::cout << r.score << std::endl;
-// // 	return 0;
-// // }
-
-// #endif
 

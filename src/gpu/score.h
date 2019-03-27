@@ -11,18 +11,18 @@ struct ScoringSchemeL
 		int gap_extend_score; // gap extension (indels)
 		int gap_open_score;   // gap opening (indels)
 
-		__host__ __device__ ScoringSchemeL()
+		ScoringSchemeL()
 				: match_score(1), mismatch_score(-1), gap_extend_score(-1), gap_open_score(-1) {
 		}
 
 		// liner gap penalty
-		__host__ __device__ ScoringSchemeL(int match, int mismatch, int gap)
+		ScoringSchemeL(int match, int mismatch, int gap)
 				: match_score(match), mismatch_score(mismatch),
 					gap_extend_score(gap), gap_open_score(gap) {
 		}
 
 		// affine gap penalty
-		__host__ __device__ ScoringSchemeL(int match, int mismatch, int gap_extend, int gap_open) 
+		ScoringSchemeL(int match, int mismatch, int gap_extend, int gap_open) 
 				: match_score(match), mismatch_score(mismatch),
 					gap_extend_score(gap_extend), gap_open_score(gap_open) {
 		}
@@ -43,55 +43,55 @@ __device__ scoreMatch(ScoringSchemeL const& me) {
 
 // individually set match score
 void
-__device__ setScoreMatch(ScoringSchemeL & me, int const& value) {
+setScoreMatch(ScoringSchemeL & me, int const& value) {
 	me.match_score = value;
 }
 
 // return mismatch score
 int
-__device__ scoreMismatch(ScoringSchemeL const& me) {
+__device__ __host__ scoreMismatch(ScoringSchemeL const& me) {
 	return me.mismatch_score;
 }
 
 // individually set mismatch score
 void
-__device__ setScoreMismatch(ScoringSchemeL & me, int const& value) {
+setScoreMismatch(ScoringSchemeL & me, int const& value) {
 	me.mismatch_score = value;
 }
 
 // return gap extension score
 int
-__device__ scoreGapExtend(ScoringSchemeL const& me) {
+scoreGapExtend(ScoringSchemeL const& me) {
 	return me.gap_extend_score;
 }
 
 // individually set gap extension score
 void
-__device__ setScoreGapExtend(ScoringSchemeL & me, int const& value) {
+setScoreGapExtend(ScoringSchemeL & me, int const& value) {
 	me.gap_extend_score = value;
 }
 
 // return gap opening score
 int
-__device__ scoreGapOpen(ScoringSchemeL const& me) {
+scoreGapOpen(ScoringSchemeL const& me) {
 	return me.gap_open_score;
 }
 
 //returns the gap_open_score NB: valid only for linear gap
 int
-__device__ scoreGap(ScoringSchemeL const & me){
+scoreGap(ScoringSchemeL const & me){
 	return me.gap_extend_score;
 }
 
 // individually set gap opening score
 void
-__device__ setScoreGapOpen(ScoringSchemeL & me, int const& value) {
+setScoreGapOpen(ScoringSchemeL & me, int const& value) {
 	me.gap_open_score = value;
 }
 
 // set gap opening and gap extend scores
 void
-__device__ setScoreGap(ScoringSchemeL & me, int const& value) {
+setScoreGap(ScoringSchemeL & me, int const& value) {
 	me.gap_extend_score = value;
 	me.gap_open_score = value;
 }
