@@ -20,22 +20,21 @@
 #include"score.h"
 //using namespace seqan;
 // #include <bits/stdc++.h> 
-enum ExtensionDirectionL
-{
-    EXTEND_NONEL  = 0,
-    EXTEND_LEFTL  = 1,
-    EXTEND_RIGHTL = 2,
-    EXTEND_BOTHL  = 3
-};
+
+#define	   EXTEND_NONEL  0
+#define    EXTEND_LEFTL  1
+#define    EXTEND_RIGHTL 2
+#define    EXTEND_BOTHL  3
+
 
 //template<typename TSeedL, typename int, typename int>
 void
  updateExtendedSeedL(SeedL& seed,
-					ExtensionDirectionL direction, //as there are only 4 directions we may consider even smaller data types
-					unsigned short cols,
-					unsigned short rows,
-					unsigned short lowerDiag,
-					unsigned short upperDiag)
+		int direction, //as there are only 4 directions we may consider even smaller data types
+		unsigned short cols,
+		unsigned short rows,
+		unsigned short lowerDiag,
+		unsigned short upperDiag)
 {
 	//TODO 
 	//functions that return diagonal from seed
@@ -78,24 +77,24 @@ void
 __global__ void computeAntidiag(int *antiDiag1,
 				int *antiDiag2,
 				int *antiDiag3,
-				unsigned short const &offset1,
-				unsigned short const &offset2,
-				unsigned short const &offset3,
-				ExtensionDirectionL const &direction,
-				unsigned short const &antiDiagNo,
-				short const &gapCost,
-				ScoringSchemeL &scoringScheme,
+				unsigned short offset1,
+				unsigned short offset2,
+				unsigned short offset3,
+				int direction,
+				unsigned short antiDiagNo,
+				short const gapCost,
+				ScoringSchemeL scoringScheme,
 				char *querySeg,
 				char *databaseSeg,
-				int const &undefined,
-				int const &best,
-				short const &scoreDropOff,
-				unsigned short const &cols,
-				unsigned short const &rows,
-				unsigned short  const &maxCol,
-				unsigned short  const &minCol)
+				int undefined,
+				int best,
+				short scoreDropOff,
+				unsigned short cols,
+				unsigned short rows,
+				unsigned short maxCol,
+				unsigned short minCol)
 {
-	short col = threadIdx.x;
+	int col = threadIdx.x;
 	if(col < maxCol){
 
 	// indices on anti-diagonals
@@ -233,7 +232,7 @@ int extendSeedLGappedXDropOneDirection(
 		SeedL & seed,
 		char *querySeg,
 		char *databaseSeg,
-		ExtensionDirectionL const & direction,
+		int const & direction,
 		ScoringSchemeL &scoringScheme,
 		short const &scoreDropOff,
 		unsigned short querySegLength,
@@ -262,8 +261,8 @@ int extendSeedLGappedXDropOneDirection(
 
 	// DP matrix is calculated by anti-diagonals
 	std::vector<int> antiDiag1;    //smallest anti-diagonal
-    std::vector<int> antiDiag2;
-    std::vector<int> antiDiag3;   //current anti-diagonal
+    	std::vector<int> antiDiag2;
+    	std::vector<int> antiDiag3;   //current anti-diagonal
 
 	// Indices on anti-diagonals include gap column/gap row:
 	//   - decrease indices by 1 for position in query/database segment
@@ -312,20 +311,24 @@ int extendSeedLGappedXDropOneDirection(
 		std::copy(antiDiag1.begin(), antiDiag1.end(), a1);
 		std::copy(antiDiag2.begin(), antiDiag2.end(), a2);
 		std::copy(antiDiag3.begin(), antiDiag3.end(), a3);
-
+		printf("Start GPU computation\n");
 		computeAntidiag <<<1,1024>>> (a1,a2,a3,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,querySeg,databaseSeg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
-
-		cudaDeviceSynchronize();
-		antiDiag1.assign(a1, a1+antiDiag1.size());
-		antiDiag2.assign(a2, a2+antiDiag2.size());
-		antiDiag3.assign(a3, a3+antiDiag3.size());
+		printf("End GPU computation synch\n");
+	//	cudaDeviceSynchronize();
+		printf("Synched, assign antidiags\n");
 		
+		//antiDiag1.insert(antiDiag1.begin(),a1, a1+antiDiag1.size());
+		//antiDiag2.insert(antiDiag2.begin(),a2, a2+antiDiag2.size());
+		std::copy(a3,a3+antiDiag3.size(),antiDiag3.begin());		
+		
+		printf("Cuda frees\n");	
 		cudaFree(a1);
 		cudaFree(a2);
 		cudaFree(a3);
 		antiDiagBest = maxElem(antiDiag3, undefined);
+		//printf("broke");
 		best = (best > antiDiagBest) ? best : antiDiagBest;
-
+		printf("%d\n", best);
 		// Calculate new minCol and minCol
 		while (minCol - offset3 < antiDiag3.size() && antiDiag3[minCol - offset3] == undefined &&
 			   minCol - offset2 - 1 < antiDiag2.size() && antiDiag2[minCol - offset2 - 1] == undefined)
@@ -349,7 +352,7 @@ int extendSeedLGappedXDropOneDirection(
 		minCol = max(minCol,(antiDiagNo + 2 - rows));
 		// end of querySeg reached?
 		maxCol = min(maxCol, cols);
-			
+		printf("maxcol:%d mincol:%d \n", maxCol, minCol);		
 		
 		//index++;
 	}
@@ -366,6 +369,7 @@ int extendSeedLGappedXDropOneDirection(
 
 	// reached ends of both segments
 	int longestExtensionCol = antiDiag3.size() + offset3 - 2;
+	//printf("ok size");
 	int longestExtensionRow = antiDiagNo - longestExtensionCol;
 	int longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
 
@@ -400,6 +404,7 @@ int extendSeedLGappedXDropOneDirection(
 			}
 		}
 	}
+	//printf("muoro\n");
 
 	// update seed
 	if (longestExtensionScore != undefined)//AAAA it was !=
@@ -410,7 +415,7 @@ int extendSeedLGappedXDropOneDirection(
 }
 //optimize this to run on GPU
 int extendSeedL(SeedL& seed,
-			ExtensionDirectionL direction,
+			int direction,
 			char* target,
 			char* query,
 			ScoringSchemeL & penalties,
@@ -437,11 +442,11 @@ int extendSeedL(SeedL& seed,
 	int scoreRight=0;
 	Result scoreFinal;
 	char *queryPrefix, *querySuffix, *targetPrefix, *targetSuffix;
-
-	queryPrefix = (char *) malloc( sizeof(char) * query_l);
-	querySuffix = (char *) malloc( sizeof(char) * query_l);
-	targetPrefix = (char *) malloc( sizeof(char) * target_l);
-	targetSuffix = (char *) malloc( sizeof(char) * target_l);
+	
+	cudaMallocManaged(&queryPrefix, sizeof(char) * query_l);
+	cudaMallocManaged(&querySuffix, sizeof(char) * query_l);
+	cudaMallocManaged(&targetPrefix, sizeof(char) * target_l);
+	cudaMallocManaged(&targetSuffix, sizeof(char) * target_l);
 	if (direction == EXTEND_LEFTL || direction == EXTEND_BOTHL)
 	{
 		// string substr (size_t pos = 0, size_t len = npos) const;
@@ -468,10 +473,10 @@ int extendSeedL(SeedL& seed,
 	int res = scoreLeft + scoreRight + kmer_length;
 	//printf("Print |||||| %d\n",res);
 	//myalignment.myseed = seed;	// extended begin and end of the seed
-	free(queryPrefix);
-	free(querySuffix);
-	free(targetPrefix);
-	free(targetSuffix);
+	cudaFree(queryPrefix);
+	cudaFree(querySuffix);
+	cudaFree(targetPrefix);
+	cudaFree(targetSuffix);
 	return res;
 }
 
