@@ -111,26 +111,28 @@ vector<std::string> split (const std::string &s, char delim)
 // }
 
 // typedef std::tuple< int, int, int, int, double > myinfo;	// score, start seed, end seed, runtime
-void loganXdrop(char * query, char * target, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop, myinfo &loganresult, int query_l, int target_l, int *result)
+myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
 {
 
-	ScoringSchemeL penalties(mat, mis, -1, gap);
+	ScoringSchemeL penalties(mat, mis, -2, gap);
 	//Result result(kmerLen);
+	int result;
+	myinfo loganresult;
 
-	SeedL seed(posH, posV, kmerLen);
-	// perform match extension	
-	// GGGG: double check call function
 	std::chrono::duration<double>  diff_l;
-	auto start_l = std::chrono::high_resolution_clock::now();
+	SeedL seed(posH, posV, kmerLen);
 
-	*result = extendSeedL(seed, EXTEND_BOTHL, target, query, penalties, xdrop, kmerLen,query_l,target_l);
-	printf("%d\n",*result);
-	//double time_l = diff_l.count();
-	loganresult = std::make_tuple(*result, getBeginPositionV(seed), getEndPositionV(seed), getBeginPositionH(seed), getEndPositionH(seed), diff_l.count());
+	// perform match extension	
+	auto start_l = std::chrono::high_resolution_clock::now();
+	// GGGG: double check call function
+	result = extendSeedL(seed, EXTEND_BOTHL, readH, readV, penalties, xdrop, kmerLen);
 	auto end_l = std::chrono::high_resolution_clock::now();
 	diff_l = end_l-start_l;
 
-	std::cout << "logan score:\t" << result << "\tlogan time:\t" <<  diff_l.count() <<std::endl;	
+	std::cout << "logan score:\t" << result << "\tlogan time:\t" <<  diff_l.count() <<std::endl;
+	//double time_l = diff_l.count();
+	loganresult = std::make_tuple(result, getBeginPositionV(seed), getEndPositionV(seed), getBeginPositionH(seed), getEndPositionH(seed), diff_l.count());
+	return loganresult;
 }
 
 //=======================================================================
@@ -186,8 +188,7 @@ int main(int argc, char **argv)
 		std::string seqV = v[0];		
 		std::string seqH = v[2];
 		std::string strand = v[4];
-		int result;
-		// reverse complement (use horizontal read) if needed
+	
 		if(strand == "c")
 		{
 			std::transform(
@@ -196,22 +197,18 @@ int main(int argc, char **argv)
 				std::begin(seqH),
 			dummycomplement);
 			posH = seqH.length()-posH-kmerLen;
-			
+
+			//AAAA change here if using 4 bases and to new type 
+			//Dna5String seqHLogan(seqH), seqVLogan(seqV);
+
 			myinfo seqanresult;
 			myinfo loganresult;
-			char *target, *query;
-			
-			query = (char *)malloc(sizeof(char)*seqV.length());
-			target = (char *)malloc(sizeof(char)*seqH.length());
-	
-			memcpy(target, seqH.c_str(), seqH.length());
-			memcpy(query, seqV.c_str(), seqV.length());
 
-			int query_l = seqV.length();
-			int target_l = seqH.length();
 			
 			//cout << "seqan ok" << endl;
-			loganXdrop(query, target, posV, posH, mat, mis, gap, kmerLen, xdrop, loganresult, query_l, target_l, &result);
+			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			
 			//cout << "logan ok" << endl;
 			// GGGG: use a custom data struct instead of tuples 	(readability)
 			local[ithread] << i << "\t" << get<0>(seqanresult) << "\t" << get<1>(seqanresult) << "\t" 
@@ -222,28 +219,17 @@ int main(int argc, char **argv)
 		}
 		else
 		{
-			//seqan::Dna5String seqH5(seqH), seqV5(seqV);
 			//AAAA change here if using 4 bases and to new type 
 			//Dna5String seqHLogan(seqH), seqVLogan(seqV);
 
 			myinfo seqanresult;
 			myinfo loganresult;
-			char *target, *query;
 
-			query = (char *)malloc(sizeof(char)*seqV.length());
-			target = (char *)malloc(sizeof(char)*seqH.length());
-	
-			memcpy(target, seqH.c_str(), seqH.length());
-			memcpy(query, seqV.c_str(), seqV.length());
-
-			int query_l = seqV.length();
-			int target_l = seqH.length();
 			
 			//cout << "seqan ok" << endl;
-			loganXdrop(query, target, posV, posH, mat, mis, gap, kmerLen, xdrop, loganresult, query_l, target_l, &result);
-			
-			//seqanresult = seqanXdrop(seqV5, seqH5, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			
 			//cout << "logan ok" << endl;
 			// GGGG: use a custom data struct instead of tuples 	
 			local[ithread] << i << "\t" << get<0>(seqanresult) << "\t" << get<1>(seqanresult) << "\t" 
@@ -252,8 +238,9 @@ int main(int argc, char **argv)
 						get<2>(loganresult) << "\t" << get<3>(loganresult) << "\t" << get<4>(loganresult) 
 							<< "\t" << get<5>(loganresult) << endl;
 		}
-	}
 
+	
+	}
 	// write to a new file 	
 	int64_t* bytes = new int64_t[maxt];
 	for(int i = 0; i < maxt; ++i)

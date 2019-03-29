@@ -37,7 +37,7 @@ struct ScoringSchemeL
 
 // return match score
 int
-__device__ scoreMatch(ScoringSchemeL const& me) {
+__device__ __host__  scoreMatch(ScoringSchemeL const& me) {
 	return me.match_score;
 }
 
@@ -97,7 +97,7 @@ setScoreGap(ScoringSchemeL & me, int const& value) {
 }
 
 int
-__device__ score(ScoringSchemeL const & me, char valH, char valV) {
+__device__ __host__ score(ScoringSchemeL const & me, char valH, char valV) {
     if (valH == valV)
         return scoreMatch(me);
     else
