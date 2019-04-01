@@ -103,5 +103,3 @@ score(ScoringSchemeL const & me, char valH, char valV) {
     else
         return scoreMismatch(me);
 }
-
-

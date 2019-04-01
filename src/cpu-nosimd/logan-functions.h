@@ -1,4 +1,3 @@
-
 //==================================================================
 // Title:  C++ x-drop seed-and-extend alignment algorithm
 // Author: G. Guidi, A. Zeni
@@ -15,7 +14,7 @@
 
 #include<vector>
 #include<iostream>
-#include<omp.h>
+// #include<boost/array.hpp>
 #include"logan.h"
 #include"score.h"
 //using namespace seqan;
@@ -76,6 +75,66 @@ updateExtendedSeedL(SeedL& seed,
 }
 
 inline void
+computeAntidiag(std::vector<int> &antiDiag1,
+				std::vector<int> &antiDiag2,
+				std::vector<int> &antiDiag3,
+				unsigned short const &offset1,
+				unsigned short const &offset2,
+				unsigned short const &offset3,
+				ExtensionDirectionL const &direction,
+				unsigned short const &antiDiagNo,
+				short const &gapCost,
+				ScoringSchemeL &scoringScheme,
+				std::string const &querySeg,
+				std::string const &databaseSeg,
+				int const &undefined,
+				int const &best,
+				short const &scoreDropOff,
+				unsigned short const &cols,
+				unsigned short const &rows,
+				unsigned short  const &maxCol,
+				unsigned short  const &minCol)
+{
+	for (short col = minCol; col < maxCol; ++col) {
+	// indices on anti-diagonals
+	
+		int i3 = col - offset3;
+		int i2 = col - offset2;
+		int i1 = col - offset1;
+
+		// indices in query and database segments
+		int queryPos, dbPos;
+		if (direction == EXTEND_RIGHTL)
+		{
+			queryPos = col - 1;
+			dbPos = antiDiagNo - col - 1;
+		}
+		else // direction == EXTEND_LEFTL
+		{
+			queryPos = cols - 1 - col;
+			dbPos = rows - 1 + col - antiDiagNo;
+		}
+		
+		
+		// Calculate matrix entry (-> antiDiag3[col])
+		int tmp = max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
+		tmp = max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
+		
+		
+		if (tmp < best - scoreDropOff)
+		{
+			antiDiag3[i3] = undefined;
+		}
+		else
+		{
+			antiDiag3[i3] = tmp;
+			//antiDiagBest = max(antiDiagBest, tmp);
+		}
+	
+	
+	}
+}
+inline void
 calcExtendedLowerDiag(unsigned short& lowerDiag,
 					   unsigned short const & minCol,
 					   unsigned short const & antiDiagNo)
@@ -96,18 +155,17 @@ calcExtendedUpperDiag(unsigned short & upperDiag,
 }
 
 inline void
-swapAntiDiags(std::vector<int>  & antiDiag1,
-			   std::vector<int>  & antiDiag2,
-			   std::vector<int>  & antiDiag3)
+swapAntiDiags(std::vector<int> &antiDiag1,
+			   std::vector<int> &antiDiag2,
+			   std::vector<int> &antiDiag3)
 {
-	std::vector<int> temp = antiDiag1;
-	antiDiag1 = antiDiag2;
-	antiDiag2 = antiDiag3;
-	antiDiag3 = temp;
+	//std::vector<int> temp = antiDiag1;
+	swap(antiDiag1,antiDiag2);
+	swap(antiDiag2,antiDiag3);
 }
 
 inline int
-initAntiDiag3(std::vector<int> & antiDiag3,
+initAntiDiag3(std::vector<int> &antiDiag3,
 			   unsigned short const & offset,
 			   unsigned short const & maxCol,
 			   unsigned short const & antiDiagNo,
@@ -131,8 +189,8 @@ initAntiDiag3(std::vector<int> & antiDiag3,
 }
 
 inline void
-initAntiDiags(std::vector<int> & antiDiag2,
-			   std::vector<int> & antiDiag3,
+initAntiDiags(std::vector<int> &antiDiag2,
+			   std::vector<int> &antiDiag3,
 			   short const& dropOff,
 			   short const& gapCost,
 			   int const& undefined)
@@ -192,9 +250,7 @@ extendSeedLGappedXDropOneDirection(
 	std::vector<int> antiDiag1;    //smallest anti-diagonal
     std::vector<int> antiDiag2;
     std::vector<int> antiDiag3;   //current anti-diagonal
-    antiDiag1.reserve(max(cols,rows));    //smallest anti-diagonal
-    antiDiag2.reserve(max(cols,rows));
-    antiDiag3.reserve(max(cols,rows)); 
+
 	// Indices on anti-diagonals include gap column/gap row:
 	//   - decrease indices by 1 for position in query/database segment
 	//   - first calculated entry is on anti-diagonal n\B0 2
@@ -235,55 +291,18 @@ extendSeedLGappedXDropOneDirection(
 		//AAAA this must be parallelized
 		//#pragma omp parallel for
 		//auto start = std::chrono::high_resolution_clock::now();
-		for (short col = minCol; col < maxCol; ++col) {
-			// indices on anti-diagonals
-			
-			int i3 = col - offset3;
-			int i2 = col - offset2;
-			int i1 = col - offset1;
-
-			// indices in query and database segments
-			int queryPos, dbPos;
-			if (direction == EXTEND_RIGHTL)
-			{
-				queryPos = col - 1;
-				dbPos = antiDiagNo - col - 1;
-			}
-			else // direction == EXTEND_LEFTL
-			{
-				queryPos = cols - 1 - col;
-				dbPos = rows - 1 + col - antiDiagNo;
-			}
-			
-			
-			// Calculate matrix entry (-> antiDiag3[col])
-			int tmp = max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
-			tmp = max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
-			
-			
-			if (tmp < best - scoreDropOff)
-			{
-				antiDiag3[i3] = undefined;
-			}
-			else
-			{
-				antiDiag3[i3] = tmp;
-				antiDiagBest = max(antiDiagBest, tmp);
-			}
-			
-			
-		}
+		computeAntidiag(antiDiag1,antiDiag2,antiDiag3,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,querySeg,databaseSeg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
 		//auto end = std::chrono::high_resolution_clock::now();
 		//diff += end-start;
 		
-		//antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
+		antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 		std::cout << "LONGEST: antiDiagBest\t" << antiDiagBest << "\tbest\t" << best << std::endl;
 
 
 		// Calculate new minCol and minCol
-		while (minCol - offset3 < seqan::length(antiDiag3) && antiDiag3[minCol - offset3] == undefined &&
-			   minCol - offset2 - 1 < seqan::length(antiDiag2) && antiDiag2[minCol - offset2 - 1] == undefined)
+		while (minCol - offset3 < antiDiag3.size() && antiDiag3[minCol - offset3] == undefined &&
+			   minCol - offset2 - 1 < antiDiag2.size() && antiDiag2[minCol - offset2 - 1] == undefined)
 		{
 			++minCol;
 		}
@@ -320,23 +339,23 @@ extendSeedLGappedXDropOneDirection(
 	// find positions of longest extension
 
 	// reached ends of both segments
-	int longestExtensionCol = seqan::length(antiDiag3) + offset3 - 2;
+	int longestExtensionCol = antiDiag3.size() + offset3 - 2;
 	int longestExtensionRow = antiDiagNo - longestExtensionCol;
 	int longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
 
 	if (longestExtensionScore == undefined)
 	{
-		if (antiDiag2[seqan::length(antiDiag2)-2] != undefined)
+		if (antiDiag2[antiDiag2.size()-2] != undefined)
 		{
 			// reached end of query segment
-			longestExtensionCol = seqan::length(antiDiag2) + offset2 - 2;
+			longestExtensionCol = antiDiag2.size() + offset2 - 2;
 			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
 			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
 		}
-		else if (seqan::length(antiDiag2) > 2 && antiDiag2[seqan::length(antiDiag2)-3] != undefined)
+		else if (antiDiag2.size() > 2 && antiDiag2[antiDiag2.size()-3] != undefined)
 		{
 			// reached end of database segment
-			longestExtensionCol = seqan::length(antiDiag2) + offset2 - 3;
+			longestExtensionCol = antiDiag2.size() + offset2 - 3;
 			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
 			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
 		}
@@ -345,7 +364,7 @@ extendSeedLGappedXDropOneDirection(
 	if (longestExtensionScore == undefined)
 	{
 		// general case
-		for (int i = 0; i < seqan::length(antiDiag1); ++i)
+		for (int i = 0; i < antiDiag1.size(); ++i)
 		{
 			if (antiDiag1[i] > longestExtensionScore)
 			{
@@ -385,7 +404,7 @@ extendSeedL(SeedL& seed,
 	}
 	//assert(scoreMismatch(penalties) < 0);
 	//assert(scoreMatch(penalties) > 0); 
-	assert(scoreGapOpen(penalties) == scoreGapExtend(extend));
+	assert(scoreGapOpen(penalties) == scoreGapExtend(penalties));
 
 	int scoreLeft=0;
 	int scoreRight=0;
@@ -459,4 +478,3 @@ extendSeedL(SeedL& seed,
 // // }
 
 // #endif
-

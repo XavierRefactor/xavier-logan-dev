@@ -6,6 +6,7 @@
 //========================================================================================================
 
 //#include <omp.h>
+#include <chrono>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -113,7 +114,7 @@ vector<std::string> split (const std::string &s, char delim)
 myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
 {
 
-	ScoringSchemeL penalties(mat, mis, -1, gap);
+	ScoringSchemeL penalties(mat, mis, -2, gap);
 	//Result result(kmerLen);
 	int result;
 	myinfo loganresult;
@@ -124,12 +125,7 @@ myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, in
 	// perform match extension	
 	auto start_l = std::chrono::high_resolution_clock::now();
 	// GGGG: double check call function
-	char *read, *target;
-	read = (char *)malloc(sizeof(char)*readV.length());
-	target = (char *)malloc(sizeof(char)*readH.length());
-	memcpy(target, readH.c_str(), readH.length());
-	memcpy(read, readV.c_str(), readV.length());
-	result = extendSeedL(seed, EXTEND_BOTHL, target, read, penalties, xdrop, kmerLen,readH.length(),readV.length());
+	result = extendSeedL(seed, EXTEND_BOTHL, readH, readV, penalties, xdrop, kmerLen);
 	auto end_l = std::chrono::high_resolution_clock::now();
 	diff_l = end_l-start_l;
 
@@ -192,8 +188,7 @@ int main(int argc, char **argv)
 		std::string seqV = v[0];		
 		std::string seqH = v[2];
 		std::string strand = v[4];
-
-		// reverse complement (use horizontal read) if needed
+	
 		if(strand == "c")
 		{
 			std::transform(
@@ -203,7 +198,6 @@ int main(int argc, char **argv)
 			dummycomplement);
 			posH = seqH.length()-posH-kmerLen;
 
-			//seqan::Dna5String seqH5(seqH), seqV5(seqV);
 			//AAAA change here if using 4 bases and to new type 
 			//Dna5String seqHLogan(seqH), seqVLogan(seqV);
 
@@ -213,7 +207,6 @@ int main(int argc, char **argv)
 			
 			//cout << "seqan ok" << endl;
 			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
-			//seqanresult = seqanXdrop(seqV5, seqH5, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			
 			//cout << "logan ok" << endl;
@@ -226,7 +219,6 @@ int main(int argc, char **argv)
 		}
 		else
 		{
-			//seqan::Dna5String seqH5(seqH), seqV5(seqV);
 			//AAAA change here if using 4 bases and to new type 
 			//Dna5String seqHLogan(seqH), seqVLogan(seqV);
 
@@ -236,7 +228,6 @@ int main(int argc, char **argv)
 			
 			//cout << "seqan ok" << endl;
 			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
-			//seqanresult = seqanXdrop(seqV5, seqH5, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			
 			//cout << "logan ok" << endl;
@@ -247,8 +238,9 @@ int main(int argc, char **argv)
 						get<2>(loganresult) << "\t" << get<3>(loganresult) << "\t" << get<4>(loganresult) 
 							<< "\t" << get<5>(loganresult) << endl;
 		}
-	}
 
+	
+	}
 	// write to a new file 	
 	int64_t* bytes = new int64_t[maxt];
 	for(int i = 0; i < maxt; ++i)

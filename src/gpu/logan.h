@@ -8,9 +8,7 @@
 #include<cassert>
 
 template<typename Tx_>
-inline
-const Tx_& 
-__device__ min(const Tx_& _Left, const Tx_& Right_)
+const Tx_&  min(const Tx_& _Left, const Tx_& Right_)
 {   // return smaller of _Left and Right_
     if (_Left < Right_)
         return _Left;
@@ -19,14 +17,13 @@ __device__ min(const Tx_& _Left, const Tx_& Right_)
 }
 
 template<typename Tx_, typename Ty_>
-inline Tx_ 
-__device__ min(const Tx_& _Left, const Ty_& Right_)
+Tx_  min(const Tx_& _Left, const Ty_& Right_)
 {   // return smaller of _Left and Right_
     return (Right_ < _Left ? Right_ : _Left);
 }
 template<typename Ty_>
-inline Ty_ const &
-__device__ max(const Ty_& _Left, const Ty_& Right_)
+Ty_ const &
+__device__ __host__ max(const Ty_& _Left, const Ty_& Right_)
 {   // return larger of _Left and Right_
     if (_Left < Right_)
         return Right_;
@@ -35,8 +32,8 @@ __device__ max(const Ty_& _Left, const Ty_& Right_)
 }
 
 template<typename Tx_, typename Ty_>
-inline Tx_
-__device__ max(const Tx_& _Left, const Ty_& Right_)
+Tx_
+__device__ __host__ max(const Tx_& _Left, const Ty_& Right_)
 {   // return smaller of _Left and Right_
     return (Right_ < _Left ? _Left : Right_);
 }
@@ -52,7 +49,7 @@ private:
 
     size_t capacity;
     size_t length;
-    __device__ void expand() {
+    void expand() {
         capacity *= 2;
         size_t tempLength = (m_end - m_begin);
         T* tempBegin = new T[capacity];
@@ -64,26 +61,26 @@ private:
         length = static_cast<size_t>(m_end - m_begin);
     }
 public:
-    __device__  explicit gpuVector() : length(0), capacity(16) {
+    explicit gpuVector() : length(0), capacity(16) {
         m_begin = new T[capacity];
         m_end = m_begin;
     }
-    __device__ T& operator[] (unsigned int index) {
+    T& operator[] (unsigned int index) {
         return *(m_begin + index);//*(begin+index)
     }
-    __device__ T* begin() {
+    T* begin() {
         return m_begin;
     }
-    __device__ T* end() {
+    T* end() {
         return m_end;
     }
-    __device__ ~gpuVector()
+    ~gpuVector()
     {
         delete[] m_begin;
         m_begin = nullptr;
     }
 
-    __device__ void add(T t) {
+    void add(T t) {
 
         if ((m_end - m_begin) >= capacity) {
             expand();
@@ -93,18 +90,18 @@ public:
         m_end++;
         length++;
     }
-    __device__ T pop() {
+    T pop() {
         T endElement = (*m_end);
         delete m_end;
         m_end--;
         return endElement;
     }
 
-    __device__ size_t size() {
+    size_t size() {
         return length;
     }
 
-    __device__ void resize(size_t n){
+    void resize(size_t n){
     	capacity=n;
     	T* tempBegin = new T[capacity];
     	delete[] m_begin;
@@ -146,8 +143,8 @@ struct SeedL
 		beginPositionV(beginPositionV),
 		endPositionH(endPositionH),
 		endPositionV(endPositionV),
-		lowerDiagonal(std::min((beginPositionH - beginPositionV), (endPositionH - endPositionV))),
-		upperDiagonal(std::max((beginPositionH - beginPositionV), (endPositionH - endPositionV))),
+		lowerDiagonal(min((beginPositionH - beginPositionV), (endPositionH - endPositionV))),
+		upperDiagonal(max((beginPositionH - beginPositionV), (endPositionH - endPositionV))),
 		beginDiagonal((beginPositionH - beginPositionV)),
 		endDiagonal((endPositionH - endPositionV)),
 		score(0)
@@ -192,102 +189,102 @@ struct Result
 // GGGG we can think about this later
 // AAAA add setter also
 
-inline int
-__device__ getAlignScore(SeedL const &myseed){
+int
+getAlignScore(SeedL const &myseed){
 	return myseed.score;
 }
 
-inline int
-__device__ getBeginPositionH(SeedL const &myseed){
+int
+getBeginPositionH(SeedL const &myseed){
 	return myseed.beginPositionH;
 }
 
-inline int
-__device__ getBeginPositionV(SeedL const &myseed){
+int
+getBeginPositionV(SeedL const &myseed){
 	return myseed.beginPositionV;
 }
 
-inline int
-__device__ getEndPositionH(SeedL const &myseed){
+int
+getEndPositionH(SeedL const &myseed){
 	return myseed.endPositionH;
 }
 
-inline int
-__device__ getEndPositionV(SeedL const &myseed){
+int
+getEndPositionV(SeedL const &myseed){
 	return myseed.endPositionV;
 }
 
-inline int
-__device__ getSeedLLength(SeedL const &myseed){
+int
+getSeedLLength(SeedL const &myseed){
 	return myseed.seedLength;
 }
 
-inline int
-__device__ getLowerDiagonal(SeedL const &myseed){
+int
+getLowerDiagonal(SeedL const &myseed){
 	return myseed.lowerDiagonal;
 }
 
-inline int
-__device__ getUpperDiagonal(SeedL const &myseed){
+int
+getUpperDiagonal(SeedL const &myseed){
 	return myseed.upperDiagonal;
 }
 
-inline int
-__device__ getBeginDiagonal(SeedL const &myseed){
+int
+getBeginDiagonal(SeedL const &myseed){
 	return myseed.beginDiagonal;
 }
 
-inline int
-__device__ getEndDiagonal(SeedL const &myseed){
+int
+getEndDiagonal(SeedL const &myseed){
 	return myseed.endDiagonal;
 }
 
-inline void
-__device__ setAlignScore(SeedL &myseed,int const value){
+void
+setAlignScore(SeedL &myseed,int const value){
 	myseed.score = value;
 }
 
-inline void
-__device__ setBeginPositionH(SeedL &myseed,int const value){
+void
+setBeginPositionH(SeedL &myseed,int const value){
 	myseed.beginPositionH = value;
 }
 
-inline void
-__device__ setBeginPositionV(SeedL &myseed,int const value){
+void
+setBeginPositionV(SeedL &myseed,int const value){
 	myseed.beginPositionV = value;
 }
 
-inline void
-__device__ setEndPositionH(SeedL &myseed,int const value){
+void
+setEndPositionH(SeedL &myseed,int const value){
 	myseed.endPositionH = value;
 }
 
-inline void
-__device__ setEndPositionV(SeedL &myseed,int const value){
+void
+setEndPositionV(SeedL &myseed,int const value){
 	myseed.endPositionV = value;
 }
 
-inline void
-__device__ setSeedLLength(SeedL &myseed,int const value){
+void
+setSeedLLength(SeedL &myseed,int const value){
 	myseed.seedLength = value;
 }
 
-inline void
-__device__ setLowerDiagonal(SeedL &myseed,int const value){
+void
+setLowerDiagonal(SeedL &myseed,int const value){
 	myseed.lowerDiagonal = value;
 }
 
-inline void
-__device__ setUpperDiagonal(SeedL &myseed,int const value){
+void
+setUpperDiagonal(SeedL &myseed,int const value){
 	myseed.upperDiagonal = value;
 }
 
-inline void
-__device__ setBeginDiagonal(SeedL &myseed,int const value){
+void
+setBeginDiagonal(SeedL &myseed,int const value){
 	myseed.beginDiagonal = value;
 }
 
-inline void
-__device__ setEndDiagonal(SeedL &myseed,int const value){
+void
+setEndDiagonal(SeedL &myseed,int const value){
 	myseed.endDiagonal = value;
 }

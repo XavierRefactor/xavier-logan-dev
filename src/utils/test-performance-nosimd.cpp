@@ -90,7 +90,7 @@ vector<std::string> split (const std::string &s, char delim)
 myinfo seqanXdrop(seqan::Dna5String& readV, seqan::Dna5String& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
 {
 
-	seqan::Score<int, seqan::Simple> scoringScheme(mat, mis, -1, gap);
+	seqan::Score<int, seqan::Simple> scoringScheme(mat, mis, -2, gap);
 	int score;
 	myinfo seqanresult;
 
@@ -113,7 +113,7 @@ myinfo seqanXdrop(seqan::Dna5String& readV, seqan::Dna5String& readH, int posV, 
 myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
 {
 
-	ScoringSchemeL penalties(mat, mis, -1, gap);
+	ScoringSchemeL penalties(mat, mis, -2, gap);
 	//Result result(kmerLen);
 	int result;
 	myinfo loganresult;

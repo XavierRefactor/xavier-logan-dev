@@ -1,4 +1,3 @@
-
 //==================================================================
 // Title:  C++ x-drop seed-and-extend alignment algorithm
 // Author: G. Guidi, A. Zeni
@@ -13,7 +12,7 @@
 
 //#define DEBUG
 
-//#include<vector>
+#include<vector>
 #include<iostream>
 // #include<boost/array.hpp>
 #include"logan.h"
@@ -29,8 +28,8 @@ enum ExtensionDirectionL
 };
 
 //template<typename TSeedL, typename int, typename int>
-inline void
-__device__ updateExtendedSeedL(SeedL& seed,
+void
+updateExtendedSeedL(SeedL& seed,
 					ExtensionDirectionL direction, //as there are only 4 directions we may consider even smaller data types
 					unsigned short cols,
 					unsigned short rows,
@@ -74,11 +73,23 @@ __device__ updateExtendedSeedL(SeedL& seed,
 	// assert(seed.endDiagonal >= seed.lowerDiagonal);
 	
 }
+int max_element(int *antiDiag,
+		int dim
+		){
+	int max = -2147483648;
+	for(int i = 0; i < dim; i++){
+		if(antiDiag[i]>max)
+			max = antiDiag[i];
+	}	
 
-inline void
-__device__ computeAntidiag(gpuVector<int> &antiDiag1,
-				gpuVector<int> &antiDiag2,
-				gpuVector<int> &antiDiag3,
+	return max;
+}
+
+
+void
+__global__ computeAntidiag(int *antiDiag1,
+				int *antiDiag2,
+				int *antiDiag3,
 				unsigned short const &offset1,
 				unsigned short const &offset2,
 				unsigned short const &offset3,
@@ -86,8 +97,8 @@ __device__ computeAntidiag(gpuVector<int> &antiDiag1,
 				unsigned short const &antiDiagNo,
 				short const &gapCost,
 				ScoringSchemeL &scoringScheme,
-				char *querySeg,
-				char *databaseSeg,
+				char* querySeg,
+				char* databaseSeg,
 				int const &undefined,
 				int const &best,
 				short const &scoreDropOff,
@@ -96,9 +107,11 @@ __device__ computeAntidiag(gpuVector<int> &antiDiag1,
 				unsigned short  const &maxCol,
 				unsigned short  const &minCol)
 {
-	for (short col = minCol; col < maxCol; ++col) {
+	//for (short col = minCol; col < maxCol; ++col) {
 	// indices on anti-diagonals
-	
+	int threadId = threadIdx.x;
+	int col = threadId + minCol;
+	if(col < maxCol){
 		int i3 = col - offset3;
 		int i2 = col - offset2;
 		int i1 = col - offset1;
@@ -120,8 +133,8 @@ __device__ computeAntidiag(gpuVector<int> &antiDiag1,
 		// Calculate matrix entry (-> antiDiag3[col])
 		int tmp = max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
 		tmp = max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
-		
-		
+		//if(col<minCol+1)
+			//std::cout << querySeg[queryPos]<< databaseSeg[dbPos] << "\n";
 		if (tmp < best - scoreDropOff)
 		{
 			antiDiag3[i3] = undefined;
@@ -135,8 +148,8 @@ __device__ computeAntidiag(gpuVector<int> &antiDiag1,
 	
 	}
 }
-inline void
-__device__ calcExtendedLowerDiag(unsigned short& lowerDiag,
+void
+calcExtendedLowerDiag(unsigned short& lowerDiag,
 					   unsigned short const & minCol,
 					   unsigned short const & antiDiagNo)
 {
@@ -145,8 +158,8 @@ __device__ calcExtendedLowerDiag(unsigned short& lowerDiag,
 		lowerDiag = minCol - minRow;
 }
 
-inline void
-__device__ calcExtendedUpperDiag(unsigned short & upperDiag,
+void
+calcExtendedUpperDiag(unsigned short & upperDiag,
 					   unsigned short const &maxCol,
 					   unsigned short const &antiDiagNo)
 {
@@ -156,18 +169,17 @@ __device__ calcExtendedUpperDiag(unsigned short & upperDiag,
 }
 
 inline void
-__device__ swapAntiDiags(gpuVector<int> &antiDiag1,
-			   gpuVector<int> &antiDiag2,
-			   gpuVector<int> &antiDiag3)
+swapAntiDiags(std::vector<int> &antiDiag1,
+			   std::vector<int> &antiDiag2,
+			   std::vector<int> &antiDiag3)
 {
-	gpuVector<int> temp = antiDiag1;
-	antiDiag1 = antiDiag2;
-	antiDiag2 = antiDiag3;
-	antiDiag3 = temp;
+	//std::vector<int> temp = antiDiag1;
+	swap(antiDiag1,antiDiag2);
+	swap(antiDiag2,antiDiag3);
 }
 
 inline int
-__device__ initAntiDiag3(gpuVector<int> &antiDiag3,
+initAntiDiag3(std::vector<int> &antiDiag3,
 			   unsigned short const & offset,
 			   unsigned short const & maxCol,
 			   unsigned short const & antiDiagNo,
@@ -191,8 +203,8 @@ __device__ initAntiDiag3(gpuVector<int> &antiDiag3,
 }
 
 inline void
-__device__ initAntiDiags(gpuVector<int> &antiDiag2,
-			   gpuVector<int> &antiDiag3,
+initAntiDiags(std::vector<int> &antiDiag2,
+			   std::vector<int> &antiDiag3,
 			   short const& dropOff,
 			   short const& gapCost,
 			   int const& undefined)
@@ -218,40 +230,26 @@ __device__ initAntiDiags(gpuVector<int> &antiDiag2,
 		antiDiag3[1] = gapCost;
 	}
 }
-//AAAA to be optmized
-int
-__device__ maxElem(gpuVector<int> &antiDiag,
-			int const& undefined
-	){
-	int max=undefined;
-	for(int i=0; i<antiDiag.size(); i++){
-		if(antiDiag[i]>max)
-			max=antiDiag[i];
-	}
-	return max;
-}
 
 int
-__device__ extendSeedLGappedXDropOneDirection(
+extendSeedLGappedXDropOneDirection(
 		SeedL & seed,
-		char *querySeg,
-		char *databaseSeg,
+		std::string const & querySeg,
+		std::string const & databaseSeg,
 		ExtensionDirectionL const & direction,
 		ScoringSchemeL &scoringScheme,
-		short const &scoreDropOff,
-		unsigned short querySegLength,
-		unsigned short databaseSegLength
-		)
+		short const &scoreDropOff)
 {
 	//typedef typename Size<TQuerySegment>::Type int;
 	//typedef typename SeedL<Simple,TConfig>::int int;
 	
 	//std::chrono::duration<double>  diff;
-	unsigned short cols = querySegLength+1;
-	unsigned short rows = databaseSegLength+1;
+	unsigned short cols = querySeg.length()+1;
+	unsigned short rows = databaseSeg.length()+1;
 	if (rows == 1 || cols == 1)
 		return 0;
-	int minimumVal = -2147483648;//as the minimum value will always be calculated starting from an integer, we can fix it without the need to call the function
+
+	int minimumVal = std::numeric_limits<int>::min();//as the minimum value will always be calculated starting from an integer, we can fix it without the need to call the function
 	unsigned short len = 2 * max(cols, rows); // number of antidiagonals (does not change in any implementation)
 	int const minErrScore = minimumVal / len; // minimal allowed error penalty
 	setScoreGap(scoringScheme, max(scoreGap(scoringScheme), minErrScore));
@@ -263,15 +261,23 @@ __device__ extendSeedLGappedXDropOneDirection(
 	//std::cout<<gapCost<<std::endl;
 	int undefined = minimumVal - gapCost;
 
+
+	//TODO create class
 	// DP matrix is calculated by anti-diagonals
-	gpuVector<int> antiDiag1;    //smallest anti-diagonal
-    gpuVector<int> antiDiag2;
-    gpuVector<int> antiDiag3;   //current anti-diagonal
+	//int *antiDiag1;    //smallest anti-diagonal
+	//int *antiDiag2;
+	//int *antiDiag3;   //current anti-diagonal
+	std::vector<int> antiDiag1;    //smallest anti-diagonal
+    std::vector<int> antiDiag2;
+    std::vector<int> antiDiag3;   //current anti-diagonal
+
+	//antiDiag1 = (int *)malloc(sizeof(int)*max(querySeg.length(), databaseSeg.length()));
+	//antiDiag2 = (int *)malloc(sizeof(int)*max(querySeg.length(), databaseSeg.length()));
+	//antiDiag3 = (int *)malloc(sizeof(int)*max(querySeg.length(), databaseSeg.length()));
 
 	// Indices on anti-diagonals include gap column/gap row:
 	//   - decrease indices by 1 for position in query/database segment
 	//   - first calculated entry is on anti-diagonal n\B0 2
-
 	unsigned short minCol = 1;
 	unsigned short maxCol = 2;
 
@@ -290,6 +296,25 @@ __device__ extendSeedLGappedXDropOneDirection(
 	//int index = 0;
 	// std::chrono::duration<double>  diff;
 	// auto start = std::chrono::high_resolution_clock::now();
+	char *qseg, *tseg;
+	//char *q = (char*)querySeg.c_str();
+	//char *t = (char*)databaseSeg.c_str();
+	cudaMallocManaged(&qseg, querySeg.length()*sizeof(int));
+    	cudaMallocManaged(&tseg, databaseSeg.length()*sizeof(int));
+	qseg = (char*)querySeg.c_str();
+	tseg = (char*)databaseSeg.c_str();
+
+	// qseg = (char *)malloc((querySeg.length()+1)*sizeof(char));
+	// tseg = (char *)malloc((databaseSeg.length()+1)*sizeof(char)); 
+	// querySeg.copy(qseg, querySeg.size()+1);
+	// databaseSeg.copy(tseg, databaseSeg.size()+1);
+	// qseg[querySeg.length()]='\0';
+	// tseg[databaseSeg.length()]='\0';
+	//cudaMemcpy(qseg, q, querySeg.length(),cudaMemcpyHostToDevice);
+   	//cudaMemcpy(tseg, t, databaseSeg.length(),cudaMemcpyHostToDevice);
+	//std::cout << databaseSeg << '\n';
+	//std::cout << tseg << '\n';
+    	int comp=0;
 	while (minCol < maxCol)
 	{	
 
@@ -306,15 +331,45 @@ __device__ extendSeedLGappedXDropOneDirection(
 
 		int antiDiagBest = antiDiagNo * gapCost;
 		//AAAA this must be parallelized
-		//#pragma omp parallel for
-		//auto start = std::chrono::high_resolution_clock::now();
-		computeAntidiag(antiDiag1,antiDiag2,antiDiag3,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,querySeg,databaseSeg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
-		//auto end = std::chrono::high_resolution_clock::now();
-		//diff += end-start;
-		
-		antiDiagBest = maxElem(antiDiag3, undefined);
-		best = (best > antiDiagBest) ? best : antiDiagBest;
 
+		
+		//char *query, *target;
+		int *ant1 = &antiDiag1[0];
+		int *ant2 = &antiDiag2[0];
+		int *ant3 = &antiDiag3[0];
+		int *a1, *a2, *a3;
+		cudaMallocManaged(&a1, antiDiag1.size()*sizeof(int));
+		cudaMallocManaged(&a2, antiDiag2.size()*sizeof(int));
+		cudaMallocManaged(&a3, antiDiag3.size()*sizeof(int));
+		a1 = &antiDiag1[0];
+		a2 = &antiDiag2[0];
+		a3 = &antiDiag3[0];
+		//cudaMalloc(&query, querySeg.length());
+		//cudaMalloc(&target, databaseSeg.length());	
+		
+		//cudaMemcpy(a1, ant1, antiDiag1.size()*sizeof(int)/8,cudaMemcpyHostToDevice);
+		//cudaMemcpy(a2, ant2, antiDiag2.size()*sizeof(int)/8,cudaMemcpyHostToDevice);
+		//cudaMemcpy(a3, ant3, antiDiag3.size()*sizeof(int)/8,cudaMemcpyHostToDevice);		
+		//cudaMemcpy(query, querySeg.c_str(),querySeg.length(),cudaMemcpyHostToDevice);
+		//cudaMemcpy(target, databaseSeg.c_str(), databaseSeg.length(),cudaMemcpyHostToDevice);
+		comp++;	
+		computeAntidiag <<<1,1024>>> (a1,a2,a3,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,qseg,tseg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
+	 	cudaDeviceSynchronize();
+		//std::cout<<comp<<'\n';	
+		//cudaMemcpy(ant1, a1, antiDiag1.size()*sizeof(int)/8, cudaMemcpyDeviceToHost);
+		//cudaMemcpy(ant2, a2, antiDiag2.size()*sizeof(int)/8, cudaMemcpyDeviceToHost);			   //cudaMemcpy(ant3, a3, antiDiag3.size()*sizeof(int)/8, cudaMemcpyDeviceToHost);
+		std::copy(a1, a1 + antiDiag1.size(), antiDiag1.begin());
+		std::copy(a2, a2 + antiDiag2.size(), antiDiag2.begin());
+		std::copy(a3, a3 + antiDiag3.size(), antiDiag3.begin());
+		antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
+		//antiDiagBest = max_element(antiDiag3, antiDiag3size);
+		best = (best > antiDiagBest) ? best : antiDiagBest;
+		//std::cout << antiDiagBest << std::endl;	
+		cudaFree(a1);
+		cudaFree(a2);
+		cudaFree(a3);
+		//cudaFree(query);
+		//cudaFree(target);
 		// Calculate new minCol and minCol
 		while (minCol - offset3 < antiDiag3.size() && antiDiag3[minCol - offset3] == undefined &&
 			   minCol - offset2 - 1 < antiDiag2.size() && antiDiag2[minCol - offset2 - 1] == undefined)
@@ -346,7 +401,8 @@ __device__ extendSeedLGappedXDropOneDirection(
 	// auto end = std::chrono::high_resolution_clock::now();
 	// diff += end-start;
 	// std::cout << "logan: "<<diff.count() <<std::endl;
-
+	cudaFree(qseg);
+	cudaFree(tseg);
 
 	
 	//std::cout << "cycles logan" << index << std::endl;
@@ -390,6 +446,11 @@ __device__ extendSeedLGappedXDropOneDirection(
 		}
 	}
 
+	// free(antiDiag1);
+	// free(antiDiag2);
+	// free(antiDiag3);
+	//free(tseg);
+	//free(qseg);
 	// update seed
 	if (longestExtensionScore != undefined)//AAAA it was !=
 		updateExtendedSeedL(seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
@@ -397,59 +458,52 @@ __device__ extendSeedLGappedXDropOneDirection(
 	return longestExtensionScore;
 
 }
-//optimize this to run on GPU
-inline int
-__device__ extendSeedL(SeedL& seed,
+
+int
+extendSeedL(SeedL& seed,
 			ExtensionDirectionL direction,
-			char* target,
-			char* query,
+			std::string const& target,
+			std::string const& query,
 			ScoringSchemeL & penalties,
 			int const& XDrop,
-			int const& kmer_length,
-			int const& query_l,
-			int const& target_l)
+			int const& kmer_length)
 {
 	if(scoreGapExtend(penalties) >= 0)
 	{
-	//	std::cout<<"Error: Logan does not support gap extension penalty >= 0\n";
+		std::cout<<"Error: Logan does not support gap extension penalty >= 0\n";
 		exit(1);
 	}
 	if(scoreGapOpen(penalties) >= 0)
 	{
-	//	std::cout<<"Error: Logan does not support gap opening penalty >= 0\n";
+		std::cout<<"Error: Logan does not support gap opening penalty >= 0\n";
 		exit(1);
 	}
 	//assert(scoreMismatch(penalties) < 0);
 	//assert(scoreMatch(penalties) > 0); 
-	assert(scoreGapOpen(penalties) == scoreGapExtend(penalties));
+	//assert(scoreGapOpen(penalties) == scoreGapExtend(penalties));
 
 	int scoreLeft=0;
 	int scoreRight=0;
 	Result scoreFinal;
-	char *queryPrefix, *querySuffix, *targetPrefix, *targetSuffix;
 
-	queryPrefix = (char *) malloc( sizeof(char) * query_l);
-	querySuffix = (char *) malloc( sizeof(char) * query_l);
-	targetPrefix = (char *) malloc( sizeof(char) * target_l);
-	targetSuffix = (char *) malloc( sizeof(char) * target_l);
 	if (direction == EXTEND_LEFTL || direction == EXTEND_BOTHL)
 	{
 		// string substr (size_t pos = 0, size_t len = npos) const;
 		// returns a newly constructed string object with its value initialized to a copy of a substring of this object
-		memcpy(targetPrefix, target,getBeginPositionH(seed));	// from read start til start seed (seed not included)
-		memcpy(queryPrefix, query, getBeginPositionV(seed));  // from read start til start seed (seed not included)
+		std::string targetPrefix = target.substr(0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
+		std::string queryPrefix = query.substr(0, getBeginPositionV(seed));	// from read start til start seed (seed not included)
 
-		scoreLeft = extendSeedLGappedXDropOneDirection(seed, queryPrefix, targetPrefix, EXTEND_LEFTL, penalties, XDrop,getBeginPositionV(seed),getBeginPositionH(seed));
+		scoreLeft = extendSeedLGappedXDropOneDirection(seed, queryPrefix, targetPrefix, EXTEND_LEFTL, penalties, XDrop);
 	}
 
 	if (direction == EXTEND_RIGHTL || direction == EXTEND_BOTHL)
 	{
 		// Do not extend to the right if we are already at the beginning of an
 		// infix or the sequence itself.
-		memcpy(targetSuffix, target+getEndPositionH(seed), target_l);  // from end seed until the end (seed not included)
-		memcpy(querySuffix, query+getEndPositionV(seed), query_l);    // from end seed until the end (seed not included)
+		std::string targetSuffix = target.substr(getEndPositionH(seed), target.length()); 	// from end seed until the end (seed not included)
+		std::string querySuffix = query.substr(getEndPositionV(seed), query.length());		// from end seed until the end (seed not included)
 
-		scoreRight = extendSeedLGappedXDropOneDirection(seed, querySuffix, targetSuffix, EXTEND_RIGHTL, penalties, XDrop,query_l-getEndPositionV(seed),target_l-getEndPositionH(seed));
+		scoreRight = extendSeedLGappedXDropOneDirection(seed, querySuffix, targetSuffix, EXTEND_RIGHTL, penalties, XDrop);
 	}
 
 	//Result myalignment(kmer_length); // do not add KMER_LENGTH later
@@ -457,51 +511,7 @@ __device__ extendSeedL(SeedL& seed,
 	//myalignment.score = scoreLeft + scoreRight + kmer_length; // we have already accounted for seed match score
 	int res = scoreLeft + scoreRight + kmer_length;
 	//myalignment.myseed = seed;	// extended begin and end of the seed
-	free(queryPrefix);
-	free(querySuffix);
-	free(targetPrefix);
-	free(targetSuffix);
 
 	return res;
 }
-
-// #ifdef DEBUG
-
-// //AAAA TODO??? might need some attention since TAlphabet is a graph
-// // void
-// // extendSeedLGappedXDropOneDirectionLimitScoreMismatch(Score & scoringScheme,
-// // 													 int minErrScore,
-// // 													 TAlphabet * /*tag*/)
-// // {
-// // 	// We cannot set a lower limit for the mismatch score since the score might be a scoring matrix such as Blosum62.
-// // 	// Instead, we perform a check on the matrix scores.
-// // #if SEQAN_ENABLE_DEBUG
-// // 	{
-// // 		for (unsigned i = 0; i < valueSize<TAlphabet>(); ++i)
-// // 			for (unsigned j = 0; j <= i; ++j)
-// // 				if(score(scoringScheme, TAlphabet(i), TAlphabet(j)) < minErrScore)
-// // 					printf("Mismatch score too small!, i = %u, j = %u\n");
-// // 	}
-// // #else
-// // 	(void)scoringScheme;
-// // 	(void)minErrScore;
-// // #endif  // #if SEQAN_ENABLE_DEBUG
-// // }
-
-// // int main(int argc, char const *argv[])
-// // {
-// // 	//DEBUG ONLY
-// // 	SeedL myseed;
-// // 	ScoringSchemeL myscore;
-// // 	ExtensionDirectionL dir = static_cast<ExtensionDirectionL>(atoi(argv[1]));
-// // 	std::string target = argv[2];
-// // 	std::string query = argv[3];
-// // 	int xdrop = atoi(argv[4]);
-// // 	int kmer_length = atoi(argv[5]);
-// // 	Result r = extendSeedL(myseed, dir, target, query, myscore, xdrop, kmer_length);
-// // 	std::cout << r.score << std::endl;
-// // 	return 0;
-// // }
-
-// #endif
 

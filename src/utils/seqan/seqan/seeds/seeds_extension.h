@@ -47,8 +47,8 @@
 
 #ifndef SEQAN_SEEDS_SEEDS_EXTENSION_H_
 #define SEQAN_SEEDS_SEEDS_EXTENSION_H_
-#define BEST
-//#define LONGEST
+//#define BEST
+#define LONGEST
 #define KMER_LENGTH 17
 
 namespace seqan {
