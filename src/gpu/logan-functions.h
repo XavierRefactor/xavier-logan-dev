@@ -297,20 +297,24 @@ extendSeedLGappedXDropOneDirection(
 	// std::chrono::duration<double>  diff;
 	// auto start = std::chrono::high_resolution_clock::now();
 	char *qseg, *tseg;
-	//char *qseg = (char*)querySeg.c_str();
-	//char *tseg = (char*)databaseSeg.c_str();
-	cudaMalloc(&qseg, querySeg.length()*sizeof(char));
-    cudaMalloc(&tseg, databaseSeg.length()*sizeof(char));
+	//char *q = (char*)querySeg.c_str();
+	//char *t = (char*)databaseSeg.c_str();
+	cudaMallocManaged(&qseg, querySeg.length()*sizeof(int));
+    	cudaMallocManaged(&tseg, databaseSeg.length()*sizeof(int));
+	qseg = (char*)querySeg.c_str();
+	tseg = (char*)databaseSeg.c_str();
+
 	// qseg = (char *)malloc((querySeg.length()+1)*sizeof(char));
 	// tseg = (char *)malloc((databaseSeg.length()+1)*sizeof(char)); 
 	// querySeg.copy(qseg, querySeg.size()+1);
 	// databaseSeg.copy(tseg, databaseSeg.size()+1);
 	// qseg[querySeg.length()]='\0';
 	// tseg[databaseSeg.length()]='\0';
-	cudaMemcpy(qseg, (char*)querySeg.c_str() ,querySeg.length(),cudaMemcpyHostToDevice);
-    cudaMemcpy(tseg, (char*)databaseSeg.c_str() ,databaseSeg.length(),cudaMemcpyHostToDevice);
+	//cudaMemcpy(qseg, q, querySeg.length(),cudaMemcpyHostToDevice);
+   	//cudaMemcpy(tseg, t, databaseSeg.length(),cudaMemcpyHostToDevice);
 	//std::cout << databaseSeg << '\n';
 	//std::cout << tseg << '\n';
+    	int comp=0;
 	while (minCol < maxCol)
 	{	
 
@@ -334,30 +338,33 @@ extendSeedLGappedXDropOneDirection(
 		int *ant2 = &antiDiag2[0];
 		int *ant3 = &antiDiag3[0];
 		int *a1, *a2, *a3;
-		cudaMalloc(&a1, antiDiag1.size()*sizeof(int));
-		cudaMalloc(&a2, antiDiag2.size()*sizeof(int));
-		cudaMalloc(&a3, antiDiag3.size()*sizeof(int));
-			
+		cudaMallocManaged(&a1, antiDiag1.size()*sizeof(int));
+		cudaMallocManaged(&a2, antiDiag2.size()*sizeof(int));
+		cudaMallocManaged(&a3, antiDiag3.size()*sizeof(int));
+		a1 = &antiDiag1[0];
+		a2 = &antiDiag2[0];
+		a3 = &antiDiag3[0];
 		//cudaMalloc(&query, querySeg.length());
 		//cudaMalloc(&target, databaseSeg.length());	
 		
-		cudaMemcpy(a1, ant1, antiDiag1.size(),cudaMemcpyHostToDevice);
-		cudaMemcpy(a2, ant2, antiDiag2.size(),cudaMemcpyHostToDevice);
-		cudaMemcpy(a3, ant3, antiDiag3.size(),cudaMemcpyHostToDevice);		
+		//cudaMemcpy(a1, ant1, antiDiag1.size()*sizeof(int)/8,cudaMemcpyHostToDevice);
+		//cudaMemcpy(a2, ant2, antiDiag2.size()*sizeof(int)/8,cudaMemcpyHostToDevice);
+		//cudaMemcpy(a3, ant3, antiDiag3.size()*sizeof(int)/8,cudaMemcpyHostToDevice);		
 		//cudaMemcpy(query, querySeg.c_str(),querySeg.length(),cudaMemcpyHostToDevice);
 		//cudaMemcpy(target, databaseSeg.c_str(), databaseSeg.length(),cudaMemcpyHostToDevice);
+		comp++;	
 		computeAntidiag <<<1,1024>>> (a1,a2,a3,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,qseg,tseg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
-	 	//cudaDeviceSynchronize();	
-		cudaMemcpy(ant1, a1, antiDiag1.size(), cudaMemcpyDeviceToHost);
-		cudaMemcpy(ant2, a2, antiDiag2.size(), cudaMemcpyDeviceToHost);		
-		cudaMemcpy(ant3, a3, antiDiag3.size(), cudaMemcpyDeviceToHost);
-		std::copy(ant1, ant1 + antiDiag1.size(), antiDiag1.begin());
-		std::copy(ant2, ant2 + antiDiag2.size(), antiDiag2.begin());
-		std::copy(ant3, ant3 + antiDiag3.size(), antiDiag3.begin());
+	 	cudaDeviceSynchronize();
+		//std::cout<<comp<<'\n';	
+		//cudaMemcpy(ant1, a1, antiDiag1.size()*sizeof(int)/8, cudaMemcpyDeviceToHost);
+		//cudaMemcpy(ant2, a2, antiDiag2.size()*sizeof(int)/8, cudaMemcpyDeviceToHost);			   //cudaMemcpy(ant3, a3, antiDiag3.size()*sizeof(int)/8, cudaMemcpyDeviceToHost);
+		std::copy(a1, a1 + antiDiag1.size(), antiDiag1.begin());
+		std::copy(a2, a2 + antiDiag2.size(), antiDiag2.begin());
+		std::copy(a3, a3 + antiDiag3.size(), antiDiag3.begin());
 		antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
 		//antiDiagBest = max_element(antiDiag3, antiDiag3size);
 		best = (best > antiDiagBest) ? best : antiDiagBest;
-	
+		//std::cout << antiDiagBest << std::endl;	
 		cudaFree(a1);
 		cudaFree(a2);
 		cudaFree(a3);
@@ -394,7 +401,8 @@ extendSeedLGappedXDropOneDirection(
 	// auto end = std::chrono::high_resolution_clock::now();
 	// diff += end-start;
 	// std::cout << "logan: "<<diff.count() <<std::endl;
-
+	cudaFree(qseg);
+	cudaFree(tseg);
 
 	
 	//std::cout << "cycles logan" << index << std::endl;
@@ -441,8 +449,8 @@ extendSeedLGappedXDropOneDirection(
 	// free(antiDiag1);
 	// free(antiDiag2);
 	// free(antiDiag3);
-	free(tseg);
-	free(qseg);
+	//free(tseg);
+	//free(qseg);
 	// update seed
 	if (longestExtensionScore != undefined)//AAAA it was !=
 		updateExtendedSeedL(seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
