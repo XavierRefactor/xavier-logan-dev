@@ -180,33 +180,21 @@ extendSeedLGappedXDropOneDirectionAVX2(
 
 	setScoreMismatch(scoringScheme, std::max(scoreMismatch(scoringScheme), minErrScore));
 
-	short gapCost = scoreGap(scoringScheme);
-	short undefined = std::numeric_limits<short>::min() - gapCost;
+	__m256i gapCost   = _mm256_set1_epi16 ( scoreGap(scoringScheme) );
+	__m256i undefined = _mm256_set1_epi16 ( _mm256_sub_epi16 ( _mm256_set1_epi16 ( std::numeric_limits<short>::min() ), gapCost );
 
-	__m256i best     = _mm_set1_epi16(undefined);
-	__m256i zero_    = _mm_set1_epi16(0);
-	__m256i sc_mch_  = _mm_set1_epi16(scoreMatch(scoringScheme));
-	__m256i sc_mis_  = _mm_set1_epi16(scoreMismatch(scoringScheme));
-	__m256i sc_gapo_ = _mm_set1_epi16(scoreGapExtend(scoringScheme));
-	__m256i sc_gape_ = _mm_set1_epi16(scoreGapExtend(scoringScheme));
-
-	// DP matrix is calculated by anti-diagonals
 	register __m256i antiDiag1; 	// 16 (vector width) 16-bit integers
 	register __m256i antiDiag2; 	// 16 (vector width) 16-bit integers
 	register __m256i antiDiag3; 	// 16 (vector width) 16-bit integers
 
-	// Indices on anti-diagonals include gap column/gap row:
-	//   - decrease indices by 1 for position in query/database segment
-	//   - first calculated entry is on anti-diagonal n\B0 2
+	__m256i minCol = _mm256_set1_epi16 (1);
+	__m256i maxCol = _mm256_set1_epi16 (2);
 
-	unsigned short minCol = 1;
-	unsigned short maxCol = 2;
+	__m256i offset1 = _mm256_setzero_si256(); // number of leading columns that need not be calculated in antiDiag1
+	__m256i offset2 = _mm256_setzero_si256(); //                                                       in antiDiag2
+	__m256i offset3 = _mm256_setzero_si256(); //                                                       in antiDiag3
 
-	unsigned short offset1 = 0; // number of leading columns that need not be calculated in antiDiag1
-	unsigned short offset2 = 0; //                                                       in antiDiag2
-	unsigned short offset3 = 0; //                                                       in antiDiag3
-
-	antiDiag2 = _mm256_setzero_si256 (); 	// initialize vector with zeros
+	antiDiag2 = _mm256_setzero_si256 (); 			// initialize vector with zeros
 
 	//antiDiag3.resize(2);
 	if (-gapCost > dropOff) // initialize vector with -inf
@@ -218,30 +206,20 @@ extendSeedLGappedXDropOneDirectionAVX2(
 		antiDiag3 = _mm256_set1_epi16 (gapCost); 	// broadcast 16-bit integer a to all elements of dst
 	}
 
-	unsigned short antiDiagNo = 1; 	// the currently calculated anti-diagonal
-	unsigned short best = 0; 		// maximal score value in the DP matrix (for drop-off calculation)
+	__m256i antiDiagNo = _mm256_set1_epi16 (1); 	// the currently calculated anti-diagonal
+	__m256i best = _mm256_setzero_si256(); 			// maximal score value in the DP matrix (for drop-off calculation)
 
-	unsigned short lowerDiag = 0;
-	unsigned short upperDiag = 0;
-
-	// this is fixed so no need to load within the loop
-	// vector containing -inf 	
-	__m256i undef  = _mm256_set1_epi16(undefined);
-
-	// mask that set to zero the first element		
-	short neg = -1;
-	short pos =  1;
+	__m256i lowerDiag = _mm256_setzero_si256();
+	__m256i upperDiag = _mm256_setzero_si256();
 
 	while (minCol < maxCol) // this diff cannot be greater than 16
 	{
-
+		// data must be aligned when loading to and storing to avoid severe performance penalties
 		++antiDiagNo;
-		// temp = antiDiag1;
 		// swap antiDiags
-		// check memory alignment
 		antiDiag1 = _mm256_load_epi16 (&antiDiag2);
 		antiDiag2 = _mm256_load_epi16 (&antiDiag3);
-		antiDiag3 = _mm256_load_epi16 (&undef);
+		antiDiag3 = _mm256_set1_epi16 (undefined); 	// init to -inf at each iteration
 
 		offset1 = offset2;
 		offset2 = offset3;
@@ -251,61 +229,68 @@ extendSeedLGappedXDropOneDirectionAVX2(
 		int bestExtensionRow = 0;
 		int bestExtensionScore = 0;
 
-		if (antiDiagNo * gapCost > best - scoreDropOff)
+		// multiply the packed 16-bit integers in a and b, producing intermediate 32-bit integers, and store the low 16 bits of the intermediate integers in dst
+		__m256i antiDiagBest = _mm256_mullo_epi16 (antiDiagNo, gapCost);
+		__m256i bestDrop   = _mm256_sub_epi16 (best, scoreDropOff);
+		__m256i antiMax    = _mm256_sub_epi16 (antiDiagNo, maxCol);
+
+		// if (antiDiagNo * gapCost > best - scoreDropOff) mask1 set to 1, otherwise 0
+		__m256i mask1 	 = _mm256_cmpgt_epi16 (antiDiagBest, bestDrop);
+		// if (offset3 == 0) mask2 set to 1, otherwise 0
+		__m256i mask2 	 = _mm256_cmpeq_epi16 (offset3, _mm256_setzero_si256());
+		// if (antiDiagNo * gapCost > best - scoreDropOff) AND if (offset3 == 0) mask3 set to 1, otherwise 0
+		__m256i mask3 	 = _mm256_and_si256 (mask1, mask2);
+		// if (antiDiagNo - maxCol == 0) mask4 set to 1, otherwise 0
+		__m256i mask4 	 = _mm256_cmpeq_epi16 (antiMax, _mm256_setzero_si256());
+		// if (antiDiagNo * gapCost > best - scoreDropOff) AND if (antiDiagNo - maxCol == 0) mask5 set to 1, otherwise 0
+		__m256i mask5 	 = _mm256_and_si256 (mask1, mask4);
+
+		__m256i mask6  = _mm256_setr_epi16 (1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+		mask6      = _mm256_mullo_epi16 (mask6, mask3); // if mask3 == 0, 1st lane == 0, otheriwise remain the same as declared
+		antiDiag3  = _mm256_blend_epi16 (antiDiag3, antiDiagBest, mask6); // if 1stlane == 0, antiDiag3 remain the same as before 	
+
+		// how I compute this at runtime?
+		// antiDiag3[maxCol - offset3] = antiDiagNo * gapCost;
+		__m256i mask7 	= _mm256_cmpeq_epi16 (antiMax, antiMax);
+		mask7      = _mm256_mullo_epi16 (mask7, mask5); // if mask5 == 0, mask7 == 0, otheriwise remain the same as declared
+		antiDiag3  = _mm256_blend_epi16 (antiDiag3, antiDiagBest, mask7); // if mask7s == 0, antiDiag3 remain the same as before 	
+
+		//  unroll here
+		//  for (short col = minCol; col < maxCol; col += 16) {
+		//	// indices on anti-diagonals
+
+		__m256i i3 = col - offset3;
+		__m256i i2 = col - offset2;
+		__m256i i1 = col - offset1;
+
+		// indices in query and database segments
+		int queryPos, dbPos;
+		if (direction == EXTEND_RIGHTL)
 		{
-			if (offset3 == 0) // init first column
-			{
-				__m256i mask  = _mm256_setr_epi16 (pos, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg);
-				__m256i value = _mm256_set1_epi16 (antiDiagNo * gapCost);
-
-				antiDiag3     = _mm256_maskload_epi16 (antiDiag3, mask); // antiDiag3 has the first position set to 0 (check consistency positions)
-				_mm256_add_epi16 (antiDiag3, value);
-			}
-			if (antiDiagNo - maxCol == 0) // init first row
-			{
-				// merda here 	
-				antiDiag3[maxCol - offset3] = antiDiagNo * gapCost;
-			}
+			queryPos = col - 1;
+			dbPos = antiDiagNo - col - 1;
+		}
+		else // direction == EXTEND_LEFTL
+		{
+			queryPos = cols - 1 - col;
+			dbPos = rows - 1 + col - antiDiagNo;
 		}
 
-		int antiDiagBest = antiDiagNo * gapCost;
-
-		// GGGG: loop to be unrolled by factor vector width
-		for (short col = minCol; col < maxCol; ++col) {
-			// indices on anti-diagonals
-
-			int i3 = col - offset3;
-			int i2 = col - offset2;
-			int i1 = col - offset1;
-
-			// indices in query and database segments
-			int queryPos, dbPos;
-			if (direction == EXTEND_RIGHTL)
-			{
-				queryPos = col - 1;
-				dbPos = antiDiagNo - col - 1;
-			}
-			else // direction == EXTEND_LEFTL
-			{
-				queryPos = cols - 1 - col;
-				dbPos = rows - 1 + col - antiDiagNo;
-			}
-
-			// Calculate matrix entry (-> antiDiag3[col])
-			int tmp = std::max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
-			tmp = std::max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
-			
-			
-			if (tmp < best - scoreDropOff)
-			{
-				antiDiag3[i3] = undefined;
-			}
-			else
-			{
-				antiDiag3[i3] = tmp;
-				antiDiagBest = std::max(antiDiagBest, tmp);
-			}
+		// Calculate matrix entry (-> antiDiag3[col])
+		int tmp = std::max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
+		tmp = std::max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
+		
+		
+		if (tmp < best - scoreDropOff)
+		{
+			antiDiag3[i3] = undefined;
 		}
+		else
+		{
+			antiDiag3[i3] = tmp;
+			antiDiagBest = std::max(antiDiagBest, tmp);
+		}
+		//}
 
 		// seed extension wrt best score
 		if (antiDiagBest >= best)
@@ -342,45 +327,46 @@ extendSeedLGappedXDropOneDirectionAVX2(
 		// end of querySeg reached?
 		maxCol = (maxCol < cols) ? maxCol : cols;
 	}
+
 	// find positions of longest extension
 	// reached ends of both segments
-	//int longestExtensionCol = antiDiag3.size() + offset3 - 2;
-	//int longestExtensionRow = antiDiagNo - longestExtensionCol;
-	//int longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
-	//if (longestExtensionScore == undefined)
-	//{
-	//	if (antiDiag2[antiDiag2.size()-2] != undefined)
-	//	{
-	//		// reached end of query segment
-	//		longestExtensionCol = antiDiag2.size() + offset2 - 2;
-	//		longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
-	//		longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
-	//	}
-	//	else if (antiDiag2.size() > 2 && antiDiag2[antiDiag2.size()-3] != undefined)
-	//	{
-	//		// reached end of database segment
-	//		longestExtensionCol = antiDiag2.size() + offset2 - 3;
-	//		longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
-	//		longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
-	//	}
-	//}
-	//if (longestExtensionScore == undefined)
-	//{
-	//	// general case
-	//	for (int i = 0; i < antiDiag1.size(); ++i)
-	//	{
-	//		if (antiDiag1[i] > longestExtensionScore)
-	//		{
-	//			longestExtensionScore = antiDiag1[i];
-	//			longestExtensionCol = i + offset1;
-	//			longestExtensionRow = antiDiagNo - 2 - longestExtensionCol;
-	//		}
-	//	}
-	//}
+	int longestExtensionCol = antiDiag3.size() + offset3 - 2;
+	int longestExtensionRow = antiDiagNo - longestExtensionCol;
+	int longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
+	if (longestExtensionScore == undefined)
+	{
+		if (antiDiag2[antiDiag2.size()-2] != undefined)
+		{
+			// reached end of query segment
+			longestExtensionCol = antiDiag2.size() + offset2 - 2;
+			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
+			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
+		}
+		else if (antiDiag2.size() > 2 && antiDiag2[antiDiag2.size()-3] != undefined)
+		{
+			// reached end of database segment
+			longestExtensionCol = antiDiag2.size() + offset2 - 3;
+			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
+			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
+		}
+	}
+	if (longestExtensionScore == undefined)
+	{
+		// general case
+		for (int i = 0; i < antiDiag1.size(); ++i)
+		{
+			if (antiDiag1[i] > longestExtensionScore)
+			{
+				longestExtensionScore = antiDiag1[i];
+				longestExtensionCol = i + offset1;
+				longestExtensionRow = antiDiagNo - 2 - longestExtensionCol;
+			}
+		}
+	}
 
 	// update seed
 	if (bestExtensionScore != undefined)
-		updateExtendedSeedL(seed, direction, bestExtensionCol, bestExtensionRow, lowerDiag, upperDiag);
+		updateExtendedSeedL(seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
 
 	return bestExtensionScore;
 
