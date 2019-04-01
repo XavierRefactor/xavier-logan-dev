@@ -278,6 +278,8 @@ extendSeedLGappedXDropOneDirection(
 		
 		//antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
 		best = (best > antiDiagBest) ? best : antiDiagBest;
+		std::cout << "LONGEST: antiDiagBest\t" << antiDiagBest << "\tbest\t" << best << std::endl;
+
 
 		// Calculate new minCol and minCol
 		while (minCol - offset3 < seqan::length(antiDiag3) && antiDiag3[minCol - offset3] == undefined &&

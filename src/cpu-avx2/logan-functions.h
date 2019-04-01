@@ -206,24 +206,15 @@ extendSeedLGappedXDropOneDirectionAVX2(
 	unsigned short offset2 = 0; //                                                       in antiDiag2
 	unsigned short offset3 = 0; //                                                       in antiDiag3
 
-	//initAntiDiags(antiDiag2, antiDiag3, scoreDropOff, gapCost, undefined);
-	// antiDiagonals will be swaped in while loop BEFORE computation of antiDiag3 entries
-	//  -> no initialization of antiDiag1 necessary
-
-	//antiDiag2[0] = 0;
-	antiDiag2 = _mm256_setzero_si256 (); 	
+	antiDiag2 = _mm256_setzero_si256 (); 	// initialize vector with zeros
 
 	//antiDiag3.resize(2);
-	if (-gapCost > dropOff)
+	if (-gapCost > dropOff) // initialize vector with -inf
 	{
-		// antiDiag3[0] = undefined;
-		// antiDiag3[1] = undefined;
 		antiDiag3 = _mm256_set1_epi16 (undefined); 	// broadcast 16-bit integer a to all elements of dst
 	}
-	else
+	else // initialize vector with gapCost
 	{
-		// antiDiag3[0] = gapCost;
-		// antiDiag3[1] = gapCost;
 		antiDiag3 = _mm256_set1_epi16 (gapCost); 	// broadcast 16-bit integer a to all elements of dst
 	}
 
@@ -233,13 +224,13 @@ extendSeedLGappedXDropOneDirectionAVX2(
 	unsigned short lowerDiag = 0;
 	unsigned short upperDiag = 0;
 
-	// This is fixed so no need to load within the loop
+	// this is fixed so no need to load within the loop
+	// vector containing -inf 	
 	__m256i undef  = _mm256_set1_epi16(undefined);
-	// mask that set to zero the first element	
+
+	// mask that set to zero the first element		
 	short neg = -1;
 	short pos =  1;
-	// I need to set the first value to undefined not zero 	
-	__m256i fpmask = _mm256_setr_epi16 (pos, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg);
 
 	while (minCol < maxCol) // this diff cannot be greater than 16
 	{
@@ -248,32 +239,33 @@ extendSeedLGappedXDropOneDirectionAVX2(
 		// temp = antiDiag1;
 		// swap antiDiags
 		// check memory alignment
-		register __m256i temp;
-		// __m256i _mm256_setr_epi16 eet packed 16-bit integers in dst with the supplied values in reverse order
-		temp 	  = _mm256_load_epi16 (&antiDiag1);
 		antiDiag1 = _mm256_load_epi16 (&antiDiag2);
 		antiDiag2 = _mm256_load_epi16 (&antiDiag3);
-		antiDiag3 = _mm256_load_epi16 (&temp);
+		antiDiag3 = _mm256_load_epi16 (&undef);
 
 		offset1 = offset2;
 		offset2 = offset3;
 		offset3 = minCol-1;
 
-		// antiDiag3 = _mm256_maskload_epi16 (antiDiag3, fpmask); // antiDiag3 has the first position set to 0 (check consistency positions)
-		// antiDiag3[maxCol - offset] = undefined; // which position is this?
+		int bestExtensionCol = 0;
+		int bestExtensionRow = 0;
+		int bestExtensionScore = 0;
 
 		if (antiDiagNo * gapCost > best - scoreDropOff)
 		{
 			if (offset3 == 0) // init first column
 			{
-				__m256i val = _mm256_set1_epi16(antiDiagNo * gapCost);
-				antiDiag3 = _mm256_maskload_epi16 (antiDiag3, fpmask); // antiDiag3 has the first position set to 0 (check consistency positions)
-				// first element set to val (check consistency positions)
-				//antiDiag3[0] = antiDiagNo * gapCost;
-				// till here
+				__m256i mask  = _mm256_setr_epi16 (pos, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg, neg);
+				__m256i value = _mm256_set1_epi16 (antiDiagNo * gapCost);
+
+				antiDiag3     = _mm256_maskload_epi16 (antiDiag3, mask); // antiDiag3 has the first position set to 0 (check consistency positions)
+				_mm256_add_epi16 (antiDiag3, value);
 			}
 			if (antiDiagNo - maxCol == 0) // init first row
+			{
+				// merda here 	
 				antiDiag3[maxCol - offset3] = antiDiagNo * gapCost;
+			}
 		}
 
 		int antiDiagBest = antiDiagNo * gapCost;
@@ -315,11 +307,18 @@ extendSeedLGappedXDropOneDirectionAVX2(
 			}
 		}
 
+		// seed extension wrt best score
+		if (antiDiagBest >= best)
+		{
+			bestExtensionCol	= length(antiDiag3) + offset3 - 2;
+			bestExtensionRow	= antiDiagNo - bestExtensionCol;
+			bestExtensionScore	= best;
+		}
+
 		//antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 
 		// Calculate new minCol and minCol
-		// GGGG: some fancy operation with masks
 		while (minCol - offset3 < antiDiag3.size() && antiDiag3[minCol - offset3] == undefined &&
 			   minCol - offset2 - 1 < antiDiag2.size() && antiDiag2[minCol - offset2 - 1] == undefined)
 		{
@@ -342,57 +341,48 @@ extendSeedLGappedXDropOneDirectionAVX2(
 		minCol = (minCol > (antiDiagNo + 2 - rows)) ? minCol : (antiDiagNo + 2 - rows);
 		// end of querySeg reached?
 		maxCol = (maxCol < cols) ? maxCol : cols;
-			
-		
-		//index++;
 	}
-	//std::cout << "logan time: " <<  diff.count() <<std::endl;
-
-	//std::cout << "cycles logan" << index << std::endl;
 	// find positions of longest extension
-
 	// reached ends of both segments
-	int longestExtensionCol = antiDiag3.size() + offset3 - 2;
-	int longestExtensionRow = antiDiagNo - longestExtensionCol;
-	int longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
-
-	if (longestExtensionScore == undefined)
-	{
-		if (antiDiag2[antiDiag2.size()-2] != undefined)
-		{
-			// reached end of query segment
-			longestExtensionCol = antiDiag2.size() + offset2 - 2;
-			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
-			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
-		}
-		else if (antiDiag2.size() > 2 && antiDiag2[antiDiag2.size()-3] != undefined)
-		{
-			// reached end of database segment
-			longestExtensionCol = antiDiag2.size() + offset2 - 3;
-			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
-			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
-		}
-	}
-
-	if (longestExtensionScore == undefined)
-	{
-		// general case
-		for (int i = 0; i < antiDiag1.size(); ++i)
-		{
-			if (antiDiag1[i] > longestExtensionScore)
-			{
-				longestExtensionScore = antiDiag1[i];
-				longestExtensionCol = i + offset1;
-				longestExtensionRow = antiDiagNo - 2 - longestExtensionCol;
-			}
-		}
-	}
+	//int longestExtensionCol = antiDiag3.size() + offset3 - 2;
+	//int longestExtensionRow = antiDiagNo - longestExtensionCol;
+	//int longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
+	//if (longestExtensionScore == undefined)
+	//{
+	//	if (antiDiag2[antiDiag2.size()-2] != undefined)
+	//	{
+	//		// reached end of query segment
+	//		longestExtensionCol = antiDiag2.size() + offset2 - 2;
+	//		longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
+	//		longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
+	//	}
+	//	else if (antiDiag2.size() > 2 && antiDiag2[antiDiag2.size()-3] != undefined)
+	//	{
+	//		// reached end of database segment
+	//		longestExtensionCol = antiDiag2.size() + offset2 - 3;
+	//		longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
+	//		longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
+	//	}
+	//}
+	//if (longestExtensionScore == undefined)
+	//{
+	//	// general case
+	//	for (int i = 0; i < antiDiag1.size(); ++i)
+	//	{
+	//		if (antiDiag1[i] > longestExtensionScore)
+	//		{
+	//			longestExtensionScore = antiDiag1[i];
+	//			longestExtensionCol = i + offset1;
+	//			longestExtensionRow = antiDiagNo - 2 - longestExtensionCol;
+	//		}
+	//	}
+	//}
 
 	// update seed
-	if (longestExtensionScore != undefined)//AAAA it was !=
-		updateExtendedSeedL(seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
+	if (bestExtensionScore != undefined)
+		updateExtendedSeedL(seed, direction, bestExtensionCol, bestExtensionRow, lowerDiag, upperDiag);
 
-	return longestExtensionScore;
+	return bestExtensionScore;
 
 }
 

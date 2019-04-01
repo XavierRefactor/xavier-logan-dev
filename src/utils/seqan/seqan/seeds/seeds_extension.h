@@ -740,6 +740,8 @@ _extendSeedGappedXDropOneDirection(
 #endif
         best = _max(best, antiDiagBest);
 
+        std::cout << "BEST: antiDiagBest\t" << antiDiagBest << "\tbest\t" << best << std::endl;
+
         // Calculate new minCol and minCol
         while (minCol - offset3 < length(antiDiag3) && antiDiag3[minCol - offset3] == undefined &&
                minCol - offset2 - 1 < length(antiDiag2) && antiDiag2[minCol - offset2 - 1] == undefined)

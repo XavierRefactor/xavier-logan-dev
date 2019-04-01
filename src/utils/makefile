@@ -7,9 +7,9 @@ SEQINCLUDE=	-Iseqan
 optlist.o:	../optlist/optlist.c ../optlist/optlist.h
 	$(CC) $(CFLAGS) $<
 
-test: test-performance-nosimd.cpp
+test: test-performance.cpp
 
-	$(COMPILER) -std=c++14 $(INCLUDE) -O3 -march=native $(SEQINCLUDE) -o test test-performance-nosimd.cpp
+	$(COMPILER) -std=c++14 $(INCLUDE) -O3 -march=native $(SEQINCLUDE) -o test test-performance.cpp
 
 gpu: test-performance-gpu.cu
 
