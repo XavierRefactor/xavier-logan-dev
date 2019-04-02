@@ -187,8 +187,8 @@ extendSeedLGappedXDropOneDirectionAVX2(
 	register __m256i antiDiag2; 	// 16 (vector width) 16-bit integers
 	register __m256i antiDiag3; 	// 16 (vector width) 16-bit integers
 
-	__m256i minCol = _mm256_set1_epi16 (1);
-	__m256i maxCol = _mm256_set1_epi16 (2);
+	__int16 minCol = 1;
+	__int16 maxCol = 2;
 
 	__m256i offset1 = _mm256_setzero_si256(); // number of leading columns that need not be calculated in antiDiag1
 	__m256i offset2 = _mm256_setzero_si256(); //                                                       in antiDiag2
@@ -223,7 +223,7 @@ extendSeedLGappedXDropOneDirectionAVX2(
 
 		offset1 = offset2;
 		offset2 = offset3;
-		offset3 = minCol-1;
+		offset3 = _mm256_sub_epi16 (_mm256_set1_epi16 (minCol), _mm256_set1_epi16 (1));
 
 		int bestExtensionCol = 0;
 		int bestExtensionRow = 0;
@@ -234,42 +234,52 @@ extendSeedLGappedXDropOneDirectionAVX2(
 		__m256i bestDrop   = _mm256_sub_epi16 (best, scoreDropOff);
 		__m256i antiMax    = _mm256_sub_epi16 (antiDiagNo, maxCol);
 
-		// if (antiDiagNo * gapCost > best - scoreDropOff) mask1 set to 1, otherwise 0
-		__m256i mask1 	 = _mm256_cmpgt_epi16 (antiDiagBest, bestDrop);
-		// if (offset3 == 0) mask2 set to 1, otherwise 0
-		__m256i mask2 	 = _mm256_cmpeq_epi16 (offset3, _mm256_setzero_si256());
-		// if (antiDiagNo * gapCost > best - scoreDropOff) AND if (offset3 == 0) mask3 set to 1, otherwise 0
-		__m256i mask3 	 = _mm256_and_si256 (mask1, mask2);
-		// if (antiDiagNo - maxCol == 0) mask4 set to 1, otherwise 0
-		__m256i mask4 	 = _mm256_cmpeq_epi16 (antiMax, _mm256_setzero_si256());
-		// if (antiDiagNo * gapCost > best - scoreDropOff) AND if (antiDiagNo - maxCol == 0) mask5 set to 1, otherwise 0
-		__m256i mask5 	 = _mm256_and_si256 (mask1, mask4);
+		__m256i mask1 	 = _mm256_cmpgt_epi16 (antiDiagBest, bestDrop); 			// if (antiDiagNo * gapCost > best - scoreDropOff) mask1 set to 1, otherwise 0
+		__m256i mask2 	 = _mm256_cmpeq_epi16 (offset3, _mm256_setzero_si256()); 	// if (offset3 == 0) mask2 set to 1, otherwise 0
+		__m256i mask3 	 = _mm256_and_si256 (mask1, mask2); 						// if (antiDiagNo * gapCost > best - scoreDropOff) AND if (offset3 == 0) mask3 set to 1, otherwise 0
+		__m256i mask4 	 = _mm256_cmpeq_epi16 (antiMax, _mm256_setzero_si256()); 	// if (antiDiagNo - maxCol == 0) mask4 set to 1, otherwise 0
+		__m256i mask5 	 = _mm256_and_si256 (mask1, mask4); 						// if (antiDiagNo * gapCost > best - scoreDropOff) AND if (antiDiagNo - maxCol == 0) mask5 set to 1, otherwise 0
 
-		__m256i mask6  = _mm256_setr_epi16 (1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-		mask6      = _mm256_mullo_epi16 (mask6, mask3); // if mask3 == 0, 1st lane == 0, otheriwise remain the same as declared
-		antiDiag3  = _mm256_blend_epi16 (antiDiag3, antiDiagBest, mask6); // if 1stlane == 0, antiDiag3 remain the same as before 	
+		__int16 address3[16] = {0};
+		address3[0] = 1;
 
-		// how I compute this at runtime?
+		__int16 address5[16] = {0};
+		address5[antiDiagNo - maxCol] = 1;
+
+		union { __m256i mask6; address3; };
+		union { __m256i mask7; address5; };
+
+		mask6      = _mm256_mullo_epi16 (mask6, mask3); // if mask3 == 0, mask6 == 0, otheriwise remain the same as declared
+		antiDiag3  = _mm256_blend_epi16 (antiDiag3, antiDiagBest, mask6); // if mask6 == 0, antiDiag3 remain the same as before
+
 		// antiDiag3[maxCol - offset3] = antiDiagNo * gapCost;
-		__m256i mask7 	= _mm256_cmpeq_epi16 (antiMax, antiMax);
 		mask7      = _mm256_mullo_epi16 (mask7, mask5); // if mask5 == 0, mask7 == 0, otheriwise remain the same as declared
-		antiDiag3  = _mm256_blend_epi16 (antiDiag3, antiDiagBest, mask7); // if mask7s == 0, antiDiag3 remain the same as before 	
+		antiDiag3  = _mm256_blend_epi16 (antiDiag3, antiDiagBest, mask7); // if mask7 == 0, antiDiag3 remain the same as before
 
-		//  unroll here
-		//  for (short col = minCol; col < maxCol; col += 16) {
-		//	// indices on anti-diagonals
+		// for vector length 	  
+		__int16 col[16] = {0};
+		col[minCol] = 1;
+		col[maxCol] = 1;
 
-		__m256i i3 = col - offset3;
-		__m256i i2 = col - offset2;
-		__m256i i1 = col - offset1;
+		union { __m256i address6; col; };
+		// 0,1,1,0,0,0,0,0,0,0,0,0,0,0,0
+
+		__m256i i3 = _mm256_sub_epi16 (address6, offset3);
+		// 0,1,1,0,0,0,0,0,0,0,0,0,0,0,0
+		__m256i i2 = _mm256_sub_epi16 (address6, offset2);
+		// 0,1,1,0,0,0,0,0,0,0,0,0,0,0,0
+		__m256i i1 = _mm256_sub_epi16 (address6, offset1);
+		// 0,1,1,0,0,0,0,0,0,0,0,0,0,0,0
 
 		// indices in query and database segments
-		int queryPos, dbPos;
+		__m256i queryPos, dbPos;
 		if (direction == EXTEND_RIGHTL)
 		{
-			queryPos = col - 1;
-			dbPos = antiDiagNo - col - 1;
-		}
+			//queryPos = _mm256_sub_epi16 (col, _mm256_set1_epi16 (1));
+			//// -1,0,0,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1
+			//dbPos = _mm256_sub_epi16 (_mm256_set1_epi16 (antiDiagNo), _mm256_add_epi16 (col, _mm256_set1_epi16 (1)));
+			//// 1,0,0,1,1,1,1,1,1,1,1,1,1,1,1
+		}//
 		else // direction == EXTEND_LEFTL
 		{
 			queryPos = cols - 1 - col;
@@ -327,7 +337,6 @@ extendSeedLGappedXDropOneDirectionAVX2(
 		// end of querySeg reached?
 		maxCol = (maxCol < cols) ? maxCol : cols;
 	}
-
 	// find positions of longest extension
 	// reached ends of both segments
 	int longestExtensionCol = antiDiag3.size() + offset3 - 2;
