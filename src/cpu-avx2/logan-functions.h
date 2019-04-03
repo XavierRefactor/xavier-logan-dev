@@ -222,6 +222,9 @@ extendSeedLGappedXDropRightAVX2(
 	__int16 lowerDiag  = 0;
 	__int16 upperDiag  = 0;
 
+	__int16 antiDiag2size = 1;
+	__int16 antiDiag3size = 2;
+
 	while (minCol < maxCol) // this diff cannot be greater than 16
 	{
 		// data must be aligned when loading to and storing to avoid severe performance penalties
@@ -230,6 +233,12 @@ extendSeedLGappedXDropRightAVX2(
 		antiDiag1 = _mm256_load_epi16 (&antiDiag2);
 		antiDiag2 = _mm256_load_epi16 (&antiDiag3);
 		antiDiag3 = _mm256_set1_epi16 (undefined); 	// init to -inf at each iteration
+
+		// antiDiag3.size() isn't maxCol-minCol? don't need a temp variable for minCol as the while loop happens once with SIMD
+		// it is maxCol-minCol until full vector utilization 
+		// antiDiag3.size() = maxCol+1-offset (resize in original initDiag3)
+		antiDiag2size = antiDiag3size;
+		antiDiag3size = maxCol + 1 - offset3; // double check this in original seqan
 
 		offset1 = offset2;
 		offset2 = offset3;
@@ -256,8 +265,9 @@ extendSeedLGappedXDropRightAVX2(
 		__int16 address5[16] = {0};
 		address5[antiDiagNo - maxCol] = 1;
 
-		union { __m256i mask6; address3; };
-		union { __m256i mask7; address5; };
+		// check feasibility of this operation
+		__m256i mask6 = address3;
+		__m256i mask7 = address5;
 
 		mask6      = _mm256_mullo_epi16 (mask6, mask3); // if mask3 == 0, mask6 == 0, otheriwise remain the same as declared
 		antiDiag3  = _mm256_blend_epi16 (antiDiag3, antiDiagBest, mask6); // if mask6 == 0, antiDiag3 remain the same as before
@@ -310,7 +320,7 @@ extendSeedLGappedXDropRightAVX2(
 			// if base of query == base of target
 			// if mask position == 1 put score match, otherwise score mismatch
 			__m256i mask8  = _mm256_cmpeq_epi16 (query, target);
-			tmp1 = // result from masking --> score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos])
+			// tmp1 = // result from masking --> score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos])
 			tmp1 = tmp1 + antiDiag1[i1 - 1]; // scan operation again
 			tmp = max(tmp, tmp1); // tmp = std::max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
 
@@ -324,57 +334,82 @@ extendSeedLGappedXDropRightAVX2(
 			// TODO: skipping control here double check 	
 			// if true, this should contain antiDiagBest it shouldn't harm
 			// max should be in the first position double check
-			antiDiagBest = _mm256_max_epi16 (antiDiagBest, tmp)
-			//else
-			//{
-			//	antiDiag3[i3] = tmp;
-			//	antiDiagBest = std::max(antiDiagBest, tmp);
-			//}
-
-			// seed extension wrt best score
-			// TODO : not in seqan -- do this later
-			//__m256i mask10 = _mm256_cmpgt_epi16(antiDiagBest + 1, best)
-			//if (antiDiagBest >= best)
-			//{
-			//	bestCol	= length(antiDiag3) + offset3 - 2;
-			//	bestRow	= antiDiagNo - bestExtensionCol;
-			//	bestScore	= best;
-			//}
-
-			// antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
-			// best = (best > antiDiagBest) ? best : antiDiagBest;
-			// ones where best is greater, otherwise zeros
-			__m256i mask10 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best), antiDiagBest);
-			best = _mm256_extract_epi16 (_mm256_blend_epi16 (_mm256_set1_epi16 (best), antiDiagBest, mask10), 0);
-
-			// Calculate new minCol and minCol
-			//__m256i whilemask1 = _mm256_cmpgt_epi16 (condition1 & condition2 & condition3 & condtion3);
-			// count the number of ones until the first zero, that's the increment of minCol -- does this make sense?
-			// question: easy way to count zeros? look here: https://stackoverflow.com/questions/49552656/how-can-i-count-the-occurrence-of-a-byte-in-array-using-simd
-			while (minCol - offset3 < antiDiag3.size() && antiDiag3[minCol - offset3] == undefined &&
-				   minCol - offset2 - 1 < antiDiag2.size() && antiDiag2[minCol - offset2 - 1] == undefined)
-			{
-				++minCol;
-			}
-
-			// look above
-			// calculate new maxCol
-			while (maxCol - offset3 > 0 && (antiDiag3[maxCol - offset3 - 1] == undefined) &&
-										   (antiDiag2[maxCol - offset2 - 1] == undefined))
-			{
-				--maxCol;
-			}
-			++maxCol;
-
-			// Calculate new lowerDiag and upperDiag of extended seed
-			calcExtendedLowerDiag(lowerDiag, minCol, antiDiagNo);
-			calcExtendedUpperDiag(upperDiag, maxCol - 1, antiDiagNo);
-
-			// end of databaseSeg reached?
-			minCol = (minCol > (antiDiagNo + 2 - rows)) ? minCol : (antiDiagNo + 2 - rows);
-			// end of querySeg reached?
-			maxCol = (maxCol < cols) ? maxCol : cols;
 		}
+		antiDiagBest = _mm256_max_epi16 (antiDiagBest, tmp)
+		
+		//else
+		//{
+		//	antiDiag3[i3] = tmp;
+		//	antiDiagBest = std::max(antiDiagBest, tmp);
+		//}
+
+		// seed extension wrt best score
+		// TODO : not in seqan -- do this later
+		//__m256i mask10 = _mm256_cmpgt_epi16(antiDiagBest + 1, best)
+		//if (antiDiagBest >= best)
+		//{
+		//	bestCol	= length(antiDiag3) + offset3 - 2;
+		//	bestRow	= antiDiagNo - bestExtensionCol;
+		//	bestScore	= best;
+		//}
+
+		// antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
+		// best = (best > antiDiagBest) ? best : antiDiagBest;
+		// ones where best is greater, otherwise zeros
+		__m256i mask10 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best), antiDiagBest);
+		best = _mm256_extract_epi16 (_mm256_blend_epi16 (_mm256_set1_epi16 (best), antiDiagBest, mask10), 0);
+
+		// calculate new minCol and minCol
+		//while (minCol - offset3 < antiDiag3.size() && antiDiag3[minCol - offset3] == undefined &&
+		//	   minCol - offset2 - 1 < antiDiag2.size() && antiDiag2[minCol - offset2 - 1] == undefined)
+		//{
+		//	++minCol;
+		//}
+		// these are ones if verified
+		__m256i condition1 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (antiDiag3size), _mm256_set1_epi16 (minCol - offset3));
+		__m256i condition3 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (antiDiag2size), _mm256_set1_epi16 (minCol - offset2 - 1));
+
+		// check feasibility of this operation
+		__int16 elemDiag3[16]; antiDiag3;
+		__int16 elemDiag2[16]; antiDiag2;
+
+		// these are ones if verified
+		__m256i condition2 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (elemDiag3[minCol - offset3]), _mm256_set1_epi16 (undefined));
+		__m256i condition4 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (elemDiag2[minCol - offset2 - 1]), _mm256_set1_epi16 (undefined));
+
+		// condition5 ones if four conditions are verified
+		__m256i condition5 = _mm256_and_si256 (_mm256_and_si256 (condition1, condition2), _mm256_and_si256 (condition3, condition4));
+
+		while(condition5)
+		{
+			// incremented by one if true, otherwise no increment
+			minCol += _mm256_extract_epi16 (condition5, 0);
+
+			// update conditions
+			condition1 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (antiDiag3size), _mm256_set1_epi16 (minCol - offset3));
+			condition3 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (antiDiag2size), _mm256_set1_epi16 (minCol - offset2 - 1));
+			condition2 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (elemDiag3[minCol - offset3]), _mm256_set1_epi16 (undefined));
+			condition4 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (elemDiag2[minCol - offset2 - 1]), _mm256_set1_epi16 (undefined));
+			condition5 = _mm256_and_si256 (_mm256_and_si256 (condition1, condition2), _mm256_and_si256 (condition3, condition4));
+		}
+
+		// TODO: repeat above procedure
+		// calculate new maxCol
+		while (maxCol - offset3 > 0 && (antiDiag3[maxCol - offset3 - 1] == undefined) &&
+									   (antiDiag2[maxCol - offset2 - 1] == undefined))
+		{
+			--maxCol;
+		}
+		++maxCol;
+
+		// Calculate new lowerDiag and upperDiag of extended seed
+		calcExtendedLowerDiag(lowerDiag, minCol, antiDiagNo);
+		calcExtendedUpperDiag(upperDiag, maxCol - 1, antiDiagNo);
+
+		// end of databaseSeg reached?
+		minCol = (minCol > (antiDiagNo + 2 - rows)) ? minCol : (antiDiagNo + 2 - rows);
+		// end of querySeg reached?
+		maxCol = (maxCol < cols) ? maxCol : cols;
 	}
 
 	// find positions of longest extension
@@ -419,7 +454,6 @@ extendSeedLGappedXDropRightAVX2(
 		updateExtendedSeedL(seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
 
 	return bestExtensionScore;
-
 }
 
 inline int
