@@ -315,6 +315,7 @@ extendSeedLGappedXDropRightAVX2(
 			tmp = max(tmp, tmp1); // tmp = std::max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
 
 			// TODO: masking instead of conditional statement
+			// __m256i mask9 = _mm256_cmpgt_epi16(best - scoreDropOff, tmp)
 			if (tmp < best - scoreDropOff)
 			{
 				antiDiag3[i3] = undefined;
@@ -326,6 +327,7 @@ extendSeedLGappedXDropRightAVX2(
 			}
 
 			// seed extension wrt best score
+			// __m256i mask10 = _mm256_cmpgt_epi16(antiDiagBest - 1, best)
 			if (antiDiagBest >= best)
 			{
 				bestExtensionCol	= length(antiDiag3) + offset3 - 2;
