@@ -170,6 +170,7 @@ calcExtendedUpperDiag(unsigned short & upperDiag,
 // The details of that allocation are implementation-defined, and it's undefined behavior to read from 
 // the member of the union that wasn't most recently written. Many compilers implement, as a non-standard 
 // language extension, the ability to read inactive members of a union.
+
 union {
 	__m256i simdDiag;
 	__int16 antiDiag[16];
