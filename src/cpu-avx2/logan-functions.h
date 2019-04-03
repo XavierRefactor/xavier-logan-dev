@@ -419,27 +419,7 @@ extendSeedLGappedXDropRightAVX2(
 		}
 		maxCol++;
 
-		// TODO : vectorize these
-		//inline void
-		//calcExtendedLowerDiag(unsigned short& lowerDiag,
-		//					   unsigned short const & minCol,
-		//					   unsigned short const & antiDiagNo)
-		//{
-		//	unsigned short minRow = antiDiagNo - minCol;
-		//	if (minCol - minRow < lowerDiag)
-		//		lowerDiag = minCol - minRow;
-		//}
-		//
-		//inline void
-		//calcExtendedUpperDiag(unsigned short & upperDiag,
-		//					   unsigned short const &maxCol,
-		//					   unsigned short const &antiDiagNo)
-		//{
-		//	unsigned short maxRow = antiDiagNo + 1 - maxCol;
-		//	if (maxCol - 1 - maxRow > upperDiag)
-		//		upperDiag = maxCol - 1 - maxRow;
-		//}
-
+		// this do not need to be vectorized just fix types
 		// calculate new lowerDiag and upperDiag of extended seed
 		calcExtendedLowerDiag(lowerDiag, minCol, antiDiagNo);
 		calcExtendedUpperDiag(upperDiag, maxCol - 1, antiDiagNo);
