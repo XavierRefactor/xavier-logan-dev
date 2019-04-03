@@ -216,14 +216,19 @@ extendSeedLGappedXDropRightAVX2(
 		antiDiag3 = _mm256_set1_epi16 (gapCost); 	// broadcast 16-bit integer a to all elements of dst
 	}
 
-	__int16 antiDiagNo = 1; 	// the currently calculated anti-diagonal
-	__int16 best       = 0; 	// maximal score value in the DP matrix (for drop-off calculation)
+	__int16 antiDiagNo = 1; 	 // the currently calculated anti-diagonal
+	__int16 best       = 0; 	 // maximal score value in the DP matrix (for drop-off calculation)
 
-	__int16 lowerDiag  = 0;
+	__int16 lowerDiag  = 0; 
 	__int16 upperDiag  = 0;
 
-	__int16 antiDiag2size = 1;
-	__int16 antiDiag3size = 2;
+	__int16 antiDiag1size = 0;	 // init
+	__int16 antiDiag2size = 1;	 // init
+	__int16 antiDiag3size = 2;	 // init
+
+	__int16 elemDiag1[16] = {0}; // init
+	__int16 elemDiag2[16] = {0}; // init
+	__int16 elemDiag3[16] = {0}; // init
 
 	while (minCol < maxCol) // this diff cannot be greater than 16
 	{
@@ -234,15 +239,14 @@ extendSeedLGappedXDropRightAVX2(
 		antiDiag2 = _mm256_load_epi16 (&antiDiag3);
 		antiDiag3 = _mm256_set1_epi16 (undefined); 	// init to -inf at each iteration
 
-		// antiDiag3.size() isn't maxCol-minCol? don't need a temp variable for minCol as the while loop happens once with SIMD
-		// it is maxCol-minCol until full vector utilization 
-		// antiDiag3.size() = maxCol+1-offset (resize in original initDiag3)
+		// antiDiag3.size() = maxCol+1-offset (resize in original initDiag3) : double check 
+		antiDiag1size = antiDiag2size;
 		antiDiag2size = antiDiag3size;
 		antiDiag3size = maxCol + 1 - offset3; // double check this in original seqan
 
 		offset1 = offset2;
 		offset2 = offset3;
-		offset3 = minCol-1;
+		offset3 = minCol - 1;
 
 		__int16 bestCol   = 0;
 		__int16 bestRow   = 0;
@@ -371,8 +375,8 @@ extendSeedLGappedXDropRightAVX2(
 
 		// check feasibility of this operation
 		// if so, this is valid also when updating maxCol
-		__int16 elemDiag3[16]; antiDiag3;
-		__int16 elemDiag2[16]; antiDiag2;
+		elemDiag3[16] = antiDiag3;
+		elemDiag2[16] = antiDiag2;
 
 		// these are ones if verified
 		__m256i condition2 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (elemDiag3[minCol - offset3]), _mm256_set1_epi16 (undefined));
@@ -432,35 +436,39 @@ extendSeedLGappedXDropRightAVX2(
 
 	// find positions of longest extension
 	// reached ends of both segments
-	int longestExtensionCol = antiDiag3.size() + offset3 - 2;
-	int longestExtensionRow = antiDiagNo - longestExtensionCol;
-	int longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
+	__int16 longestExtensionCol = antiDiag3size + offset3 - 2;
+	__int16 longestExtensionRow = antiDiagNo - longestExtensionCol;
+	__int16 longestExtensionScore = elemDiag3[longestExtensionCol - offset3];
 
 	if (longestExtensionScore == undefined)
 	{
-		if (antiDiag2[antiDiag2.size()-2] != undefined)
+		if (elemDiag2[antiDiag2size-2] != undefined)
 		{
 			// reached end of query segment
-			longestExtensionCol = antiDiag2.size() + offset2 - 2;
+			longestExtensionCol = elemDiag2size + offset2 - 2;
 			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
-			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
+			longestExtensionScore = elemDiag2[longestExtensionCol - offset2];
 		}
-		else if (antiDiag2.size() > 2 && antiDiag2[antiDiag2.size()-3] != undefined)
+		else if (antiDiag2size > 2 && elemDiag2[antiDiag2size-3] != undefined)
 		{
 			// reached end of database segment
-			longestExtensionCol = antiDiag2.size() + offset2 - 3;
+			longestExtensionCol = antiDiag2size + offset2 - 3;
 			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
-			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
+			longestExtensionScore = elemDiag2[longestExtensionCol - offset2];
 		}
 	}
+
+	// check this operation
+	elemDiag1[16] = antiDiag1;
+
 	if (longestExtensionScore == undefined)
 	{
 		// general case
-		for (int i = 0; i < antiDiag1.size(); ++i)
+		for (int i = 0; i < antiDiag1size; ++i)
 		{
-			if (antiDiag1[i] > longestExtensionScore)
+			if (elemDiag1[i] > longestExtensionScore)
 			{
-				longestExtensionScore = antiDiag1[i];
+				longestExtensionScore = elemDiag1[i];
 				longestExtensionCol = i + offset1;
 				longestExtensionRow = antiDiagNo - 2 - longestExtensionCol;
 			}
@@ -468,10 +476,10 @@ extendSeedLGappedXDropRightAVX2(
 	}
 
 	// update seed
-	if (bestExtensionScore != undefined)
+	if (longestExtensionScore != undefined)
 		updateExtendedSeedL(seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
 
-	return bestExtensionScore;
+	return longestExtensionScore; 
 }
 
 inline int
