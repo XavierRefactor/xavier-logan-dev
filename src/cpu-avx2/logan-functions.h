@@ -348,13 +348,17 @@ extendSeedLGappedXDropRightAVX2(
 			best = _mm256_extract_epi16 (_mm256_blend_epi16 (_mm256_set1_epi16 (best), antiDiagBest, mask10), 0);
 
 			// Calculate new minCol and minCol
+			//__m256i whilemask1 = _mm256_cmpgt_epi16 (condition1 & condition2 & condition3 & condtion3);
+			// count the number of ones until the first zero, that's the increment of minCol -- does this make sense?
+			// question: easy way to count zeros? look here: https://stackoverflow.com/questions/49552656/how-can-i-count-the-occurrence-of-a-byte-in-array-using-simd
 			while (minCol - offset3 < antiDiag3.size() && antiDiag3[minCol - offset3] == undefined &&
 				   minCol - offset2 - 1 < antiDiag2.size() && antiDiag2[minCol - offset2 - 1] == undefined)
 			{
 				++minCol;
 			}
 
-			// Calculate new maxCol
+			// look above
+			// calculate new maxCol
 			while (maxCol - offset3 > 0 && (antiDiag3[maxCol - offset3 - 1] == undefined) &&
 										   (antiDiag2[maxCol - offset2 - 1] == undefined))
 			{
