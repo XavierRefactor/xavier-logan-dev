@@ -370,6 +370,7 @@ extendSeedLGappedXDropRightAVX2(
 		__m256i condition3 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (antiDiag2size), _mm256_set1_epi16 (minCol - offset2 - 1));
 
 		// check feasibility of this operation
+		// if so, this is valid also when updating maxCol
 		__int16 elemDiag3[16]; antiDiag3;
 		__int16 elemDiag2[16]; antiDiag2;
 
@@ -393,16 +394,53 @@ extendSeedLGappedXDropRightAVX2(
 			condition5 = _mm256_and_si256 (_mm256_and_si256 (condition1, condition2), _mm256_and_si256 (condition3, condition4));
 		}
 
-		// TODO: repeat above procedure
 		// calculate new maxCol
-		while (maxCol - offset3 > 0 && (antiDiag3[maxCol - offset3 - 1] == undefined) &&
-									   (antiDiag2[maxCol - offset2 - 1] == undefined))
-		{
-			--maxCol;
-		}
-		++maxCol;
+		//while (maxCol - offset3 > 0 && (antiDiag3[maxCol - offset3 - 1] == undefined) &&
+		//							   (antiDiag2[maxCol - offset2 - 1] == undefined))
+		//{
+		//	--maxCol;
+		//}
+		//++maxCol;
+		__m256i condition6 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (maxCol - offset3), _mm256_setzero_si256 ());
+		__m256i condition7 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (elemDiag3[maxCol - offset3 - 1]), _mm256_set1_epi16 (undefined));
+		__m256i condition8 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (elemDiag2[maxCol - offset2 - 1]), _mm256_set1_epi16 (undefined));
+		__m256i condition9 = _mm256_and_si256 (_mm256_and_si256 (condition6, condition7), condition8);
 
-		// Calculate new lowerDiag and upperDiag of extended seed
+		while(condition9)
+		{
+			// decremented by one if true, otherwise no decrement
+			maxCol -= _mm256_extract_epi16 (condition9, 0);
+
+			// update conditions
+			condition6 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (maxCol - offset3), _mm256_setzero_si256 ());
+			condition7 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (elemDiag3[maxCol - offset3 - 1]), _mm256_set1_epi16 (undefined));
+			condition8 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (elemDiag2[maxCol - offset2 - 1]), _mm256_set1_epi16 (undefined));
+			condition9 = _mm256_and_si256 (_mm256_and_si256 (condition6, condition7), condition8);
+		}
+		maxCol++;
+
+		// TODO : vectorize these
+		//inline void
+		//calcExtendedLowerDiag(unsigned short& lowerDiag,
+		//					   unsigned short const & minCol,
+		//					   unsigned short const & antiDiagNo)
+		//{
+		//	unsigned short minRow = antiDiagNo - minCol;
+		//	if (minCol - minRow < lowerDiag)
+		//		lowerDiag = minCol - minRow;
+		//}
+		//
+		//inline void
+		//calcExtendedUpperDiag(unsigned short & upperDiag,
+		//					   unsigned short const &maxCol,
+		//					   unsigned short const &antiDiagNo)
+		//{
+		//	unsigned short maxRow = antiDiagNo + 1 - maxCol;
+		//	if (maxCol - 1 - maxRow > upperDiag)
+		//		upperDiag = maxCol - 1 - maxRow;
+		//}
+
+		// calculate new lowerDiag and upperDiag of extended seed
 		calcExtendedLowerDiag(lowerDiag, minCol, antiDiagNo);
 		calcExtendedUpperDiag(upperDiag, maxCol - 1, antiDiagNo);
 
