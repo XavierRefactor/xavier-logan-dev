@@ -304,8 +304,8 @@ extendSeedLGappedXDropRightAVX2(
 			// calculate matrix entry (-> antiDiag3[col])
 			//__m256i tmp = std::max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
 
-			__m256i query  = _mm256_load_epi16  (querySeg  + queryPos);  // load sixteen bases from querySeg
-			__m256i target = _mm256_load_epi16  (targetSeg + targetPos); // load sixteen bases from targetSeg
+			__m256i query  = _mm256_load_epi16 (querySeg  + queryPos);  // load sixteen bases from querySeg
+			__m256i target = _mm256_load_epi16 (targetSeg + targetPos); // load sixteen bases from targetSeg
 			// need to add a control on target it might contain not valid data
 			// if base of query == base of target
 			// if mask position == 1 put score match, otherwise score mismatch
@@ -314,29 +314,38 @@ extendSeedLGappedXDropRightAVX2(
 			tmp1 = tmp1 + antiDiag1[i1 - 1]; // scan operation again
 			tmp = max(tmp, tmp1); // tmp = std::max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
 
-			// TODO: masking instead of conditional statement
-			// __m256i mask9 = _mm256_cmpgt_epi16(best - scoreDropOff, tmp)
-			if (tmp < best - scoreDropOff)
-			{
-				antiDiag3[i3] = undefined;
-			}
-			else
-			{
-				antiDiag3[i3] = tmp;
-				antiDiagBest = std::max(antiDiagBest, tmp);
-			}
+			__m256i mask9 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best - scoreDropOff), tmp)
+			//if (tmp < best - scoreDropOff)
+			//{
+			// zeros if false, ones if true : -inf if ones, tmp values if zeros in mask9
+			antiDiag3 = _mm256_blend_epi16 (_mm256_set1_epi16 (undefined), tmp, mask9);
+			//antiDiag3[i3] = undefined;
+			//}
+			// TODO: skipping control here double check 	
+			// if true, this should contain antiDiagBest it shouldn't harm
+			// max should be in the first position double check
+			antiDiagBest = _mm256_max_epi16 (antiDiagBest, tmp)
+			//else
+			//{
+			//	antiDiag3[i3] = tmp;
+			//	antiDiagBest = std::max(antiDiagBest, tmp);
+			//}
 
 			// seed extension wrt best score
-			// __m256i mask10 = _mm256_cmpgt_epi16(antiDiagBest - 1, best)
-			if (antiDiagBest >= best)
-			{
-				bestExtensionCol	= length(antiDiag3) + offset3 - 2;
-				bestExtensionRow	= antiDiagNo - bestExtensionCol;
-				bestExtensionScore	= best;
-			}
+			// TODO : not in seqan -- do this later
+			//__m256i mask10 = _mm256_cmpgt_epi16(antiDiagBest + 1, best)
+			//if (antiDiagBest >= best)
+			//{
+			//	bestCol	= length(antiDiag3) + offset3 - 2;
+			//	bestRow	= antiDiagNo - bestExtensionCol;
+			//	bestScore	= best;
+			//}
 
-			//antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
-			best = (best > antiDiagBest) ? best : antiDiagBest;
+			// antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
+			// best = (best > antiDiagBest) ? best : antiDiagBest;
+			// ones where best is greater, otherwise zeros
+			__m256i mask10 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best), antiDiagBest);
+			best = _mm256_extract_epi16 (_mm256_blend_epi16 (_mm256_set1_epi16 (best), antiDiagBest, mask10), 0);
 
 			// Calculate new minCol and minCol
 			while (minCol - offset3 < antiDiag3.size() && antiDiag3[minCol - offset3] == undefined &&
