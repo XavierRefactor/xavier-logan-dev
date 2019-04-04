@@ -154,7 +154,7 @@ int *gpuCopyIntArr(int **DeviceArray, int *HostArray, int NumElements)
     int bytes = sizeof(int) * NumElements;
 
     // Allocate memory on the GPU for array
-    if (cudaMalloc((void **)DeviceArray, bytes) != cudaSuccess)
+    if (cudaMalloc((int **)DeviceArray, bytes) != cudaSuccess)
     {
         printf("CopyArrayToGPU(): Couldn't allocate mem for array on GPU.");
     }
@@ -171,10 +171,10 @@ int *gpuCopyIntArr(int **DeviceArray, int *HostArray, int NumElements)
 
 int *gpuCopyCharArr(char **DeviceArray, char *HostArray, int NumElements)
 {
-    int bytes = sizeof(int) * NumElements;
+    int bytes = sizeof(char) * NumElements;
 
     // Allocate memory on the GPU for array
-    if (cudaMalloc((void **)DeviceArray, bytes) != cudaSuccess)
+    if (cudaMalloc((char **)DeviceArray, bytes) != cudaSuccess)
     {
         printf("CopyArrayToGPU(): Couldn't allocate mem for array on GPU.");
     }
@@ -382,46 +382,49 @@ extendSeedLGappedXDropOneDirection(
 		int *a1, *a2, *a3;
 		char *qseg, *tseg;
 		//printf("ok");
-		gpuCopyIntArr(&a1, ant1, antiDiag1.size()/4);
-		gpuCopyIntArr(&a2, ant2, antiDiag2.size()/4);
-		gpuCopyIntArr(&a3, ant3, antiDiag3.size()/4);
-		//printf("ok");
-		gpuCopyCharArr(&qseg, (char*)querySeg.c_str(), querySeg.length());
-		gpuCopyCharArr(&tseg, (char*)databaseSeg.c_str(), databaseSeg.length());
+		// gpuCopyIntArr(&a1, ant1, antiDiag1.size()/4);
+		// gpuCopyIntArr(&a2, ant2, antiDiag2.size()/4);
+		// gpuCopyIntArr(&a3, ant3, antiDiag3.size()/4);
+		// //printf("ok");
+		// gpuCopyCharArr(&qseg, (char*)querySeg.c_str(), querySeg.length());
+		// gpuCopyCharArr(&tseg, (char*)databaseSeg.c_str(), databaseSeg.length());
+
 		//printf("ok");
 		//cudaMallocManaged(&a1, antiDiag1.size()*sizeof(int));
 		//cudaMallocManaged(&a2, antiDiag2.size()*sizeof(int));
 		//cudaMallocManaged(&a3, antiDiag3.size()*sizeof(int));
-		// a1 = &antiDiag1[0];
-		// a2 = &antiDiag2[0];
-		// a3 = &antiDiag3[0];
-		//cudaMalloc(&query, querySeg.length());
-		//cudaMalloc(&target, databaseSeg.length());	
 		
-		//cudaMemcpy(a1, ant1, antiDiag1.size()*sizeof(int)/8,cudaMemcpyHostToDevice);
-		//cudaMemcpy(a2, ant2, antiDiag2.size()*sizeof(int)/8,cudaMemcpyHostToDevice);
-		//cudaMemcpy(a3, ant3, antiDiag3.size()*sizeof(int)/8,cudaMemcpyHostToDevice);		
-		//cudaMemcpy(query, querySeg.c_str(),querySeg.length(),cudaMemcpyHostToDevice);
-		//cudaMemcpy(target, databaseSeg.c_str(), databaseSeg.length(),cudaMemcpyHostToDevice);
+		cudaMalloc((char **)&qseg, querySeg.length()*sizeof(char));
+		cudaMalloc((char **)&tseg, databaseSeg.length()*sizeof(char));	
+		cudaMalloc((int **)&a1, antiDiag1.size()*sizeof(int));
+		cudaMalloc((int **)&a2, antiDiag2.size()*sizeof(int));
+		cudaMalloc((int **)&a3, antiDiag3.size()*sizeof(int));
+		memset(ant1, 0, antiDiag1.size()*sizeof(int));
+		memset(ant2, 0, antiDiag2.size()*sizeof(int));
+		memset(ant3, 0, antiDiag3.size()*sizeof(int));
+		cudaMemcpy(a1, ant1, antiDiag1.size()*sizeof(int),cudaMemcpyHostToDevice);
+		cudaMemcpy(a2, ant2, antiDiag2.size()*sizeof(int),cudaMemcpyHostToDevice);
+		cudaMemcpy(a3, ant3, antiDiag3.size()*sizeof(int),cudaMemcpyHostToDevice);		
+		cudaMemcpy(qseg, (char*)querySeg.c_str(), querySeg.length(), cudaMemcpyHostToDevice);
+		cudaMemcpy(tseg, (char*)databaseSeg.c_str(), databaseSeg.length(),cudaMemcpyHostToDevice);
 		computeAntidiag <<<1,antiDiag3.size()>>> (a1,a2,a3,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,qseg,tseg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
 	 	cudaDeviceSynchronize();
 		printf("ok");
 		//std::cout<<comp<<'\n';	
-		//cudaMemcpy(ant1, a1, antiDiag1.size()*sizeof(int)/8, cudaMemcpyDeviceToHost);
-		//cudaMemcpy(ant2, a2, antiDiag2.size()*sizeof(int)/8, cudaMemcpyDeviceToHost);			   //cudaMemcpy(ant3, a3, antiDiag3.size()*sizeof(int)/8, cudaMemcpyDeviceToHost);
+		cudaMemcpy(ant1, a1, antiDiag1.size()*sizeof(int), cudaMemcpyDeviceToHost);
+		cudaMemcpy(ant2, a2, antiDiag2.size()*sizeof(int), cudaMemcpyDeviceToHost);
+		cudaMemcpy(ant3, a3, antiDiag3.size()*sizeof(int), cudaMemcpyDeviceToHost);
 		std::copy(a1, a1 + antiDiag1.size(), antiDiag1.begin());
 		std::copy(a2, a2 + antiDiag2.size(), antiDiag2.begin());
 		std::copy(a3, a3 + antiDiag3.size(), antiDiag3.begin());
-		antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
-		//antiDiagBest = max_element(antiDiag3, antiDiag3size);
-		//printf("ok2");
-		best = (best > antiDiagBest) ? best : antiDiagBest;
-		//std::cout << antiDiagBest << std::endl;	
 		cudaFree(a1);
 		cudaFree(a2);
 		cudaFree(a3);
 		cudaFree(qseg);
 		cudaFree(tseg);
+		antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
+		
+		best = (best > antiDiagBest) ? best : antiDiagBest;
 		// Calculate new minCol and minCol
 		while (minCol - offset3 < antiDiag3.size() && antiDiag3[minCol - offset3] == undefined &&
 			   minCol - offset2 - 1 < antiDiag2.size() && antiDiag2[minCol - offset2 - 1] == undefined)
