@@ -149,50 +149,45 @@ __global__ computeAntidiag(int *antiDiag1,
 	}
 }
 
-int *gpuCopyIntArr(int *HostArray, int NumElements)
+int *gpuCopyIntArr(int **DeviceArray, int *HostArray, int NumElements)
 {
     int bytes = sizeof(int) * NumElements;
-    void *DeviceArray;
 
     // Allocate memory on the GPU for array
-    if (cudaMalloc(&DeviceArray, bytes) != cudaSuccess)
+    if (cudaMalloc((void **)DeviceArray, bytes) != cudaSuccess)
     {
         printf("CopyArrayToGPU(): Couldn't allocate mem for array on GPU.");
-        return NULL;
     }
 
     // Copy the contents of the host array to the GPU
-    if (cudaMemcpy(DeviceArray, HostArray, bytes, cudaMemcpyHostToDevice) != cudaSuccess)
+    if (cudaMemcpy(*DeviceArray, HostArray, bytes, cudaMemcpyHostToDevice) != cudaSuccess)
     {
         printf("CopyArrayToGPU(): Couldn't copy host array to GPU.");
-        cudaFree(DeviceArray);
-        return NULL;
+        cudaFree(*DeviceArray);        
     }
-
-    return DeviceArray;
+	
+    return 0;
 }
 
-char *gpuCopyCharArr(char *HostArray, int NumElements)
+int *gpuCopyCharArr(char **DeviceArray, char *HostArray, int NumElements)
 {
     int bytes = sizeof(int) * NumElements;
-    void *DeviceArray;
 
     // Allocate memory on the GPU for array
-    if (cudaMalloc(&DeviceArray, bytes) != cudaSuccess)
+    if (cudaMalloc((void **)DeviceArray, bytes) != cudaSuccess)
     {
         printf("CopyArrayToGPU(): Couldn't allocate mem for array on GPU.");
-        return NULL;
     }
 
     // Copy the contents of the host array to the GPU
-    if (cudaMemcpy(DeviceArray, HostArray, bytes, cudaMemcpyHostToDevice) != cudaSuccess)
+    if (cudaMemcpy(*DeviceArray, HostArray, bytes, cudaMemcpyHostToDevice) != cudaSuccess)
     {
         printf("CopyArrayToGPU(): Couldn't copy host array to GPU.");
-        cudaFree(DeviceArray);
-        return NULL;
+        cudaFree(*DeviceArray);
     }
 
-    return DeviceArray;
+    return 0;
+
 }
 
 void
@@ -361,6 +356,7 @@ extendSeedLGappedXDropOneDirection(
    	//cudaMemcpy(tseg, t, databaseSeg.length(),cudaMemcpyHostToDevice);
 	//std::cout << databaseSeg << '\n';
 	//std::cout << tseg << '\n';
+	//printf("ok");
 	while (minCol < maxCol)
 	{	
 
@@ -385,11 +381,14 @@ extendSeedLGappedXDropOneDirection(
 		int *ant3 = &antiDiag3[0];
 		int *a1, *a2, *a3;
 		char *qseg, *tseg;
-		a1 = gpuCopyIntArr(ant1, antiDiag1.size());
-		a2 = gpuCopyIntArr(ant2, antiDiag2.size());
-		a3 = gpuCopyIntArr(ant3, antiDiag3.size());
-		qseg = gpuCopyCharArr((char*)querySeg.c_str(), querySeg.length());
-		tseg = gpuCopyCharArr((char*)databaseSeg.c_str(), databaseSeg.length());
+		//printf("ok");
+		gpuCopyIntArr(&a1, ant1, antiDiag1.size()/4);
+		gpuCopyIntArr(&a2, ant2, antiDiag2.size()/4);
+		gpuCopyIntArr(&a3, ant3, antiDiag3.size()/4);
+		//printf("ok");
+		gpuCopyCharArr(&qseg, (char*)querySeg.c_str(), querySeg.length());
+		gpuCopyCharArr(&tseg, (char*)databaseSeg.c_str(), databaseSeg.length());
+		//printf("ok");
 		//cudaMallocManaged(&a1, antiDiag1.size()*sizeof(int));
 		//cudaMallocManaged(&a2, antiDiag2.size()*sizeof(int));
 		//cudaMallocManaged(&a3, antiDiag3.size()*sizeof(int));
@@ -404,8 +403,9 @@ extendSeedLGappedXDropOneDirection(
 		//cudaMemcpy(a3, ant3, antiDiag3.size()*sizeof(int)/8,cudaMemcpyHostToDevice);		
 		//cudaMemcpy(query, querySeg.c_str(),querySeg.length(),cudaMemcpyHostToDevice);
 		//cudaMemcpy(target, databaseSeg.c_str(), databaseSeg.length(),cudaMemcpyHostToDevice);
-		computeAntidiag <<<1,initAntiDiag3.size()>>> (a1,a2,a3,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,qseg,tseg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
+		computeAntidiag <<<1,antiDiag3.size()>>> (a1,a2,a3,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,qseg,tseg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
 	 	cudaDeviceSynchronize();
+		printf("ok");
 		//std::cout<<comp<<'\n';	
 		//cudaMemcpy(ant1, a1, antiDiag1.size()*sizeof(int)/8, cudaMemcpyDeviceToHost);
 		//cudaMemcpy(ant2, a2, antiDiag2.size()*sizeof(int)/8, cudaMemcpyDeviceToHost);			   //cudaMemcpy(ant3, a3, antiDiag3.size()*sizeof(int)/8, cudaMemcpyDeviceToHost);
@@ -414,13 +414,14 @@ extendSeedLGappedXDropOneDirection(
 		std::copy(a3, a3 + antiDiag3.size(), antiDiag3.begin());
 		antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
 		//antiDiagBest = max_element(antiDiag3, antiDiag3size);
+		//printf("ok2");
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 		//std::cout << antiDiagBest << std::endl;	
 		cudaFree(a1);
 		cudaFree(a2);
 		cudaFree(a3);
-		//cudaFree(query);
-		//cudaFree(target);
+		cudaFree(qseg);
+		cudaFree(tseg);
 		// Calculate new minCol and minCol
 		while (minCol - offset3 < antiDiag3.size() && antiDiag3[minCol - offset3] == undefined &&
 			   minCol - offset2 - 1 < antiDiag2.size() && antiDiag2[minCol - offset2 - 1] == undefined)
@@ -452,8 +453,8 @@ extendSeedLGappedXDropOneDirection(
 	// auto end = std::chrono::high_resolution_clock::now();
 	// diff += end-start;
 	// std::cout << "logan: "<<diff.count() <<std::endl;
-	cudaFree(qseg);
-	cudaFree(tseg);
+	//cudaFree(qseg);
+	//cudaFree(tseg);
 
 	
 	//std::cout << "cycles logan" << index << std::endl;
@@ -519,6 +520,7 @@ extendSeedL(SeedL& seed,
 			int const& XDrop,
 			int const& kmer_length)
 {
+	printf("extending");
 	if(scoreGapExtend(penalties) >= 0)
 	{
 		std::cout<<"Error: Logan does not support gap extension penalty >= 0\n";
@@ -543,7 +545,7 @@ extendSeedL(SeedL& seed,
 		// returns a newly constructed string object with its value initialized to a copy of a substring of this object
 		std::string targetPrefix = target.substr(0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
 		std::string queryPrefix = query.substr(0, getBeginPositionV(seed));	// from read start til start seed (seed not included)
-
+		printf("align left");
 		scoreLeft = extendSeedLGappedXDropOneDirection(seed, queryPrefix, targetPrefix, EXTEND_LEFTL, penalties, XDrop);
 	}
 
