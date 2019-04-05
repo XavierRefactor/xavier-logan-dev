@@ -306,6 +306,7 @@ extendSeedLGappedXDropRightAVX2(
 			// TODO : double check after compilation and put into a separate function
 			__m256 tmp = _mm256_permute2x128_si256(antiDiag2.simd, antiDiag2.simd, _MM_SHUFFLE(0, 0, 2, 0));
 			// equivalent to _mm256_srli_si256 with N = 16 		right shift
+			// source : https://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avx
 			// __m256 v1 = _mm256_permute2x128_si256(v0, v0, _MM_SHUFFLE(2, 0, 0, 1));
 			tmp = _mm256_max_epi16 (antiDiag2, tmp);
 			tmp = _mm256_add_epi16 (tmp, _mm256_set1_epi16 (gapCost));
@@ -321,13 +322,9 @@ extendSeedLGappedXDropRightAVX2(
 			tmpscore = _mm256_add_epi16 (tmpscore, antiDiag1.simd);
 			tmp = _mm256_max_epi16 (tmp, tmpscore);
 
-			__m256i mask9 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best - scoreDropOff), tmp)
 			//if (tmp < best - scoreDropOff)
-			//{
-			// zeros if false, ones if true : -inf if ones, tmp values if zeros in mask9
-			antiDiag3 = _mm256_blend_epi16 (_mm256_set1_epi16 (undefined), tmp, mask9);
-			//antiDiag3[i3] = undefined;
-			//}
+			__m256i mask8 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best - scoreDropOff), tmp)
+			antiDiag3.simd = _mm256_blend_epi16 (_mm256_set1_epi16 (undefined), tmp, mask8);
 			// TODO: skipping control here double check 	
 			// if true, this should contain antiDiagBest it shouldn't harm
 			// max should be in the first position double check
