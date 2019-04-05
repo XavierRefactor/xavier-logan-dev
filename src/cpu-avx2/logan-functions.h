@@ -299,44 +299,27 @@ extendSeedLGappedXDropRightAVX2(
 			__int16 queryPos = col - 1; 
 			__int16 dbPos = antiDiagNo - col - 1;
 
-			// TODO: modified from: https://stackoverflow.com/questions/19494114/parallel-prefix-cumulative-sum-with-sse
-			//inline __m256i scan(__m256i x)
-			//{
-			//	__m256 t0, t1;
-			//	//shift1_AVX + add
-			//	t0 = _mm256_permute_ps(x, _MM_SHUFFLE(2, 1, 0, 3));
-			//	t1 = _mm256_permute2f128_ps(t0, t0, 41);
-			//	x  = _mm256_add_ps(x, _mm256_blend_ps(t0, t1, 0x11));
-			//	//shift2_AVX + add
-			//	t0 = _mm256_permute_ps(x, _MM_SHUFFLE(1, 0, 3, 2));
-			//	t1 = _mm256_permute2f128_ps(t0, t0, 41);
-			//	x = _mm256_add_ps(x, _mm256_blend_ps(t0, t1, 0x33));
-			//	//shift3_AVX + add
-			//	x = _mm256_add_ps(x,_mm256_permute2f128_ps(x, x, 41));
-			//	return x;
-			//}
-			//__m256i offset = _mm256_setzero_si256 ();
-			//__m256i x      = _mm256_loadu_epi16 (&antiDiag2[i]);
-			//__m256i out = scan (x);
-			//out = _mm256_add_epi16 (out, offset);
-			//_mm256_storeu_epi16 (&tmp[i], out);
-			////broadcast last element
-			//__m256i t0 = _mm256_permute2f128_si256 (out, out, 0x11);
-			//offset = _mm256_permutexvar_epi16 (t0, 0x7FFF);
-
-			// TODO: scan operation to obtain tmp
 			// calculate matrix entry (-> antiDiag3[col])
-			//__m256i tmp = std::max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
+			// fist horizonal max on antiDiag2
+			// int tmp = max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
+			// equivalent to _mm256_slli_si256 with N = 16 		left shift
+			// TODO : double check after compilation and put into a separate function
+			__m256 tmp = _mm256_permute2x128_si256(antiDiag2.simd, antiDiag2.simd, _MM_SHUFFLE(0, 0, 2, 0));
+			// equivalent to _mm256_srli_si256 with N = 16 		right shift
+			// __m256 v1 = _mm256_permute2x128_si256(v0, v0, _MM_SHUFFLE(2, 0, 0, 1));
+			tmp = _mm256_max_epi16 (antiDiag2, tmp);
+			tmp = _mm256_add_epi16 (tmp, _mm256_set1_epi16 (gapCost));
 
 			__m256i query  = _mm256_load_epi16 (querySeg  + queryPos);  // load sixteen bases from querySeg
 			__m256i target = _mm256_load_epi16 (targetSeg + targetPos); // load sixteen bases from targetSeg
-			// need to add a control on target it might contain not valid data
-			// if base of query == base of target
-			// if mask position == 1 put score match, otherwise score mismatch
-			__m256i mask8  = _mm256_cmpeq_epi16 (query, target);
-			// tmp1 = // result from masking --> score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos])
-			tmp1 = tmp1 + antiDiag1[i1 - 1]; // scan operation again
-			tmp = max(tmp, tmp1); // tmp = std::max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
+
+			// tmp = max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
+			// here : score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos])
+			__m256i tmpscore = _mm256_cmpeq_epi16 (query, target);
+			tmpscore = _mm256_blend_epi16 (_mm256_set1_epi16 (scoreMatch(penalties)), _mm256_set1_epi16 (scoreMismatch(penalties)), tmpscore);
+			// here : add tmpscore to antiDiag1 	
+			tmpscore = _mm256_add_epi16 (tmpscore, antiDiag1.simd);
+			tmp = _mm256_max_epi16 (tmp, tmpscore);
 
 			__m256i mask9 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best - scoreDropOff), tmp)
 			//if (tmp < best - scoreDropOff)
@@ -349,8 +332,9 @@ extendSeedLGappedXDropRightAVX2(
 			// if true, this should contain antiDiagBest it shouldn't harm
 			// max should be in the first position double check
 		}
+
 		antiDiagBest = _mm256_max_epi16 (antiDiagBest, tmp)
-		
+
 		//else
 		//{
 		//	antiDiag3[i3] = tmp;
