@@ -19,6 +19,8 @@
 #include"score.h"
 //using namespace seqan;
 // #include <bits/stdc++.h> 
+#define EXTEND_R 1
+#define EXTEND_L 2 
 
 #define cudaErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort = true){
@@ -41,10 +43,10 @@ enum ExtensionDirectionL
 void
 updateExtendedSeedL(SeedL& seed,
 					ExtensionDirectionL direction, //as there are only 4 directions we may consider even smaller data types
-					unsigned short cols,
-					unsigned short rows,
-					unsigned short lowerDiag,
-					unsigned short upperDiag)
+					int cols,
+					int rows,
+					int lowerDiag,
+					int upperDiag)
 {
 	//TODO 
 	//functions that return diagonal from seed
@@ -52,7 +54,7 @@ updateExtendedSeedL(SeedL& seed,
 	
 	if (direction == EXTEND_LEFTL)
 	{
-		unsigned short beginDiag = seed.beginDiagonal;
+		int beginDiag = seed.beginDiagonal;
 		// Set lower and upper diagonals.
 		
 		if (getLowerDiagonal(seed) > beginDiag + lowerDiag)
@@ -65,7 +67,7 @@ updateExtendedSeedL(SeedL& seed,
 		setBeginPositionV(seed, getBeginPositionV(seed) - cols);
 	} else {  // direction == EXTEND_RIGHTL
 		// Set new lower and upper diagonals.
-		unsigned short endDiag = seed.endDiagonal;
+		int endDiag = seed.endDiagonal;
 		if (getUpperDiagonal(seed) < endDiag - lowerDiag)
 			setUpperDiagonal(seed, (endDiag - lowerDiag));
 		if (getLowerDiagonal(seed) > (endDiag - upperDiag))
@@ -94,6 +96,7 @@ __global__ computeAntidiag(int *antiDiag1,
 				int offset2,
 				int offset3,
 				ExtensionDirectionL direction,
+		//		int direction,
 				int antiDiagNo,
 				int gapCost,
 				ScoringSchemeL scoringScheme,
@@ -101,7 +104,7 @@ __global__ computeAntidiag(int *antiDiag1,
 				char* databaseSeg,
 				int undefined,
 				int best,
-				short scoreDropOff,
+				int scoreDropOff,
 				int cols,
 				int rows,
 				int maxCol,
@@ -134,15 +137,12 @@ __global__ computeAntidiag(int *antiDiag1,
 	
 		
 		// Calculate matrix entry (-> antiDiag3[col])
-		int tmp = (antiDiag2[i2-1] > antiDiag2[i2]) ? antiDiag2[i2-1] : antiDiag2[i2];
-		tmp+=gapCost;
-		int sc = (querySeg[queryPos] ==  databaseSeg[dbPos]) ? 1 : -1;
-		//printf("%d", sc);
-		tmp = (tmp> antiDiag1[i1 - 1] + sc) ? tmp : antiDiag1[i1 - 1] ;//ore(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
-		//if(col<minCol+1)
-			//std::cout << querySeg[queryPos]<< databaseSeg[dbPos] << "\n";
+		int tmp = max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
+		int score= (querySeg[queryPos]==databaseSeg[dbPos]) ? 1:-1;
+		tmp = max(tmp, antiDiag1[i1 - 1] + score);
 		if (tmp < best - scoreDropOff)
 		{
+			//printf("in\n");
 			antiDiag3[i3] = undefined;
 		}
 		else
@@ -150,28 +150,26 @@ __global__ computeAntidiag(int *antiDiag1,
 			antiDiag3[i3] = tmp;
 			//antiDiagBest = max(antiDiagBest, tmp);
 		}
-		
 			
-	
 	}
 }
 
 void
-calcExtendedLowerDiag(int &lowerDiag,
-		      int &minCol,
-		      int antiDiagNo)
+calcExtendedLowerDiag(int & lowerDiag,
+		      int const& minCol,
+		      int const& antiDiagNo)
 {
-	unsigned short minRow = antiDiagNo - minCol;
+	int minRow = antiDiagNo - minCol;
 	if (minCol - minRow < lowerDiag)
 		lowerDiag = minCol - minRow;
 }
 
 void
 calcExtendedUpperDiag(int & upperDiag,
-			  int maxCol,
-			  int antiDiagNo)
+			  int const& maxCol,
+			  int const& antiDiagNo)
 {
-	unsigned short maxRow = antiDiagNo + 1 - maxCol;
+	int maxRow = antiDiagNo + 1 - maxCol;
 	if (maxCol - 1 - maxRow > upperDiag)
 		upperDiag = maxCol - 1 - maxRow;
 }
@@ -188,12 +186,12 @@ swapAntiDiags(std::vector<int> &antiDiag1,
 
 int
 initAntiDiag3(std::vector<int> &antiDiag3,
-			   int offset,
-			   int maxCol,
-			   int antiDiagNo,
-			   int minScore,
-			   int gapCost,
-			   int undefined)
+			   int const& offset,
+			   int const& maxCol,
+			   int const& antiDiagNo,
+			   int const& minScore,
+			   int const& gapCost,
+			   int const& undefined)
 {
 	antiDiag3.resize(maxCol + 1 - offset);
 
@@ -213,9 +211,9 @@ initAntiDiag3(std::vector<int> &antiDiag3,
 void
 initAntiDiags(std::vector<int> &antiDiag2,
 			   std::vector<int> &antiDiag3,
-			   int dropOff,
-			   int gapCost,
-			   int undefined)
+			   int const& dropOff,
+			   int const& gapCost,
+			   int const& undefined)
 {
 	// antiDiagonals will be swaped in while loop BEFORE computation of antiDiag3 entries
 	//  -> no initialization of antiDiag1 necessary
@@ -241,12 +239,12 @@ initAntiDiags(std::vector<int> &antiDiag2,
 
 int
 extendSeedLGappedXDropOneDirection(
-		SeedL seed,
-		std::string const querySeg,
-		std::string const databaseSeg,
-		ExtensionDirectionL const direction,
-		ScoringSchemeL &scoringScheme,
-		int const scoreDropOff)
+		SeedL& seed,
+		std::string const& querySeg,
+		std::string const& databaseSeg,
+		ExtensionDirectionL const& direction,
+		ScoringSchemeL& scoringScheme,
+		int const& scoreDropOff)
 {
 	//typedef typename Size<TQuerySegment>::Type int;
 	//typedef typename SeedL<Simple,TConfig>::int int;
@@ -265,7 +263,7 @@ extendSeedLGappedXDropOneDirection(
 	//(void)tag;
 	setScoreMismatch(scoringScheme, max(scoreMismatch(scoringScheme), minErrScore));
 
-	int gapCost = scoreGap(scoringScheme);
+	int gapCost = -2;//scoreGap(scoringScheme);
 	//std::cout<<gapCost<<std::endl;
 	int undefined = minimumVal - gapCost;
 
@@ -305,7 +303,7 @@ extendSeedLGappedXDropOneDirection(
 	{	
 
 		
-		antiDiagNo++;
+		++antiDiagNo;
 		swapAntiDiags(antiDiag1, antiDiag2, antiDiag3);
 		//antiDiag2 -> antiDiag1
 		//antiDiag3 -> antiDiag2
@@ -316,6 +314,7 @@ extendSeedLGappedXDropOneDirection(
 		initAntiDiag3(antiDiag3, offset3, maxCol, antiDiagNo, best - scoreDropOff, gapCost, undefined);
 
 		int antiDiagBest = antiDiagNo * gapCost;
+		//int dir_d = (direction==EXTEND_RIGHTL) ? EXTEND_R : EXTEND_L; 
 		//AAAA this must be parallelized
 		//char *query, *target;
 		int *a1_h =(int *)malloc(sizeof(int)*antiDiag1.size());
@@ -352,17 +351,25 @@ extendSeedLGappedXDropOneDirection(
 		cudaErrchk(cudaMemcpy(q_d, q_h, querySeg.length()*sizeof(char), cudaMemcpyHostToDevice));
 		cudaErrchk(cudaMemcpy(db_d, db_h, databaseSeg.length()*sizeof(char),cudaMemcpyHostToDevice));
 		
-		if(antiDiagNo == 2){	
-		std::cout << " Before : ";
-		for (int i = 0; i < antiDiag3.size(); i++) {
-        		std::cout << antiDiag3.at(i) << ' ';
-        	}
-		}
+		//if(antiDiagNo == 2){	
+		//std::cout << " Before : ";
+		//for (int i = 0; i < antiDiag3.size(); i++) {
+        	//	std::cout << antiDiag3.at(i) << ' ';
+        	//}
+		//}	
 		
 		computeAntidiag <<<1,antiDiag3.size()>>> (a1_d,a2_d,a3_d,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,q_d,db_d,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
 	 	cudaDeviceSynchronize();
 		cudaErrchk(cudaMemcpy(a3_h, a3_d, antiDiag3.size()*sizeof(int), cudaMemcpyDeviceToHost));
 		std::copy(a3_h, a3_h + antiDiag3.size(), antiDiag3.begin());
+		
+		//if(antiDiagNo == 2){
+                //std::cout << " After : ";
+                //for (int i = 0; i < antiDiag3.size(); i++) {
+                //        std::cout << antiDiag3.at(i) << ' ';
+                //}
+                //std::cout << '\n';
+                //}		
 		
 		cudaErrchk(cudaFree(a1_d));
 		cudaErrchk(cudaFree(a2_d));
@@ -377,13 +384,6 @@ extendSeedLGappedXDropOneDirection(
 
 		antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
 		
-		if(antiDiagNo == 2){
-		std::cout << " After : ";
-		for (int i = 0; i < antiDiag3.size(); i++) {
-            		std::cout << antiDiag3.at(i) << ' ' << a3_h[i] << ' ';
-		}
-		std::cout << '\n';
-		}
         	//std::cout << '\n';
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 		// Calculate new minCol and minCol
@@ -466,11 +466,11 @@ extendSeedLGappedXDropOneDirection(
 int
 extendSeedL(SeedL& seed,
 			ExtensionDirectionL direction,
-			std::string target,
-			std::string query,
-			ScoringSchemeL penalties,
-			int XDrop,
-			int kmer_length)
+			std::string const& target,
+			std::string const& query,
+			ScoringSchemeL & penalties,
+			int const& XDrop,
+			int const& kmer_length)
 {
 	//printf("extending");
 	if(scoreGapExtend(penalties) >= 0)
