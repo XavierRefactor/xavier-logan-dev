@@ -172,10 +172,24 @@ calcExtendedUpperDiag(unsigned short & upperDiag,
 // the member of the union that wasn't most recently written. Many compilers implement, as a non-standard 
 // language extension, the ability to read inactive members of a union.
 
-union vLogan {
+typedef union {
 	__m256i simd;
-	__int16 elem[16] = {0};
-};
+	int16_t elem[16] = {0};
+} _m256i_16_t;
+
+void print_m256i_16(__m256i a) {
+
+	_m256i_16_t t;
+	t.simd = a;
+
+	printf("{%d,%d,%d,%d,%d,%d,%d,%d,"
+			"%d,%d,%d,%d,%d,%d,%d,%d}",
+			t.elem[ 0], t.elem[ 1], t.elem[ 2], t.elem[ 3],
+			t.elem[ 4], t.elem[ 5], t.elem[ 6], t.elem[ 7],
+			t.elem[ 8], t.elem[ 9], t.elem[10], t.elem[11],
+			t.elem[12], t.elem[13], t.elem[14], t.elem[15]
+			);
+}
 
 int
 extendSeedLGappedXDropRightAVX2(
@@ -194,9 +208,9 @@ extendSeedLGappedXDropRightAVX2(
 	if (rows == 1 || cols == 1)
 		return 0;
 
-	// convert from string to __int16 array
-	__int16* query  = new __int16[cols];
-	__int16* target = new __int16[rows];
+	// convert from string to int16_t array
+	int16_t* query  = new int16_t[cols];
+	int16_t* target = new int16_t[rows];
 
 	std::copy(querySeg.begin(), querySeg.end(), query); 
 	std::copy(databaseSeg.begin(), databaseSeg.end(), target); 
@@ -207,23 +221,23 @@ extendSeedLGappedXDropRightAVX2(
 
 	setScoreMismatch(scoringScheme, std::max(scoreMismatch(scoringScheme), minErrScore));
 
-	__int16 gapCost   = scoreGap(scoringScheme);
-	__int16 undefined = std::numeric_limits<short>::min() - gapCost;
+	int16_t gapCost   = scoreGap(scoringScheme);
+	int16_t undefined = std::numeric_limits<short>::min() - gapCost;
 
-	vLogan antiDiag1; 	// 16 (vector width) 16-bit integers
-	vLogan antiDiag2; 	// 16 (vector width) 16-bit integers
-	vLogan antiDiag3; 	// 16 (vector width) 16-bit integers
+	_m256i_16_t antiDiag1; 	// 16 (vector width) 16-bit integers
+	_m256i_16_t antiDiag2; 	// 16 (vector width) 16-bit integers
+	_m256i_16_t antiDiag3; 	// 16 (vector width) 16-bit integers
 
 	antiDiag1.elem[16] = {0}; // init
 	antiDiag2.elem[16] = {0}; // init
 	antiDiag3.elem[16] = {0}; // init
 
-	__int16 minCol = 1;
-	__int16 maxCol = 2;
+	int16_t minCol = 1;
+	int16_t maxCol = 2;
 
-	__int16 offset1 = 0; // number of leading columns that need not be calculated in antiDiag1
-	__int16 offset2 = 0; //                                                       in antiDiag2
-	__int16 offset3 = 0; //                                                       in antiDiag3
+	int16_t offset1 = 0; // number of leading columns that need not be calculated in antiDiag1
+	int16_t offset2 = 0; //                                                       in antiDiag2
+	int16_t offset3 = 0; //                                                       in antiDiag3
 
 	antiDiag2.simd = _mm256_setzero_si256 (); 			// initialize vector with zeros
 
@@ -236,17 +250,17 @@ extendSeedLGappedXDropRightAVX2(
 		antiDiag3.simd = _mm256_set1_epi16 (gapCost); 	// broadcast 16-bit integer a to all elements of dst
 	}
 
-	__int16 antiDiagNo = 1; 	 // the currently calculated anti-diagonal
-	__int16 best       = 0; 	 // maximal score value in the DP matrix (for drop-off calculation)
+	int16_t antiDiagNo = 1; 	 // the currently calculated anti-diagonal
+	int16_t best       = 0; 	 // maximal score value in the DP matrix (for drop-off calculation)
 
-	__int16 lowerDiag  = 0; 
-	__int16 upperDiag  = 0;
+	int16_t lowerDiag  = 0; 
+	int16_t upperDiag  = 0;
 
-	__int16 antiDiag1size = 0;	 // init
-	__int16 antiDiag2size = 1;	 // init
-	__int16 antiDiag3size = 2;	 // init
+	int16_t antiDiag1size = 0;	 // init
+	int16_t antiDiag2size = 1;	 // init
+	int16_t antiDiag3size = 2;	 // init
 
-	__int16 antiDiagBest  = antiDiagNo * gapCost;	 // init
+	int16_t antiDiagBest  = antiDiagNo * gapCost;	 // init
 
 	while (minCol < maxCol) // this diff cannot be greater than 16
 	{
@@ -274,8 +288,8 @@ extendSeedLGappedXDropRightAVX2(
 		__m256i mask4 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiagNo - maxCol), _mm256_setzero_si256()); 	// if (antiDiagNo - maxCol == 0) mask4 set to 1, otherwise 0
 		__m256i mask5 = _mm256_and_si256   (mask1, mask4); 	// if (antiDiagNo * gapCost > best - scoreDropOff) AND if (antiDiagNo - maxCol == 0) mask5 set to 1, otherwise 0
 
-		vLogan mask6;
-		vLogan mask7;
+		_m256i_16_t mask6;
+		_m256i_16_t mask7;
 
 		mask6.elem[0] = 0;
 		mask7.elem[antiDiagNo - maxCol] = 1;
@@ -286,14 +300,14 @@ extendSeedLGappedXDropRightAVX2(
 		mask7.simd      = _mm256_mullo_epi16 (mask7.simd, mask5); // if mask5 == 0, mask7 == 0, otheriwise remain the same as declared
 		antiDiag3.simd  = _mm256_blend_epi16 (antiDiag3.simd, _mm256_set1_epi16 (antiDiagBest), mask7.simd); // if mask7 == 0, antiDiag3 remain the same as before
 
-		for (__int16 col = minCol; col < maxCol; col += 16)
+		for (int16_t col = minCol; col < maxCol; col += 16)
 		{
-			__int16 i3 = col - offset3;
-			__int16 i2 = col - offset2;
-			__int16 i1 = col - offset1;
+			int16_t i3 = col - offset3;
+			int16_t i2 = col - offset2;
+			int16_t i1 = col - offset1;
 
-			__int16 queryPos = col - 1; 
-			__int16 dbPos = antiDiagNo - col - 1;
+			int16_t queryPos = col - 1; 
+			int16_t dbPos = antiDiagNo - col - 1;
 
 			// calculate matrix entry (-> antiDiag3[col])
 			// fist horizonal max on antiDiag2
@@ -307,7 +321,7 @@ extendSeedLGappedXDropRightAVX2(
 			tmp = _mm256_max_epi16 (antiDiag2, tmp);
 			tmp = _mm256_add_epi16 (tmp, _mm256_set1_epi16 (gapCost));
 
-			// TODO : cast char to __int16 (loading is wrong otherwise)
+			// TODO : cast char to int16_t (loading is wrong otherwise)
 			__m256i query  = _mm256_load_epi16 (query  + queryPos);  // load sixteen bases from querySeg
 			__m256i target = _mm256_load_epi16 (target + targetPos); // load sixteen bases from targetSeg
 
@@ -334,9 +348,9 @@ extendSeedLGappedXDropRightAVX2(
 		__m256i mask9 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best), _mm256_set1_epi16 (antiDiagBest));
 		best = _mm256_extract_epi16 (_mm256_blend_epi16 (_mm256_set1_epi16 (best), _mm256_set1_epi16 (antiDiagBest), mask9), 0);
 
-		__int16 bestCol   = 0;
-		__int16 bestRow   = 0;
-		__int16 bestScore = 0;
+		int16_t bestCol   = 0;
+		int16_t bestRow   = 0;
+		int16_t bestScore = 0;
 
 		// seed extension wrt best score
 		// TODO : not in seqan -- do this later
@@ -412,9 +426,9 @@ extendSeedLGappedXDropRightAVX2(
 
 	// find positions of longest extension
 	// reached ends of both segments
-	__int16 longestExtensionCol = antiDiag3size + offset3 - 2;
-	__int16 longestExtensionRow = antiDiagNo - longestExtensionCol;
-	__int16 longestExtensionScore = antiDiag3.elem[longestExtensionCol - offset3];
+	int16_t longestExtensionCol = antiDiag3size + offset3 - 2;
+	int16_t longestExtensionRow = antiDiagNo - longestExtensionCol;
+	int16_t longestExtensionScore = antiDiag3.elem[longestExtensionCol - offset3];
 
 	if (longestExtensionScore == undefined)
 	{
