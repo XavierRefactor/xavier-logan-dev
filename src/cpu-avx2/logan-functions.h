@@ -174,7 +174,7 @@ calcExtendedUpperDiag(unsigned short & upperDiag,
 
 typedef union {
 	__m256i simd;
-	int16_t elem[16] = {0};
+	int16_t elem[16] = {-1};
 } _m256i_16_t;
 
 void print_m256i_16(__m256i a) {
@@ -183,7 +183,7 @@ void print_m256i_16(__m256i a) {
 	t.simd = a;
 
 	printf("{%d,%d,%d,%d,%d,%d,%d,%d,"
-			"%d,%d,%d,%d,%d,%d,%d,%d}",
+			"%d,%d,%d,%d,%d,%d,%d,%d}\n",
 			t.elem[ 0], t.elem[ 1], t.elem[ 2], t.elem[ 3],
 			t.elem[ 4], t.elem[ 5], t.elem[ 6], t.elem[ 7],
 			t.elem[ 8], t.elem[ 9], t.elem[10], t.elem[11],
@@ -271,10 +271,18 @@ extendSeedLGappedXDropRightAVX2(
 		antiDiag2.simd = _mm256_load_si256 (&antiDiag3.simd);
 		antiDiag3.simd = _mm256_set1_epi16 (undefined); 	// init to -inf at each iteration
 
+		//print_m256i_16(antiDiag1.simd);
+		//print_m256i_16(antiDiag2.simd);
+		//print_m256i_16(antiDiag3.simd);
+
 		// antiDiag3.size() = maxCol+1-offset (resize in original initDiag3) : double check 
 		antiDiag1size = antiDiag2size;
 		antiDiag2size = antiDiag3size;
 		antiDiag3size = maxCol + 1 - offset3; // double check this in original seqan
+
+		//printf("antiDiag1size %d\n", antiDiag1size);
+		//printf("antiDiag2size %d\n", antiDiag2size);
+		//printf("antiDiag3size %d\n", antiDiag3size);
 
 		offset1 = offset2;
 		offset2 = offset3;
@@ -283,22 +291,35 @@ extendSeedLGappedXDropRightAVX2(
 		antiDiagBest  = antiDiagNo * gapCost;
 
 		__m256i mask1 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (antiDiagBest), _mm256_set1_epi16 (best - scoreDropOff)); // if (antiDiagNo * gapCost > best - scoreDropOff) mask1 set to 1, otherwise 0
+		//print_m256i_16(mask1); //false == -1
 		__m256i mask2 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (offset3), _mm256_setzero_si256()); 	// if (offset3 == 0) mask2 set to 1, otherwise 0
+		//print_m256i_16(mask2); //false == -1
 		__m256i mask3 = _mm256_and_si256   (mask1, mask2); 	// if (antiDiagNo * gapCost > best - scoreDropOff) AND if (offset3 == 0) mask3 set to 1, otherwise 0
+		//print_m256i_16(mask3); //false == -1
 		__m256i mask4 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiagNo - maxCol), _mm256_setzero_si256()); 	// if (antiDiagNo - maxCol == 0) mask4 set to 1, otherwise 0
+		//print_m256i_16(mask4); //false == -1
 		__m256i mask5 = _mm256_and_si256   (mask1, mask4); 	// if (antiDiagNo * gapCost > best - scoreDropOff) AND if (antiDiagNo - maxCol == 0) mask5 set to 1, otherwise 0
+		//print_m256i_16(mask5); //false == -1
 
 		_m256i_16_t mask6;
 		_m256i_16_t mask7;
 
-		mask6.elem[0] = 0;
+		mask6.elem[0] = 1;
 		mask7.elem[antiDiagNo - maxCol] = 1;
+
+		//print_m256i_16(mask6.simd);
+		//print_m256i_16(mask7.simd);
 
 		mask6.simd      = _mm256_mullo_epi16 (mask6.simd, mask3); // if mask3 == 0, mask6 == 0, otheriwise remain the same as declared
 		antiDiag3.simd  = _mm256_blendv_epi8 (antiDiag3.simd, _mm256_set1_epi16 (antiDiagBest), mask6.simd); // if mask6 == 0, antiDiag3 remain the same as before
 
 		mask7.simd      = _mm256_mullo_epi16 (mask7.simd, mask5); // if mask5 == 0, mask7 == 0, otheriwise remain the same as declared
 		antiDiag3.simd  = _mm256_blendv_epi8 (antiDiag3.simd, _mm256_set1_epi16 (antiDiagBest), mask7.simd); // if mask7 == 0, antiDiag3 remain the same as before
+
+		// check here what's going on here	
+		//print_m256i_16(mask6.simd);
+		//print_m256i_16(mask7.simd);
+		//print_m256i_16(antiDiag3.simd);
 
 		__m256i tmp;
 
@@ -317,6 +338,9 @@ extendSeedLGappedXDropRightAVX2(
 			// equivalent to _mm256_slli_si256 with N = 16 		left shift
 			// TODO : double check after compilation and put into a separate function
 			tmp = _mm256_permute2x128_si256(antiDiag2.simd, antiDiag2.simd, _MM_SHUFFLE(0, 0, 2, 0));
+			//print_m256i_16(tmp);
+			//print_m256i_16(antiDiag2.simd);
+
 			// equivalent to _mm256_srli_si256 with N = 16 		right shift
 			// source : https://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avx
 			// __m256 v1 = _mm256_permute2x128_si256(v0, v0, _MM_SHUFFLE(2, 0, 0, 1));
@@ -325,6 +349,10 @@ extendSeedLGappedXDropRightAVX2(
 
 			__m256i _m_query  = _mm256_loadu_si256 ((__m256i*)(query  + queryPos)); // load sixteen bases from querySeg
 			__m256i _m_target = _mm256_loadu_si256 ((__m256i*)(target + dbPos)); 	// load sixteen bases from targetSeg
+
+			// sequences make sense
+			//print_m256i_16(_m_query);
+			//print_m256i_16(_m_target);
 
 			// tmp = max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
 			// here : score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos])
@@ -337,6 +365,9 @@ extendSeedLGappedXDropRightAVX2(
 			//if (tmp < best - scoreDropOff)
 			__m256i mask8 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best - scoreDropOff), tmp);
 			antiDiag3.simd = _mm256_blendv_epi8 (_mm256_set1_epi16 (undefined), tmp, mask8);
+			// never updated!
+			//print_m256i_16(antiDiag3.simd);
+
 			// TODO: skipping control here double check 	
 			// if true, this should contain antiDiagBest it shouldn't harm
 			// max should be in the first position double check
@@ -348,10 +379,11 @@ extendSeedLGappedXDropRightAVX2(
 		// ones where best is greater, otherwise zeros
 		__m256i mask9 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best), _mm256_set1_epi16 (antiDiagBest));
 		best = _mm256_extract_epi16 (_mm256_blendv_epi8 (_mm256_set1_epi16 (best), _mm256_set1_epi16 (antiDiagBest), mask9), 0);
+		//std::cout << "best : " << best << std::endl;
 
-		int16_t bestCol   = 0;
-		int16_t bestRow   = 0;
-		int16_t bestScore = 0;
+		//int16_t bestCol   = 0;
+		//int16_t bestRow   = 0;
+		//int16_t bestScore = 0;
 
 		// seed extension wrt best score
 		// TODO : not in seqan -- do this later
@@ -416,8 +448,10 @@ extendSeedLGappedXDropRightAVX2(
 
 		// end of databaseSeg reached?
 		minCol = (minCol > (antiDiagNo + 2 - rows)) ? minCol : (antiDiagNo + 2 - rows);
+		//std::cout << "minCol : " << minCol << std::endl;
 		// end of querySeg reached?
 		maxCol = (maxCol < cols) ? maxCol : cols;
+		//std::cout << "maxCol : " << maxCol << std::endl;
 	}
 
 	// find positions of longest extension
@@ -461,6 +495,8 @@ extendSeedLGappedXDropRightAVX2(
 	delete [] query;
 	delete [] target;
  
+ 	//std::cout << "longestExtensionScore : " << longestExtensionScore << std::endl; 
+
 	// update seed
 	if (longestExtensionScore != undefined)
 		updateExtendedSeedL(seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
