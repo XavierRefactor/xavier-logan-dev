@@ -208,9 +208,9 @@ extendSeedLGappedXDropRightAVX2(
 	if (rows == 1 || cols == 1)
 		return 0;
 
-	// convert from string to int16_t array
-	int16_t* query  = new int16_t[cols];
-	int16_t* target = new int16_t[rows];
+	// convert from string to __m256i* array
+	__m256i* query  = new __m256i[cols];
+	__m256i* target = new __m256i[rows];
 
 	std::copy(querySeg.begin(), querySeg.end(), query); 
 	std::copy(databaseSeg.begin(), databaseSeg.end(), target); 
@@ -295,10 +295,12 @@ extendSeedLGappedXDropRightAVX2(
 		mask7.elem[antiDiagNo - maxCol] = 1;
 
 		mask6.simd      = _mm256_mullo_epi16 (mask6.simd, mask3); // if mask3 == 0, mask6 == 0, otheriwise remain the same as declared
-		antiDiag3.simd  = _mm256_blend_epi16 (antiDiag3.simd, _mm256_set1_epi16 (antiDiagBest), mask6.simd); // if mask6 == 0, antiDiag3 remain the same as before
+		antiDiag3.simd  = _mm256_blendv_epi8 (antiDiag3.simd, _mm256_set1_epi16 (antiDiagBest), mask6.simd); // if mask6 == 0, antiDiag3 remain the same as before
 
 		mask7.simd      = _mm256_mullo_epi16 (mask7.simd, mask5); // if mask5 == 0, mask7 == 0, otheriwise remain the same as declared
-		antiDiag3.simd  = _mm256_blend_epi16 (antiDiag3.simd, _mm256_set1_epi16 (antiDiagBest), mask7.simd); // if mask7 == 0, antiDiag3 remain the same as before
+		antiDiag3.simd  = _mm256_blendv_epi8 (antiDiag3.simd, _mm256_set1_epi16 (antiDiagBest), mask7.simd); // if mask7 == 0, antiDiag3 remain the same as before
+
+		__m256i tmp;
 
 		for (int16_t col = minCol; col < maxCol; col += 16)
 		{
@@ -314,39 +316,39 @@ extendSeedLGappedXDropRightAVX2(
 			// int tmp = max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
 			// equivalent to _mm256_slli_si256 with N = 16 		left shift
 			// TODO : double check after compilation and put into a separate function
-			__m256 tmp = _mm256_permute2x128_si256(antiDiag2.simd, antiDiag2.simd, _MM_SHUFFLE(0, 0, 2, 0));
+			tmp = _mm256_permute2x128_si256(antiDiag2.simd, antiDiag2.simd, _MM_SHUFFLE(0, 0, 2, 0));
 			// equivalent to _mm256_srli_si256 with N = 16 		right shift
 			// source : https://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avx
 			// __m256 v1 = _mm256_permute2x128_si256(v0, v0, _MM_SHUFFLE(2, 0, 0, 1));
-			tmp = _mm256_max_epi16 (antiDiag2, tmp);
+			tmp = _mm256_max_epi16 (antiDiag2.simd, tmp);
 			tmp = _mm256_add_epi16 (tmp, _mm256_set1_epi16 (gapCost));
 
 			// TODO : cast char to int16_t (loading is wrong otherwise)
-			__m256i query  = _mm256_load_epi16 (query  + queryPos);  // load sixteen bases from querySeg
-			__m256i target = _mm256_load_epi16 (target + targetPos); // load sixteen bases from targetSeg
+			__m256i _m_query  = _mm256_load_si256 (query  + queryPos);  // load sixteen bases from querySeg
+			__m256i _m_target = _mm256_load_si256 (target + dbPos); // load sixteen bases from targetSeg
 
 			// tmp = max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
 			// here : score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos])
-			__m256i tmpscore = _mm256_cmpeq_epi16 (query, target);
-			tmpscore = _mm256_blend_epi16 (_mm256_set1_epi16 (scoreMatch(penalties)), _mm256_set1_epi16 (scoreMismatch(penalties)), tmpscore);
+			__m256i tmpscore = _mm256_cmpeq_epi16 (_m_query, _m_target);
+			tmpscore = _mm256_blendv_epi8 (_mm256_set1_epi16 (scoreMatch(scoringScheme)), _mm256_set1_epi16 (scoreMismatch(scoringScheme)), tmpscore);
 			// here : add tmpscore to antiDiag1 	
 			tmpscore = _mm256_add_epi16 (tmpscore, antiDiag1.simd);
 			tmp = _mm256_max_epi16 (tmp, tmpscore);
 
 			//if (tmp < best - scoreDropOff)
-			__m256i mask8 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best - scoreDropOff), tmp)
-			antiDiag3.simd = _mm256_blend_epi16 (_mm256_set1_epi16 (undefined), tmp, mask8);
+			__m256i mask8 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best - scoreDropOff), tmp);
+			antiDiag3.simd = _mm256_blendv_epi8 (_mm256_set1_epi16 (undefined), tmp, mask8);
 			// TODO: skipping control here double check 	
 			// if true, this should contain antiDiagBest it shouldn't harm
 			// max should be in the first position double check
 		}
 
 		// antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
-		antiDiagBest = _mm256_extract_epi16 (_mm256_max_epi16 (_mm256_set1_epi16 (antiDiagBest), tmp));
+		antiDiagBest = _mm256_extract_epi16 (_mm256_max_epi16 (_mm256_set1_epi16 (antiDiagBest), tmp), 0);
 		// best = (best > antiDiagBest) ? best : antiDiagBest;
 		// ones where best is greater, otherwise zeros
 		__m256i mask9 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best), _mm256_set1_epi16 (antiDiagBest));
-		best = _mm256_extract_epi16 (_mm256_blend_epi16 (_mm256_set1_epi16 (best), _mm256_set1_epi16 (antiDiagBest), mask9), 0);
+		best = _mm256_extract_epi16 (_mm256_blendv_epi8 (_mm256_set1_epi16 (best), _mm256_set1_epi16 (antiDiagBest), mask9), 0);
 
 		int16_t bestCol   = 0;
 		int16_t bestRow   = 0;
@@ -461,6 +463,9 @@ extendSeedLGappedXDropRightAVX2(
 			}
 		}
 	}
+
+	delete [] query;
+	delete [] target;
  
 	// update seed
 	if (longestExtensionScore != undefined)
