@@ -16,6 +16,7 @@
 #include<vector>
 #include<iostream>
 #include<omp.h>
+#include<algorithm>
 #include"logan.h"
 #include"score.h"
 #include <immintrin.h> // For AVX instructions
@@ -171,11 +172,10 @@ calcExtendedUpperDiag(unsigned short & upperDiag,
 // the member of the union that wasn't most recently written. Many compilers implement, as a non-standard 
 // language extension, the ability to read inactive members of a union.
 
-union {
+union vLogan {
 	__m256i simd;
-	__int16 elem[16];
-
-} vLogan;
+	__int16 elem[16] = {0};
+};
 
 int
 extendSeedLGappedXDropRightAVX2(
@@ -188,8 +188,8 @@ extendSeedLGappedXDropRightAVX2(
 {
 
 	//std::chrono::duration<double>  diff;
-	__int16 cols = querySeg.length()+1;
-	__int16 rows = databaseSeg.length()+1;
+	unsigned short cols = querySeg.length()+1;
+	unsigned short rows = databaseSeg.length()+1;
 
 	if (rows == 1 || cols == 1)
 		return 0;
@@ -201,14 +201,14 @@ extendSeedLGappedXDropRightAVX2(
 	std::copy(querySeg.begin(), querySeg.end(), query); 
 	std::copy(databaseSeg.begin(), databaseSeg.end(), target); 
 
-	__int16 len = 2 * std::max(cols, rows); // number of antidiagonals (does not change in any implementation)
-	__int16 const minErrScore = std::numeric_limits<__int16>::min() / len; // minimal allowed error penalty
-	setScoreGap(scoringScheme, std::max(scoreGap(scoringScheme), minErrScore));
+	unsigned short len = 2 * std::max (cols, rows); // number of antidiagonals (does not change in any implementation)
+	const short minErrScore = std::numeric_limits<short>::min() / len; // minimal allowed error penalty
+	setScoreGap(scoringScheme, std::max (scoreGap(scoringScheme), minErrScore));
 
 	setScoreMismatch(scoringScheme, std::max(scoreMismatch(scoringScheme), minErrScore));
 
-	__m256i gapCost   = _mm256_set1_epi16 ( scoreGap(scoringScheme) );
-	__m256i undefined = _mm256_set1_epi16 ( _mm256_sub_epi16 ( _mm256_set1_epi16 ( std::numeric_limits<short>::min() ), gapCost );
+	__int16 gapCost   = scoreGap(scoringScheme);
+	__int16 undefined = std::numeric_limits<short>::min() - gapCost;
 
 	vLogan antiDiag1; 	// 16 (vector width) 16-bit integers
 	vLogan antiDiag2; 	// 16 (vector width) 16-bit integers
@@ -227,7 +227,7 @@ extendSeedLGappedXDropRightAVX2(
 
 	antiDiag2.simd = _mm256_setzero_si256 (); 			// initialize vector with zeros
 
-	if (-gapCost > dropOff) // initialize vector with -inf
+	if (-gapCost > scoreDropOff) // initialize vector with -inf
 	{
 		antiDiag3.simd = _mm256_set1_epi16 (undefined); 	// broadcast 16-bit integer a to all elements of dst
 	}
@@ -253,8 +253,8 @@ extendSeedLGappedXDropRightAVX2(
 		// data must be aligned when loading to and storing to avoid severe performance penalties
 		++antiDiagNo;
 		// swap antiDiags
-		antiDiag1.simd = _mm256_load_epi16 (&antiDiag2);
-		antiDiag2.simd = _mm256_load_epi16 (&antiDiag3);
+		antiDiag1.simd = _mm256_load_si256 (&antiDiag2.simd);
+		antiDiag2.simd = _mm256_load_si256 (&antiDiag3.simd);
 		antiDiag3.simd = _mm256_set1_epi16 (undefined); 	// init to -inf at each iteration
 
 		// antiDiag3.size() = maxCol+1-offset (resize in original initDiag3) : double check 
@@ -276,9 +276,6 @@ extendSeedLGappedXDropRightAVX2(
 
 		vLogan mask6;
 		vLogan mask7;
-
-		mask6.elem = {0};
-		mask7.elem = {0};
 
 		mask6.elem[0] = 0;
 		mask7.elem[antiDiagNo - maxCol] = 1;
@@ -477,15 +474,14 @@ extendSeedL(SeedL& seed,
 	int scoreRight=0;
 	Result scoreFinal;
 
-	if (direction == EXTEND_LEFTL || direction == EXTEND_BOTHL)
-	{
-		// string substr (size_t pos = 0, size_t len = npos) const;
-		// returns a newly constructed string object with its value initialized to a copy of a substring of this object
-		std::string targetPrefix = target.substr(0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
-		std::string queryPrefix = query.substr(0, getBeginPositionV(seed));	// from read start til start seed (seed not included)
-
-		scoreLeft = extendSeedLGappedXDropOneDirectionAVX2(seed, queryPrefix, targetPrefix, EXTEND_LEFTL, penalties, XDrop);
-	}
+	//if (direction == EXTEND_LEFTL || direction == EXTEND_BOTHL)
+	//{
+	//	// string substr (size_t pos = 0, size_t len = npos) const;
+	//	// returns a newly constructed string object with its value initialized to a copy of a substring of this object
+	//	std::string targetPrefix = target.substr(0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
+	//	std::string queryPrefix = query.substr(0, getBeginPositionV(seed));	// from read start til start seed (seed not included)
+	//	scoreLeft = extendSeedLGappedXDropOneDirectionAVX2(seed, queryPrefix, targetPrefix, EXTEND_LEFTL, penalties, XDrop);
+	//}
 
 	if (direction == EXTEND_RIGHTL || direction == EXTEND_BOTHL)
 	{
@@ -494,7 +490,7 @@ extendSeedL(SeedL& seed,
 		std::string targetSuffix = target.substr(getEndPositionH(seed), target.length()); 	// from end seed until the end (seed not included)
 		std::string querySuffix = query.substr(getEndPositionV(seed), query.length());		// from end seed until the end (seed not included)
 
-		scoreRight = extendSeedLGappedXDropOneDirectionAVX2(seed, querySuffix, targetSuffix, EXTEND_RIGHTL, penalties, XDrop);
+		scoreRight = extendSeedLGappedXDropRightAVX2(seed, querySuffix, targetSuffix, EXTEND_RIGHTL, penalties, XDrop);
 	}
 
 	//Result myalignment(kmer_length); // do not add KMER_LENGTH later
