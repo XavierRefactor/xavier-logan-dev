@@ -19,6 +19,16 @@
 #include"score.h"
 //using namespace seqan;
 // #include <bits/stdc++.h> 
+
+#define cudaErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort = true){
+
+	if(code != cudaSuccess){
+		fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+	if(abort) exit(code);
+	}
+}
+
 enum ExtensionDirectionL
 {
     EXTEND_NONEL  = 0,
@@ -235,7 +245,7 @@ extendSeedLGappedXDropOneDirection(
 		std::string const querySeg,
 		std::string const databaseSeg,
 		ExtensionDirectionL const direction,
-		ScoringSchemeL scoringScheme,
+		ScoringSchemeL &scoringScheme,
 		int const scoreDropOff)
 {
 	//typedef typename Size<TQuerySegment>::Type int;
@@ -255,7 +265,7 @@ extendSeedLGappedXDropOneDirection(
 	//(void)tag;
 	setScoreMismatch(scoringScheme, max(scoreMismatch(scoringScheme), minErrScore));
 
-	int gapCost = -2;//scoreGap(scoringScheme);
+	int gapCost = scoreGap(scoringScheme);
 	//std::cout<<gapCost<<std::endl;
 	int undefined = minimumVal - gapCost;
 
@@ -290,33 +300,7 @@ extendSeedLGappedXDropOneDirection(
 
 	int lowerDiag = 0;
 	int upperDiag = 0;
-	//AAAA part to parallelize???
-	//int index = 0;
-	// std::chrono::duration<double>  diff;
-	// auto start = std::chrono::high_resolution_clock::now();
-	// char *qseg, *tseg;
-	//char *q = (char*)querySeg.c_str();
-	//char *t = (char*)databaseSeg.c_str();
-	// cudaMallocManaged(&qseg, querySeg.length()*sizeof(char));
- //    cudaMallocManaged(&tseg, databaseSeg.length()*sizeof(char));
-	// qseg = (char*)querySeg.c_str();
-	// tseg = (char*)databaseSeg.c_str();
-
-	// qseg = (char *)malloc((querySeg.length()+1)*sizeof(char));
-	// tseg = (char *)malloc((databaseSeg.length()+1)*sizeof(char)); 
-	// querySeg.copy(qseg, querySeg.size()+1);
-	// databaseSeg.copy(tseg, databaseSeg.size()+1);
-	// qseg[querySeg.length()]='\0';
-	// tseg[databaseSeg.length()]='\0';
-	//cudaMemcpy(qseg, q, querySeg.length(),cudaMemcpyHostToDevice);
-   	//cudaMemcpy(tseg, t, databaseSeg.length(),cudaMemcpyHostToDevice);
-	//std::cout << databaseSeg << '\n';
-	//std::cout << tseg << '\n';
-	//printf("ok");
-	//char *qseg;
-	//cudaError_t err = cudaMalloc(&qseg,100);
-        //if(err != cudaSuccess)
-        //	printf("error %s\n", cudaGetErrorString(err));
+	
 	while (minCol < maxCol)
 	{	
 
@@ -334,87 +318,69 @@ extendSeedLGappedXDropOneDirection(
 		int antiDiagBest = antiDiagNo * gapCost;
 		//AAAA this must be parallelized
 		//char *query, *target;
-		int *ant1 =(int *)malloc(sizeof(int)*antiDiag1.size());
-		int *ant2 =(int *)malloc(sizeof(int)*antiDiag2.size());
-		int *ant3 =(int *)malloc(sizeof(int)*antiDiag3.size());
-		for(int i = 0; i<antiDiag1.size(); i++){
-                
-                        ant1[i]=antiDiag1[i];
-                }
-                for(int i = 0; i<antiDiag2.size(); i++){
-
-                        ant2[i]=antiDiag2[i];
-                }
-                for(int i = 0; i<antiDiag3.size(); i++){
-
-                        ant3[i]=antiDiag3[i];
-                }
+		int *a1_h =(int *)malloc(sizeof(int)*antiDiag1.size());
+		int *a2_h =(int *)malloc(sizeof(int)*antiDiag2.size());
+		int *a3_h =(int *)malloc(sizeof(int)*antiDiag3.size());
+		char *q_h =(char *)malloc(sizeof(char)*querySeg.length());
+		char *db_h=(char *)malloc(sizeof(char)*databaseSeg.length()); 
+		for(int i = 0; i<antiDiag1.size(); i++){        
+            a1_h[i]=antiDiag1[i];
+        }
+        for(int i = 0; i<antiDiag2.size(); i++){
+            a2_h[i]=antiDiag2[i];
+        }
+        for(int i = 0; i<antiDiag3.size(); i++){
+            a3_h[i]=antiDiag3[i];
+        }
+        for(int i = 0; i<querySeg.length(); i++){
+        	q_h[i] = querySeg[i]; 
+        }
+        for(int i = 0; i<databaseSeg.length(); i++){
+        	db_h[i] = databaseSeg[i]; 
+        }
 		//copy or eliminate vectors for antidiags
-		int *a1, *a2, *a3;
-		char  *qseg, *tseg;
-		cudaError_t err = cudaMalloc(&qseg, querySeg.length() *sizeof(char));
-		if(err != cudaSuccess)
-			printf("error %s\n", cudaGetErrorString(err));
-		err = cudaMalloc(&tseg, databaseSeg.length()*sizeof(char));
-		if(err != cudaSuccess)
-                        printf("error %s\n", cudaGetErrorString(err));	
-		//printf("CPU: %d", antiDiag1[minCol - offset1]);
-		err = cudaMalloc(&a1, antiDiag1.size()*sizeof(int));
-		if(err != cudaSuccess)
-                        printf("error %s\n", cudaGetErrorString(err));
-		err = cudaMalloc(&a2, antiDiag2.size()*sizeof(int));
-		if(err != cudaSuccess)
-                        printf("error %s\n", cudaGetErrorString(err));
-		err = cudaMalloc(&a3, antiDiag3.size()*sizeof(int));
-		if(err != cudaSuccess)
-                        printf("error %s\n", cudaGetErrorString(err));
-		//memset(ant1, 0, antiDiag1.size()*sizeof(short));
-		//memset(ant2, 0, antiDiag2.size()*sizeof(short));
-		//memset(ant3, 0, antiDiag3.size()*sizeof(short));
-		err = cudaMemcpy(a1, ant1, antiDiag1.size()*sizeof(int),cudaMemcpyHostToDevice);
-		if(err != cudaSuccess)
-                        printf("error %s\n", cudaGetErrorString(err));
-		err = cudaMemcpy(a2, ant2, antiDiag2.size()*sizeof(int),cudaMemcpyHostToDevice);
-		if(err != cudaSuccess)
-                        printf("error %s\n", cudaGetErrorString(err));
-		err = cudaMemcpy(a3, ant3, antiDiag3.size()*sizeof(int),cudaMemcpyHostToDevice);		
-		if(err != cudaSuccess)
-                        printf("error %s\n", cudaGetErrorString(err));
-		err = cudaMemcpy(qseg, (char*)querySeg.c_str(), querySeg.length()*sizeof(char), cudaMemcpyHostToDevice);
-		if(err != cudaSuccess)
-                        printf("error %s\n", cudaGetErrorString(err));
-		err = cudaMemcpy(tseg, (char*)databaseSeg.c_str(), databaseSeg.length()*sizeof(char),cudaMemcpyHostToDevice);
-		if(err != cudaSuccess)
-                        printf("error %s\n", cudaGetErrorString(err));
+		int *a1_d, *a2_d, *a3_d;
+		char *q_d, *db_d;
+		cudaErrchk(cudaMalloc(&q_d, querySeg.length() *sizeof(char)));
+		cudaErrchk(cudaMalloc(&db_d, databaseSeg.length()*sizeof(char)));
+		cudaErrchk(cudaMalloc(&a1_d, antiDiag1.size()*sizeof(int)));
+		cudaErrchk(cudaMalloc(&a2_d, antiDiag2.size()*sizeof(int)));
+		cudaErrchk(cudaMalloc(&a3_d, antiDiag3.size()*sizeof(int)));
+		cudaErrchk(cudaMemcpy(a1_d, a1_h, antiDiag1.size()*sizeof(int),cudaMemcpyHostToDevice));
+		cudaErrchk(cudaMemcpy(a2_d, a2_h, antiDiag2.size()*sizeof(int),cudaMemcpyHostToDevice));
+		cudaErrchk(cudaMemcpy(a3_d, a3_h, antiDiag3.size()*sizeof(int),cudaMemcpyHostToDevice));		
+		cudaErrchk(cudaMemcpy(q_d, q_h, querySeg.length()*sizeof(char), cudaMemcpyHostToDevice));
+		cudaErrchk(cudaMemcpy(db_d, db_h, databaseSeg.length()*sizeof(char),cudaMemcpyHostToDevice));
+		
 		if(antiDiagNo == 2){	
 		std::cout << " Before : ";
 		for (int i = 0; i < antiDiag3.size(); i++) {
         		std::cout << antiDiag3.at(i) << ' ';
         	}
 		}
-		computeAntidiag <<<1,antiDiag3.size()>>> (a1,a2,a3,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,qseg,tseg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
+		
+		computeAntidiag <<<1,antiDiag3.size()>>> (a1_d,a2_d,a3_d,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,q_d,db_d,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
 	 	cudaDeviceSynchronize();
-		//printf("ok");
-		//std::cout<<comp<<'\n';	
-		//cudaMemcpy(ant1, a1, antiDiag1.size()*sizeof(short), cudaMemcpyDeviceToHost);
-		//cudaMemcpy(ant2, a2, antiDiag2.size()*sizeof(short), cudaMemcpyDeviceToHost);
-		//memset(ant3, 0, antiDiag3.size()*sizeof(short));
-		err = cudaMemcpy(ant3, a3, antiDiag3.size(), cudaMemcpyDeviceToHost);
-		if(err != cudaSuccess)
-                        printf("error %s\n", cudaGetErrorString(err));
-		//std::copy(ant1, ant1 + antiDiag1.size(), antiDiag1.begin());
-		//std::copy(ant2, ant2 + antiDiag2.size(), antiDiag2.begin());
-		std::copy(ant3, ant3 + antiDiag3.size(), antiDiag3.begin());
-		//cudaFree(a1);
-		//cudaFree(a2);
-		//cudaFree(a3);
-		//cudaFree(qseg);
-		//cudaFree(tseg);
+		cudaErrchk(cudaMemcpy(a3_h, a3_d, antiDiag3.size()*sizeof(int), cudaMemcpyDeviceToHost));
+		std::copy(a3_h, a3_h + antiDiag3.size(), antiDiag3.begin());
+		
+		cudaErrchk(cudaFree(a1_d));
+		cudaErrchk(cudaFree(a2_d));
+		cudaErrchk(cudaFree(a3_d));
+		cudaErrchk(cudaFree(q_d));
+		cudaErrchk(cudaFree(db_d));
+		free(a1_h);
+		free(a2_h);
+		free(a3_h);
+		free(q_h);
+		free(db_h);
+
 		antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
+		
 		if(antiDiagNo == 2){
 		std::cout << " After : ";
 		for (int i = 0; i < antiDiag3.size(); i++) {
-            		std::cout << antiDiag3.at(i) << ' ' << ant3[i] << ' ';
+            		std::cout << antiDiag3.at(i) << ' ' << a3_h[i] << ' ';
 		}
 		std::cout << '\n';
 		}
@@ -444,19 +410,7 @@ extendSeedLGappedXDropOneDirection(
 		// end of querySeg reached?
 		maxCol = min(maxCol, cols);
 			
-		
-		//index++;
 	}
-	//std::cout << "logan time: " <<  diff.count() <<std::endl;
-	// auto end = std::chrono::high_resolution_clock::now();
-	// diff += end-start;
-	// std::cout << "logan: "<<diff.count() <<std::endl;
-	//cudaFree(qseg);
-	//cudaFree(tseg);
-
-	
-	//std::cout << "cycles logan" << index << std::endl;
-	
 	// find positions of longest extension
 
 	// reached ends of both segments
