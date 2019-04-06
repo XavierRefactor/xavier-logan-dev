@@ -16,6 +16,7 @@
 #include<vector>
 #include<iostream>
 #include<omp.h>
+#include<algorithm>
 #include"logan.h"
 #include"score.h"
 #include <immintrin.h> // For AVX instructions
@@ -171,11 +172,24 @@ calcExtendedUpperDiag(unsigned short & upperDiag,
 // the member of the union that wasn't most recently written. Many compilers implement, as a non-standard 
 // language extension, the ability to read inactive members of a union.
 
-union {
-	__m256i simdDiag;
-	__int16 antiDiag[16];
+typedef union {
+	__m256i simd;
+	int16_t elem[16] = {-1};
+} _m256i_16_t;
 
-} myDiag;
+void print_m256i_16(__m256i a) {
+
+	_m256i_16_t t;
+	t.simd = a;
+
+	printf("{%d,%d,%d,%d,%d,%d,%d,%d,"
+			"%d,%d,%d,%d,%d,%d,%d,%d}\n",
+			t.elem[ 0], t.elem[ 1], t.elem[ 2], t.elem[ 3],
+			t.elem[ 4], t.elem[ 5], t.elem[ 6], t.elem[ 7],
+			t.elem[ 8], t.elem[ 9], t.elem[10], t.elem[11],
+			t.elem[12], t.elem[13], t.elem[14], t.elem[15]
+			);
+}
 
 int
 extendSeedLGappedXDropRightAVX2(
@@ -194,34 +208,40 @@ extendSeedLGappedXDropRightAVX2(
 	if (rows == 1 || cols == 1)
 		return 0;
 
-	unsigned short len = 2 * std::max(cols, rows); // number of antidiagonals (does not change in any implementation)
-	short const minErrScore = std::numeric_limits<short>::min() / len; // minimal allowed error penalty
-	setScoreGap(scoringScheme, std::max(scoreGap(scoringScheme), minErrScore));
+	// convert from string to __m256i* array
+	int16_t* query  = new int16_t[cols];
+	int16_t* target = new int16_t[rows];
+
+	std::copy(querySeg.begin(), querySeg.end(), query); 
+	std::copy(databaseSeg.begin(), databaseSeg.end(), target); 
+
+	unsigned short len = 2 * std::max (cols, rows); // number of antidiagonals (does not change in any implementation)
+	const short minErrScore = std::numeric_limits<short>::min() / len; // minimal allowed error penalty
+	setScoreGap(scoringScheme, std::max (scoreGap(scoringScheme), minErrScore));
 
 	setScoreMismatch(scoringScheme, std::max(scoreMismatch(scoringScheme), minErrScore));
 
-	__m256i gapCost   = _mm256_set1_epi16 ( scoreGap(scoringScheme) );
-	__m256i undefined = _mm256_set1_epi16 ( _mm256_sub_epi16 ( _mm256_set1_epi16 ( std::numeric_limits<short>::min() ), gapCost );
+	int16_t gapCost   = scoreGap(scoringScheme);
+	int16_t undefined = std::numeric_limits<short>::min() - gapCost;
 
-	myDiag antiDiag1; 	// 16 (vector width) 16-bit integers
-	myDiag antiDiag2; 	// 16 (vector width) 16-bit integers
-	myDiag antiDiag3; 	// 16 (vector width) 16-bit integers
+	_m256i_16_t antiDiag1; 	// 16 (vector width) 16-bit integers
+	_m256i_16_t antiDiag2; 	// 16 (vector width) 16-bit integers
+	_m256i_16_t antiDiag3; 	// 16 (vector width) 16-bit integers
 
 	antiDiag1.elem[16] = {0}; // init
 	antiDiag2.elem[16] = {0}; // init
 	antiDiag3.elem[16] = {0}; // init
 
-	__int16 minCol = 1;
-	__int16 maxCol = 2;
+	int16_t minCol = 1;
+	int16_t maxCol = 2;
 
-	__int16 offset1 = 0; // number of leading columns that need not be calculated in antiDiag1
-	__int16 offset2 = 0; //                                                       in antiDiag2
-	__int16 offset3 = 0; //                                                       in antiDiag3
+	int16_t offset1 = 0; // number of leading columns that need not be calculated in antiDiag1
+	int16_t offset2 = 0; //                                                       in antiDiag2
+	int16_t offset3 = 0; //                                                       in antiDiag3
 
 	antiDiag2.simd = _mm256_setzero_si256 (); 			// initialize vector with zeros
 
-	//antiDiag3.resize(2);
-	if (-gapCost > dropOff) // initialize vector with -inf
+	if (-gapCost > scoreDropOff) // initialize vector with -inf
 	{
 		antiDiag3.simd = _mm256_set1_epi16 (undefined); 	// broadcast 16-bit integer a to all elements of dst
 	}
@@ -230,132 +250,140 @@ extendSeedLGappedXDropRightAVX2(
 		antiDiag3.simd = _mm256_set1_epi16 (gapCost); 	// broadcast 16-bit integer a to all elements of dst
 	}
 
-	__int16 antiDiagNo = 1; 	 // the currently calculated anti-diagonal
-	__int16 best       = 0; 	 // maximal score value in the DP matrix (for drop-off calculation)
+	int16_t antiDiagNo = 1; 	 // the currently calculated anti-diagonal
+	int16_t best       = 0; 	 // maximal score value in the DP matrix (for drop-off calculation)
 
-	__int16 lowerDiag  = 0; 
-	__int16 upperDiag  = 0;
+	unsigned short lowerDiag  = 0; 
+	unsigned short upperDiag  = 0;
 
-	__int16 antiDiag1size = 0;	 // init
-	__int16 antiDiag2size = 1;	 // init
-	__int16 antiDiag3size = 2;	 // init
+	int16_t antiDiag1size = 0;	 // init
+	int16_t antiDiag2size = 1;	 // init
+	int16_t antiDiag3size = 2;	 // init
+
+	int16_t antiDiagBest  = antiDiagNo * gapCost;	 // init
 
 	while (minCol < maxCol) // this diff cannot be greater than 16
 	{
 		// data must be aligned when loading to and storing to avoid severe performance penalties
 		++antiDiagNo;
 		// swap antiDiags
-		antiDiag1.simd = _mm256_load_epi16 (&antiDiag2);
-		antiDiag2.simd = _mm256_load_epi16 (&antiDiag3);
+		antiDiag1.simd = _mm256_load_si256 (&antiDiag2.simd);
+		antiDiag2.simd = _mm256_load_si256 (&antiDiag3.simd);
 		antiDiag3.simd = _mm256_set1_epi16 (undefined); 	// init to -inf at each iteration
+
+		//print_m256i_16(antiDiag1.simd);
+		//print_m256i_16(antiDiag2.simd);
+		//print_m256i_16(antiDiag3.simd);
 
 		// antiDiag3.size() = maxCol+1-offset (resize in original initDiag3) : double check 
 		antiDiag1size = antiDiag2size;
 		antiDiag2size = antiDiag3size;
 		antiDiag3size = maxCol + 1 - offset3; // double check this in original seqan
 
+		//printf("antiDiag1size %d\n", antiDiag1size);
+		//printf("antiDiag2size %d\n", antiDiag2size);
+		//printf("antiDiag3size %d\n", antiDiag3size);
+
 		offset1 = offset2;
 		offset2 = offset3;
 		offset3 = minCol - 1;
 
-		__int16 bestCol   = 0;
-		__int16 bestRow   = 0;
-		__int16 bestScore = 0;
+		antiDiagBest  = antiDiagNo * gapCost;
 
-		// multiply the packed 16-bit integers in a and b, producing intermediate 32-bit integers, and store the low 16 bits of the intermediate integers in dst
-		__m256i antiDiagBest = _mm256_mullo_epi16 (_mm256_set1_epi16 (antiDiagNo), _mm256_set1_epi16 (gapCost));
-		__m256i bestDrop     = _mm256_sub_epi16   (_mm256_set1_epi16 (best) , _mm256_set1_epi16 (scoreDropOff));
-		__m256i antiMax      = _mm256_sub_epi16   (_mm256_set1_epi16 (antiDiagNo), _mm256_set1_epi16 (maxCol));
-
-		__m256i mask1 = _mm256_cmpgt_epi16 (antiDiagBest, bestDrop); 			// if (antiDiagNo * gapCost > best - scoreDropOff) mask1 set to 1, otherwise 0
+		__m256i mask1 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (antiDiagBest), _mm256_set1_epi16 (best - scoreDropOff)); // if (antiDiagNo * gapCost > best - scoreDropOff) mask1 set to 1, otherwise 0
+		//print_m256i_16(mask1); //false == -1
 		__m256i mask2 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (offset3), _mm256_setzero_si256()); 	// if (offset3 == 0) mask2 set to 1, otherwise 0
-		__m256i mask3 = _mm256_and_si256   (mask1, mask2); 						// if (antiDiagNo * gapCost > best - scoreDropOff) AND if (offset3 == 0) mask3 set to 1, otherwise 0
-		__m256i mask4 = _mm256_cmpeq_epi16 (antiMax, _mm256_setzero_si256()); 	// if (antiDiagNo - maxCol == 0) mask4 set to 1, otherwise 0
-		__m256i mask5 = _mm256_and_si256   (mask1, mask4); 						// if (antiDiagNo * gapCost > best - scoreDropOff) AND if (antiDiagNo - maxCol == 0) mask5 set to 1, otherwise 0
+		//print_m256i_16(mask2); //false == -1
+		__m256i mask3 = _mm256_and_si256   (mask1, mask2); 	// if (antiDiagNo * gapCost > best - scoreDropOff) AND if (offset3 == 0) mask3 set to 1, otherwise 0
+		//print_m256i_16(mask3); //false == -1
+		__m256i mask4 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiagNo - maxCol), _mm256_setzero_si256()); 	// if (antiDiagNo - maxCol == 0) mask4 set to 1, otherwise 0
+		//print_m256i_16(mask4); //false == -1
+		__m256i mask5 = _mm256_and_si256   (mask1, mask4); 	// if (antiDiagNo * gapCost > best - scoreDropOff) AND if (antiDiagNo - maxCol == 0) mask5 set to 1, otherwise 0
+		//print_m256i_16(mask5); //false == -1
 
-		__int16 address3[16] = {0};
-		address3[0] = 1;
+		_m256i_16_t mask6;
+		_m256i_16_t mask7;
 
-		__int16 address5[16] = {0};
-		address5[antiDiagNo - maxCol] = 1;
+		mask6.elem[0] = 1;
+		mask7.elem[antiDiagNo - maxCol] = 1;
 
-		// check feasibility of this operation
-		__m256i mask6 = address3;
-		__m256i mask7 = address5;
+		//print_m256i_16(mask6.simd);
+		//print_m256i_16(mask7.simd);
 
-		mask6      = _mm256_mullo_epi16 (mask6, mask3); // if mask3 == 0, mask6 == 0, otheriwise remain the same as declared
-		antiDiag3.simd  = _mm256_blend_epi16 (antiDiag3.simd, antiDiagBest, mask6); // if mask6 == 0, antiDiag3 remain the same as before
+		mask6.simd      = _mm256_mullo_epi16 (mask6.simd, mask3); // if mask3 == 0, mask6 == 0, otheriwise remain the same as declared
+		antiDiag3.simd  = _mm256_blendv_epi8 (antiDiag3.simd, _mm256_set1_epi16 (antiDiagBest), mask6.simd); // if mask6 == 0, antiDiag3 remain the same as before
 
-		// antiDiag3[maxCol - offset3] = antiDiagNo * gapCost;
-		mask7      = _mm256_mullo_epi16 (mask7, mask5); // if mask5 == 0, mask7 == 0, otheriwise remain the same as declared
-		antiDiag3.simd  = _mm256_blend_epi16 (antiDiag3.simd, antiDiagBest, mask7); // if mask7 == 0, antiDiag3 remain the same as before
+		mask7.simd      = _mm256_mullo_epi16 (mask7.simd, mask5); // if mask5 == 0, mask7 == 0, otheriwise remain the same as declared
+		antiDiag3.simd  = _mm256_blendv_epi8 (antiDiag3.simd, _mm256_set1_epi16 (antiDiagBest), mask7.simd); // if mask7 == 0, antiDiag3 remain the same as before
 
-		for (__int16 col = minCol; col < maxCol; col += 16)
+		// check here what's going on here	
+		//print_m256i_16(mask6.simd);
+		//print_m256i_16(mask7.simd);
+		//print_m256i_16(antiDiag3.simd);
+
+		__m256i tmp;
+
+		for (int16_t col = minCol; col < maxCol; col += 16)
 		{
-			__int16 i3 = col - offset3;
-			__int16 i2 = col - offset2;
-			__int16 i1 = col - offset1;
+			int16_t i3 = col - offset3;
+			int16_t i2 = col - offset2;
+			int16_t i1 = col - offset1;
 
-			__int16 queryPos = col - 1; 
-			__int16 dbPos = antiDiagNo - col - 1;
+			int16_t queryPos = col - 1; 
+			int16_t dbPos = antiDiagNo - col - 1;
 
-			// TODO: modified from: https://stackoverflow.com/questions/19494114/parallel-prefix-cumulative-sum-with-sse
-			//inline __m256i scan(__m256i x)
-			//{
-			//	__m256 t0, t1;
-			//	//shift1_AVX + add
-			//	t0 = _mm256_permute_ps(x, _MM_SHUFFLE(2, 1, 0, 3));
-			//	t1 = _mm256_permute2f128_ps(t0, t0, 41);
-			//	x  = _mm256_add_ps(x, _mm256_blend_ps(t0, t1, 0x11));
-			//	//shift2_AVX + add
-			//	t0 = _mm256_permute_ps(x, _MM_SHUFFLE(1, 0, 3, 2));
-			//	t1 = _mm256_permute2f128_ps(t0, t0, 41);
-			//	x = _mm256_add_ps(x, _mm256_blend_ps(t0, t1, 0x33));
-			//	//shift3_AVX + add
-			//	x = _mm256_add_ps(x,_mm256_permute2f128_ps(x, x, 41));
-			//	return x;
-			//}
-			//__m256i offset = _mm256_setzero_si256 ();
-			//__m256i x      = _mm256_loadu_epi16 (&antiDiag2[i]);
-			//__m256i out = scan (x);
-			//out = _mm256_add_epi16 (out, offset);
-			//_mm256_storeu_epi16 (&tmp[i], out);
-			////broadcast last element
-			//__m256i t0 = _mm256_permute2f128_si256 (out, out, 0x11);
-			//offset = _mm256_permutexvar_epi16 (t0, 0x7FFF);
-
-			// TODO: scan operation to obtain tmp
 			// calculate matrix entry (-> antiDiag3[col])
-			//__m256i tmp = std::max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
+			// fist horizonal max on antiDiag2
+			// int tmp = max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
+			// equivalent to _mm256_slli_si256 with N = 16 		left shift
+			// TODO : double check after compilation and put into a separate function
+			tmp = _mm256_permute2x128_si256(antiDiag2.simd, antiDiag2.simd, _MM_SHUFFLE(0, 0, 2, 0));
+			//print_m256i_16(tmp);
+			//print_m256i_16(antiDiag2.simd);
 
-			__m256i query  = _mm256_load_epi16 (querySeg  + queryPos);  // load sixteen bases from querySeg
-			__m256i target = _mm256_load_epi16 (targetSeg + targetPos); // load sixteen bases from targetSeg
-			// need to add a control on target it might contain not valid data
-			// if base of query == base of target
-			// if mask position == 1 put score match, otherwise score mismatch
-			__m256i mask8  = _mm256_cmpeq_epi16 (query, target);
-			// tmp1 = // result from masking --> score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos])
-			tmp1 = tmp1 + antiDiag1[i1 - 1]; // scan operation again
-			tmp = max(tmp, tmp1); // tmp = std::max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
+			// equivalent to _mm256_srli_si256 with N = 16 		right shift
+			// source : https://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avx
+			// __m256 v1 = _mm256_permute2x128_si256(v0, v0, _MM_SHUFFLE(2, 0, 0, 1));
+			tmp = _mm256_max_epi16 (antiDiag2.simd, tmp);
+			tmp = _mm256_add_epi16 (tmp, _mm256_set1_epi16 (gapCost));
 
-			__m256i mask9 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best - scoreDropOff), tmp)
+			__m256i _m_query  = _mm256_loadu_si256 ((__m256i*)(query  + queryPos)); // load sixteen bases from querySeg
+			__m256i _m_target = _mm256_loadu_si256 ((__m256i*)(target + dbPos)); 	// load sixteen bases from targetSeg
+
+			// sequences make sense
+			//print_m256i_16(_m_query);
+			//print_m256i_16(_m_target);
+
+			// tmp = max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
+			// here : score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos])
+			__m256i tmpscore = _mm256_cmpeq_epi16 (_m_query, _m_target);
+			tmpscore = _mm256_blendv_epi8 (_mm256_set1_epi16 (scoreMatch(scoringScheme)), _mm256_set1_epi16 (scoreMismatch(scoringScheme)), tmpscore);
+			// here : add tmpscore to antiDiag1 	
+			tmpscore = _mm256_add_epi16 (tmpscore, antiDiag1.simd);
+			tmp = _mm256_max_epi16 (tmp, tmpscore);
+
 			//if (tmp < best - scoreDropOff)
-			//{
-			// zeros if false, ones if true : -inf if ones, tmp values if zeros in mask9
-			antiDiag3 = _mm256_blend_epi16 (_mm256_set1_epi16 (undefined), tmp, mask9);
-			//antiDiag3[i3] = undefined;
-			//}
+			__m256i mask8 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best - scoreDropOff), tmp);
+			antiDiag3.simd = _mm256_blendv_epi8 (_mm256_set1_epi16 (undefined), tmp, mask8);
+			// never updated!
+			//print_m256i_16(antiDiag3.simd);
+
 			// TODO: skipping control here double check 	
 			// if true, this should contain antiDiagBest it shouldn't harm
 			// max should be in the first position double check
 		}
-		antiDiagBest = _mm256_max_epi16 (antiDiagBest, tmp)
-		
-		//else
-		//{
-		//	antiDiag3[i3] = tmp;
-		//	antiDiagBest = std::max(antiDiagBest, tmp);
-		//}
+
+		// antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
+		antiDiagBest = _mm256_extract_epi16 (_mm256_max_epi16 (_mm256_set1_epi16 (antiDiagBest), tmp), 0);
+		// best = (best > antiDiagBest) ? best : antiDiagBest;
+		// ones where best is greater, otherwise zeros
+		__m256i mask9 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best), _mm256_set1_epi16 (antiDiagBest));
+		best = _mm256_extract_epi16 (_mm256_blendv_epi8 (_mm256_set1_epi16 (best), _mm256_set1_epi16 (antiDiagBest), mask9), 0);
+		//std::cout << "best : " << best << std::endl;
+
+		//int16_t bestCol   = 0;
+		//int16_t bestRow   = 0;
+		//int16_t bestScore = 0;
 
 		// seed extension wrt best score
 		// TODO : not in seqan -- do this later
@@ -367,63 +395,52 @@ extendSeedLGappedXDropRightAVX2(
 		//	bestScore	= best;
 		//}
 
-		// antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
-		// best = (best > antiDiagBest) ? best : antiDiagBest;
-		// ones where best is greater, otherwise zeros
-		__m256i mask10 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best), antiDiagBest);
-		best = _mm256_extract_epi16 (_mm256_blend_epi16 (_mm256_set1_epi16 (best), antiDiagBest, mask10), 0);
-
 		// calculate new minCol and minCol
-		//while (minCol - offset3 < antiDiag3.size() && antiDiag3[minCol - offset3] == undefined &&
-		//	   minCol - offset2 - 1 < antiDiag2.size() && antiDiag2[minCol - offset2 - 1] == undefined)
-		//{
-		//	++minCol;
-		//}
-		// these are ones if verified
-		__m256i condition1 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (antiDiag3size), _mm256_set1_epi16 (minCol - offset3));
-		__m256i condition3 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (antiDiag2size), _mm256_set1_epi16 (minCol - offset2 - 1));
-		__m256i condition2 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiag3.elem[minCol - offset3]), _mm256_set1_epi16 (undefined));
-		__m256i condition4 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiag2.elem[minCol - offset2 - 1]), _mm256_set1_epi16 (undefined));
-		__m256i condition5 = _mm256_and_si256 (_mm256_and_si256 (condition1, condition2), _mm256_and_si256 (condition3, condition4));
-
-		while(condition5)
+		while (minCol - offset3 < antiDiag3size && antiDiag3.elem[minCol - offset3] == undefined &&
+			   minCol - offset2 - 1 < antiDiag2size && antiDiag2.elem[minCol - offset2 - 1] == undefined)
 		{
-			// incremented by one if true, otherwise no increment
-			minCol += _mm256_extract_epi16 (condition5, 0);
-
-			// update conditions
-			condition1 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (antiDiag3size), _mm256_set1_epi16 (minCol - offset3));
-			condition3 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (antiDiag2size), _mm256_set1_epi16 (minCol - offset2 - 1));
-			condition2 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiag3.elem[minCol - offset3]), _mm256_set1_epi16 (undefined));
-			condition4 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiag2.elem[minCol - offset2 - 1]), _mm256_set1_epi16 (undefined));
-			condition5 = _mm256_and_si256 (_mm256_and_si256 (condition1, condition2), _mm256_and_si256 (condition3, condition4));
+			++minCol;
 		}
+		// these are ones if verified
+		//__m256i condition1 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (antiDiag3size), _mm256_set1_epi16 (minCol - offset3));
+		//__m256i condition3 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (antiDiag2size), _mm256_set1_epi16 (minCol - offset2 - 1));
+		//__m256i condition2 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiag3.elem[minCol - offset3]), _mm256_set1_epi16 (undefined));
+		//__m256i condition4 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiag2.elem[minCol - offset2 - 1]), _mm256_set1_epi16 (undefined));
+		//__m256i condition5 = _mm256_and_si256 (_mm256_and_si256 (condition1, condition2), _mm256_and_si256 (condition3, condition4));
+		//while(condition5)
+		//{
+		//	// incremented by one if true, otherwise no increment
+		//	minCol += _mm256_extract_epi16 (condition5, 0);
+		//	// update conditions
+		//	condition1 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (antiDiag3size), _mm256_set1_epi16 (minCol - offset3));
+		//	condition3 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (antiDiag2size), _mm256_set1_epi16 (minCol - offset2 - 1));
+		//	condition2 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiag3.elem[minCol - offset3]), _mm256_set1_epi16 (undefined));
+		//	condition4 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiag2.elem[minCol - offset2 - 1]), _mm256_set1_epi16 (undefined));
+		//	condition5 = _mm256_and_si256 (_mm256_and_si256 (condition1, condition2), _mm256_and_si256 (condition3, condition4));
+		//}
 
 		// calculate new maxCol
-		//while (maxCol - offset3 > 0 && (antiDiag3[maxCol - offset3 - 1] == undefined) &&
-		//							   (antiDiag2[maxCol - offset2 - 1] == undefined))
-		//{
-		//	--maxCol;
-		//}
-		//++maxCol;
-		__m256i condition6 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (maxCol - offset3), _mm256_setzero_si256 ());
-		__m256i condition7 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiag3.elem[maxCol - offset3 - 1]), _mm256_set1_epi16 (undefined));
-		__m256i condition8 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiag2.elem[maxCol - offset2 - 1]), _mm256_set1_epi16 (undefined));
-		__m256i condition9 = _mm256_and_si256 (_mm256_and_si256 (condition6, condition7), condition8);
-
-		while(condition9)
+		while (maxCol - offset3 > 0 && (antiDiag3.elem[maxCol - offset3 - 1] == undefined) &&
+									   (antiDiag2.elem[maxCol - offset2 - 1] == undefined))
 		{
-			// decremented by one if true, otherwise no decrement
-			maxCol -= _mm256_extract_epi16 (condition9, 0);
-
-			// update conditions
-			condition6 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (maxCol - offset3), _mm256_setzero_si256 ());
-			condition7 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiag3.elem[maxCol - offset3 - 1]), _mm256_set1_epi16 (undefined));
-			condition8 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiag2.elem[maxCol - offset2 - 1]), _mm256_set1_epi16 (undefined));
-			condition9 = _mm256_and_si256 (_mm256_and_si256 (condition6, condition7), condition8);
+			--maxCol;
 		}
 		maxCol++;
-
+		//__m256i condition6 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (maxCol - offset3), _mm256_setzero_si256 ());
+		//__m256i condition7 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiag3.elem[maxCol - offset3 - 1]), _mm256_set1_epi16 (undefined));
+		//__m256i condition8 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiag2.elem[maxCol - offset2 - 1]), _mm256_set1_epi16 (undefined));
+		//__m256i condition9 = _mm256_and_si256 (_mm256_and_si256 (condition6, condition7), condition8);
+		//while(condition9)
+		//{
+		//	// decremented by one if true, otherwise no decrement
+		//	maxCol -= _mm256_extract_epi16 (condition9, 0);
+		//	// update conditions
+		//	condition6 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (maxCol - offset3), _mm256_setzero_si256 ());
+		//	condition7 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiag3.elem[maxCol - offset3 - 1]), _mm256_set1_epi16 (undefined));
+		//	condition8 = _mm256_cmpeq_epi16 (_mm256_set1_epi16 (antiDiag2.elem[maxCol - offset2 - 1]), _mm256_set1_epi16 (undefined));
+		//	condition9 = _mm256_and_si256 (_mm256_and_si256 (condition6, condition7), condition8);
+		//}
+		//maxCol++;
 		// this do not need to be vectorized just fix types
 		// calculate new lowerDiag and upperDiag of extended seed
 		calcExtendedLowerDiag(lowerDiag, minCol, antiDiagNo);
@@ -431,19 +448,21 @@ extendSeedLGappedXDropRightAVX2(
 
 		// end of databaseSeg reached?
 		minCol = (minCol > (antiDiagNo + 2 - rows)) ? minCol : (antiDiagNo + 2 - rows);
+		//std::cout << "minCol : " << minCol << std::endl;
 		// end of querySeg reached?
 		maxCol = (maxCol < cols) ? maxCol : cols;
+		//std::cout << "maxCol : " << maxCol << std::endl;
 	}
 
 	// find positions of longest extension
 	// reached ends of both segments
-	__int16 longestExtensionCol = antiDiag3size + offset3 - 2;
-	__int16 longestExtensionRow = antiDiagNo - longestExtensionCol;
-	__int16 longestExtensionScore = antiDiag3.elem[longestExtensionCol - offset3];
+	int16_t longestExtensionCol = antiDiag3size + offset3 - 2;
+	int16_t longestExtensionRow = antiDiagNo - longestExtensionCol;
+	int16_t longestExtensionScore = antiDiag3.elem[longestExtensionCol - offset3];
 
 	if (longestExtensionScore == undefined)
 	{
-		if (antiDiag2[antiDiag2size-2] != undefined)
+		if (antiDiag2.elem[antiDiag2size-2] != undefined)
 		{
 			// reached end of query segment
 			longestExtensionCol = antiDiag2size + offset2 - 2;
@@ -473,6 +492,11 @@ extendSeedLGappedXDropRightAVX2(
 		}
 	}
 
+	delete [] query;
+	delete [] target;
+ 
+ 	//std::cout << "longestExtensionScore : " << longestExtensionScore << std::endl; 
+
 	// update seed
 	if (longestExtensionScore != undefined)
 		updateExtendedSeedL(seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
@@ -499,15 +523,14 @@ extendSeedL(SeedL& seed,
 	int scoreRight=0;
 	Result scoreFinal;
 
-	if (direction == EXTEND_LEFTL || direction == EXTEND_BOTHL)
-	{
-		// string substr (size_t pos = 0, size_t len = npos) const;
-		// returns a newly constructed string object with its value initialized to a copy of a substring of this object
-		std::string targetPrefix = target.substr(0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
-		std::string queryPrefix = query.substr(0, getBeginPositionV(seed));	// from read start til start seed (seed not included)
-
-		scoreLeft = extendSeedLGappedXDropOneDirectionAVX2(seed, queryPrefix, targetPrefix, EXTEND_LEFTL, penalties, XDrop);
-	}
+	//if (direction == EXTEND_LEFTL || direction == EXTEND_BOTHL)
+	//{
+	//	// string substr (size_t pos = 0, size_t len = npos) const;
+	//	// returns a newly constructed string object with its value initialized to a copy of a substring of this object
+	//	std::string targetPrefix = target.substr(0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
+	//	std::string queryPrefix = query.substr(0, getBeginPositionV(seed));	// from read start til start seed (seed not included)
+	//	scoreLeft = extendSeedLGappedXDropOneDirectionAVX2(seed, queryPrefix, targetPrefix, EXTEND_LEFTL, penalties, XDrop);
+	//}
 
 	if (direction == EXTEND_RIGHTL || direction == EXTEND_BOTHL)
 	{
@@ -516,7 +539,7 @@ extendSeedL(SeedL& seed,
 		std::string targetSuffix = target.substr(getEndPositionH(seed), target.length()); 	// from end seed until the end (seed not included)
 		std::string querySuffix = query.substr(getEndPositionV(seed), query.length());		// from end seed until the end (seed not included)
 
-		scoreRight = extendSeedLGappedXDropOneDirectionAVX2(seed, querySuffix, targetSuffix, EXTEND_RIGHTL, penalties, XDrop);
+		scoreRight = extendSeedLGappedXDropRightAVX2(seed, querySuffix, targetSuffix, EXTEND_RIGHTL, penalties, XDrop);
 	}
 
 	//Result myalignment(kmer_length); // do not add KMER_LENGTH later
