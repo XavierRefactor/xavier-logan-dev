@@ -17,6 +17,7 @@
 #include<iostream>
 #include<omp.h>
 #include<algorithm>
+#include<inttypes.h>
 #include"logan.h"
 #include"score.h"
 #include <immintrin.h> // For AVX instructions
@@ -307,54 +308,28 @@ extendSeedLGappedXDropRightAVX2(
 
 		for (int16_t col = minCol; col < maxCol; col += 16)
 		{
-			int16_t i3 = col - offset3;
-			int16_t i2 = col - offset2;
-			int16_t i1 = col - offset1;
-
 			int16_t queryPos = col - 1; 
 			int16_t dbPos = antiDiagNo - col - 1;
 
 			// calculate matrix entry (-> antiDiag3[col])
 			// TODO : double check after compilation and put into a separate function
-			_m256i_16_t test;
-			for(int16_t i = 0; i < 16; i++)
-				test.elem[i] = i;
-			//print_m256i_16(test.simd);
 			tmp = shiftAntiDiag2 (antiDiag2);
-			//print_m256i_16(tmp.simd);
-
-			//print_m256i_16(antiDiag2.simd);
-
 			tmp.simd = _mm256_max_epi16 (antiDiag2.simd, tmp.simd);
-			//print_m256i_16(tmp.simd);
 			tmp.simd = _mm256_add_epi16 (tmp.simd, _mm256_set1_epi16 (gapCost));
-			//print_m256i_16(tmp.simd);
 
 			__m256i _m_query  = _mm256_loadu_si256 ((__m256i*)(query  + queryPos)); // load sixteen bases from querySeg
 			__m256i _m_target = _mm256_loadu_si256 ((__m256i*)(target + dbPos)); 	// load sixteen bases from targetSeg
 
 			// tmp = max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
 			// here : score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos])
-			__m256i tmpscore = _mm256_cmpeq_epi16 (_m_query, _m_target);
-			//print_m256i_16(tmpscore); // -1 where equal, 0 where different
+			__m256i tmpscore = _mm256_cmpeq_epi16 (_m_query, _m_target); // 0xFFFF where equal, 0 where different
 			tmpscore = _mm256_blendv_epi8 (_mm256_set1_epi16 (scoreMismatch(scoringScheme)), _mm256_set1_epi16 (scoreMatch(scoringScheme)), tmpscore);
-			//print_m256i_16(tmpscore);
 			// here : add tmpscore to antiDiag1 	
 			tmpscore = _mm256_add_epi16 (tmpscore, antiDiag1.simd);
 			tmp.simd = _mm256_max_epi16 (tmp.simd, tmpscore);
 
-			//if (tmp < best - scoreDropOff)
-			//{
-			//	antiDiag3[i3] = undefined;
-			//}
-			//else
-			//{
-			//	antiDiag3[i3] = tmp;
-			//	//antiDiagBest = max(antiDiagBest, tmp);
-			//}
-			__m256i mask8 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best - scoreDropOff), tmp.simd);
-			antiDiag3.simd = _mm256_blendv_epi8 (tmp.simd, _mm256_set1_epi16 (undefined), mask8);
-			print_m256i_16(antiDiag3.simd);
+			__m256i mask = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best - scoreDropOff), tmp.simd);  // 0xFFFF true (-1), 0 false
+			antiDiag3.simd = _mm256_blendv_epi8 (tmp.simd, _mm256_set1_epi16 (undefined), mask);
 
 			// TODO: skipping control here double check 	
 			// if true, this should contain antiDiagBest it shouldn't harm
@@ -362,11 +337,14 @@ extendSeedLGappedXDropRightAVX2(
 		}
 
 		// antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
-		antiDiagBest = _mm256_extract_epi16 (_mm256_max_epi16 (_mm256_set1_epi16 (antiDiagBest), tmp.simd), 0);
+		// print_m256i_16(antiDiag3.simd);
+		antiDiagBest = _mm256_extract_epi16 (_mm256_max_epi16 (_mm256_set1_epi16 (antiDiagBest), antiDiag3.simd), 0);
+		// printf("antiDiagBest %d", antiDiagBest);
 		// best = (best > antiDiagBest) ? best : antiDiagBest;
 		// ones where best is greater, otherwise zeros
-		__m256i mask9 = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best), _mm256_set1_epi16 (antiDiagBest));
-		best = _mm256_extract_epi16 (_mm256_blendv_epi8 (_mm256_set1_epi16 (best), _mm256_set1_epi16 (antiDiagBest), mask9), 0);
+		__m256i mask = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best), _mm256_set1_epi16 (antiDiagBest));
+		best = _mm256_extract_epi16 (_mm256_blendv_epi8 (_mm256_set1_epi16 (antiDiagBest), _mm256_set1_epi16 (best), mask), 0);
+		//printf("best %d antiDiagBest %d\n", best, antiDiagBest);
 		//std::cout << "best : " << best << std::endl;
 
 		//int16_t bestCol   = 0;
