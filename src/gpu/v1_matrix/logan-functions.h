@@ -298,7 +298,19 @@ extendSeedLGappedXDropOneDirection(
 
 	int lowerDiag = 0;
 	int upperDiag = 0;
-	
+	char *q_h =(char *)malloc(sizeof(char)*querySeg.length());
+        char *db_h=(char *)malloc(sizeof(char)*databaseSeg.length());
+	for(int i = 0; i<querySeg.length(); i++){
+                q_h[i] = querySeg[i];
+        }
+        for(int i = 0; i<databaseSeg.length(); i++){
+                db_h[i] = databaseSeg[i];
+        }
+	char *q_d, *db_d;
+	cudaErrchk(cudaMalloc(&q_d, querySeg.length() *sizeof(char))); 
+        cudaErrchk(cudaMalloc(&db_d, databaseSeg.length()*sizeof(char)));
+	cudaErrchk(cudaMemcpy(q_d, q_h, querySeg.length()*sizeof(char), cudaMemcpyHostToDevice));
+        cudaErrchk(cudaMemcpy(db_d, db_h, databaseSeg.length()*sizeof(char),cudaMemcpyHostToDevice));
 	while (minCol < maxCol)
 	{	
 
@@ -320,8 +332,8 @@ extendSeedLGappedXDropOneDirection(
 		int *a1_h =(int *)malloc(sizeof(int)*antiDiag1.size());
 		int *a2_h =(int *)malloc(sizeof(int)*antiDiag2.size());
 		int *a3_h =(int *)malloc(sizeof(int)*antiDiag3.size());
-		char *q_h =(char *)malloc(sizeof(char)*querySeg.length());
-		char *db_h=(char *)malloc(sizeof(char)*databaseSeg.length()); 
+		//char *q_h =(char *)malloc(sizeof(char)*querySeg.length());
+		//char *db_h=(char *)malloc(sizeof(char)*databaseSeg.length()); 
 		for(int i = 0; i<antiDiag1.size(); i++){        
             a1_h[i]=antiDiag1[i];
         }
@@ -331,25 +343,25 @@ extendSeedLGappedXDropOneDirection(
         for(int i = 0; i<antiDiag3.size(); i++){
             a3_h[i]=antiDiag3[i];
         }
-        for(int i = 0; i<querySeg.length(); i++){
-        	q_h[i] = querySeg[i]; 
-        }
-        for(int i = 0; i<databaseSeg.length(); i++){
-        	db_h[i] = databaseSeg[i]; 
-        }
+        //for(int i = 0; i<querySeg.length(); i++){
+        //	q_h[i] = querySeg[i]; 
+        //}
+        //for(int i = 0; i<databaseSeg.length(); i++){
+        //	db_h[i] = databaseSeg[i]; 
+        //}
 		//copy or eliminate vectors for antidiags
 		int *a1_d, *a2_d, *a3_d;
-		char *q_d, *db_d;
-		cudaErrchk(cudaMalloc(&q_d, querySeg.length() *sizeof(char)));
-		cudaErrchk(cudaMalloc(&db_d, databaseSeg.length()*sizeof(char)));
+		//char *q_d, *db_d;
+		//cudaErrchk(cudaMalloc(&q_d, querySeg.length() *sizeof(char)));
+		//cudaErrchk(cudaMalloc(&db_d, databaseSeg.length()*sizeof(char)));
 		cudaErrchk(cudaMalloc(&a1_d, antiDiag1.size()*sizeof(int)));
 		cudaErrchk(cudaMalloc(&a2_d, antiDiag2.size()*sizeof(int)));
 		cudaErrchk(cudaMalloc(&a3_d, antiDiag3.size()*sizeof(int)));
 		cudaErrchk(cudaMemcpy(a1_d, a1_h, antiDiag1.size()*sizeof(int),cudaMemcpyHostToDevice));
 		cudaErrchk(cudaMemcpy(a2_d, a2_h, antiDiag2.size()*sizeof(int),cudaMemcpyHostToDevice));
 		cudaErrchk(cudaMemcpy(a3_d, a3_h, antiDiag3.size()*sizeof(int),cudaMemcpyHostToDevice));		
-		cudaErrchk(cudaMemcpy(q_d, q_h, querySeg.length()*sizeof(char), cudaMemcpyHostToDevice));
-		cudaErrchk(cudaMemcpy(db_d, db_h, databaseSeg.length()*sizeof(char),cudaMemcpyHostToDevice));
+		//cudaErrchk(cudaMemcpy(q_d, q_h, querySeg.length()*sizeof(char), cudaMemcpyHostToDevice));
+		//cudaErrchk(cudaMemcpy(db_d, db_h, databaseSeg.length()*sizeof(char),cudaMemcpyHostToDevice));
 		
 		//if(antiDiagNo == 2){	
 		//std::cout << " Before : ";
@@ -374,13 +386,13 @@ extendSeedLGappedXDropOneDirection(
 		cudaErrchk(cudaFree(a1_d));
 		cudaErrchk(cudaFree(a2_d));
 		cudaErrchk(cudaFree(a3_d));
-		cudaErrchk(cudaFree(q_d));
-		cudaErrchk(cudaFree(db_d));
+		//cudaErrchk(cudaFree(q_d));
+		//cudaErrchk(cudaFree(db_d));
 		free(a1_h);
 		free(a2_h);
 		free(a3_h);
-		free(q_h);
-		free(db_h);
+		//free(q_h);
+		//free(db_h);
 
 		antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
 		
@@ -411,6 +423,10 @@ extendSeedLGappedXDropOneDirection(
 		maxCol = min(maxCol, cols);
 			
 	}
+	cudaErrchk(cudaFree(q_d));
+        cudaErrchk(cudaFree(db_d));
+	free(q_h);
+        free(db_h);
 	// find positions of longest extension
 
 	// reached ends of both segments

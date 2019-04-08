@@ -36,8 +36,8 @@
 // #include <seqan/seeds.h>
 // #include <seqan/score.h>
 // #include <seqan/modifier.h>
-#include "../gpu/logan-functions.h"
-
+ #include "../gpu/v0_antidiag/logan-functions.h"
+// #include "../gpu/v1_matrix/logan-functions.h"
 using namespace std;
 //using namespace seqan;
 
