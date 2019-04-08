@@ -290,20 +290,17 @@ extendSeedLGappedXDropRightAVX2(
 	int16_t antiDiag2size = 1;	 // init
 	int16_t antiDiag3size = 2;	 // init
 
+	_m256i_16_t tmp;
+
 	while (minCol < maxCol) // this diff cannot be greater than 16
 	{
 		// data must be aligned when loading to and storing to avoid severe performance penalties
 		++antiDiagNo;
 		// swap antiDiags
+		tmp.simd       = _mm256_load_si256 (&antiDiag1.simd);
 		antiDiag1.simd = _mm256_load_si256 (&antiDiag2.simd);
 		antiDiag2.simd = _mm256_load_si256 (&antiDiag3.simd);
-		antiDiag3.simd = _mm256_load_si256 (&antiDiag1.simd); 	// init to -inf at each iteration
-
-		//print_m256i_16(antiDiag1.simd);
-		//print_m256i_16(antiDiag2.simd);
-		//print_m256i_16(antiDiag3.simd);
-
-		// antiDiag3.size() = maxCol+1-offset (resize in original initDiag3) : double check 
+		antiDiag3.simd = _mm256_load_si256 (&tmp.simd); 	// init to -inf at each iteration
 
 		offset1 = offset2;
 		offset2 = offset3;
@@ -329,7 +326,6 @@ extendSeedLGappedXDropRightAVX2(
 		}
 		printf("antiDiag3 initialized ");
 		print_m256i_16(antiDiag3.simd);
-		_m256i_16_t tmp;
 
 		//for (int16_t col = minCol; col < maxCol; col += 16)
 		//{
@@ -342,15 +338,15 @@ extendSeedLGappedXDropRightAVX2(
 
 		// calculate matrix entry (-> antiDiag3[col])
 		// TODO : double check after compilation and put into a separate function
-		//printf("antiDiag2 ");
-		//print_m256i_16(antiDiag2.simd);
+		printf("antiDiag2 ");
+		print_m256i_16(antiDiag2.simd);
 		tmp = shiftLeft (antiDiag2);
-		//printf("tmp shiftLeft ");
-		//print_m256i_16(tmp.simd);
+		printf("tmp shiftLeft ");
+		print_m256i_16(tmp.simd);
 		tmp.simd = _mm256_max_epi16 (antiDiag2.simd, tmp.simd);
 		tmp.simd = _mm256_add_epi16 (tmp.simd, _mm256_set1_epi16 (gapCost));
-		//printf("tmp gapCost ");
-		//print_m256i_16(tmp.simd);
+		printf("tmp gapCost ");
+		print_m256i_16(tmp.simd);
 
 		// need to consider only numBases bases from the sequences
 		__m256i _m_query  = _mm256_loadu_si256 ((__m256i*)(query  + queryPos)); // load sixteen bases from querySeg
@@ -358,6 +354,10 @@ extendSeedLGappedXDropRightAVX2(
 
 		// here : score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos])
 		__m256i tmpscore = _mm256_cmpeq_epi16 (_m_query, _m_target); // 0xFFFF where equal, 0 where different
+		printf("tmpscore ");
+		print_m256i_16(tmpscore);
+		printf("antiDiag1 ");
+		print_m256i_16(antiDiag1.simd);
 		tmpscore = _mm256_blendv_epi8 (_mm256_set1_epi16 (scoreMismatch(scoringScheme)), _mm256_set1_epi16 (scoreMatch(scoringScheme)), tmpscore);
 		// here : add tmpscore to antiDiag1 	
 		tmpscore = _mm256_add_epi16 (tmpscore, antiDiag1.simd);
