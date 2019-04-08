@@ -290,8 +290,6 @@ extendSeedLGappedXDropRightAVX2(
 	int16_t antiDiag2size = 1;	 // init
 	int16_t antiDiag3size = 2;	 // init
 
-	//__m256i tappabuco = _mm256_setzero_si256 ();
-
 	while (minCol < maxCol) // this diff cannot be greater than 16
 	{
 		// data must be aligned when loading to and storing to avoid severe performance penalties
@@ -299,7 +297,7 @@ extendSeedLGappedXDropRightAVX2(
 		// swap antiDiags
 		antiDiag1.simd = _mm256_load_si256 (&antiDiag2.simd);
 		antiDiag2.simd = _mm256_load_si256 (&antiDiag3.simd);
-		antiDiag3.simd = _mm256_setzero_si256 (); 	// init to -inf at each iteration
+		antiDiag3.simd = _mm256_load_si256 (&antiDiag1.simd); 	// init to -inf at each iteration
 
 		//print_m256i_16(antiDiag1.simd);
 		//print_m256i_16(antiDiag2.simd);
