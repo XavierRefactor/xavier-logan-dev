@@ -282,17 +282,18 @@ extendSeedLGappedXDropRightAVX2(
 		//print_m256i_16(antiDiag3.simd);
 
 		// antiDiag3.size() = maxCol+1-offset (resize in original initDiag3) : double check 
+
+		offset1 = offset2;
+		offset2 = offset3;
+		offset3 = minCol - 1;
+
 		antiDiag1size = antiDiag2size;
 		antiDiag2size = antiDiag3size;
 		antiDiag3size = maxCol + 1 - offset3; // double check this in original seqan
 
 		//printf("antiDiag1size %d\n", antiDiag1size);
 		//printf("antiDiag2size %d\n", antiDiag2size);
-		printf("antiDiag3size %d offset3 %d minCol %d antiDiagNo %d\n", antiDiag3size, offset3, minCol, antiDiagNo);
-
-		offset1 = offset2;
-		offset2 = offset3;
-		offset3 = minCol - 1;
+		//printf("antiDiag3size %d offset3 %d minCol %d antiDiagNo %d\n", antiDiag3size, offset3, minCol, antiDiagNo);
 
 		int16_t antiDiagBest  = antiDiagNo * gapCost; // init
 
@@ -333,7 +334,10 @@ extendSeedLGappedXDropRightAVX2(
 			//print_m256i_16(tmp.simd);
 
 			__m256i mask = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best - scoreDropOff), tmp.simd);  // 0xFFFF true (-1), 0 false
+			//print_m256i_16(tmp.simd);
+			//print_m256i_16(mask);
 			antiDiag3.simd = _mm256_blendv_epi8 (tmp.simd, _mm256_set1_epi16 (undefined), mask);
+			//print_m256i_16(antiDiag3.simd);
 			// TODO: skipping control here double check 	
 			// if true, this should contain antiDiagBest it shouldn't harm
 			// max should be in the first position double check
@@ -359,6 +363,9 @@ extendSeedLGappedXDropRightAVX2(
 		//}
 
 		// calculate new minCol and minCol
+		//printf("minCol - offset3 %d antiDiag3size %d antiDiag3.elem[minCol - offset3] %d\n", minCol - offset3, antiDiag3size, antiDiag3.elem[minCol - offset3]);
+		//printf("minCol - offset2 %d antiDiag2size %d antiDiag2.elem[minCol - offset2 - 1] %d\n", minCol - offset2, antiDiag2size, antiDiag2.elem[minCol - offset2 - 1]);
+		//print_m256i_16(antiDiag3.simd);
 		while (minCol - offset3 < antiDiag3size && antiDiag3.elem[minCol - offset3] == undefined &&
 			   minCol - offset2 - 1 < antiDiag2size && antiDiag2.elem[minCol - offset2 - 1] == undefined)
 		{
