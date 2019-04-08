@@ -302,6 +302,9 @@ extendSeedLGappedXDropRightAVX2(
 		antiDiag2.simd = _mm256_load_si256 (&antiDiag3.simd);
 		antiDiag3.simd = _mm256_load_si256 (&tmp.simd); 	// init to -inf at each iteration
 
+		printf("antiDiag3 init ");
+		print_m256i_16(antiDiag3.simd);
+
 		offset1 = offset2;
 		offset2 = offset3;
 		offset3 = minCol - 1;
@@ -313,9 +316,17 @@ extendSeedLGappedXDropRightAVX2(
 		//printf("antiDiag1size %d\n", antiDiag1size);
 		//printf("antiDiag2size %d\n", antiDiag2size);
 		//printf("antiDiag3size %d offset3 %d minCol %d antiDiagNo %d\n", antiDiag3size, offset3, minCol, antiDiagNo);
-		printf("antiDiag3 undefined ");
-		print_m256i_16(antiDiag3.simd);
+		//printf("antiDiag3 undefined ");
+		//print_m256i_16(antiDiag3.simd);
 		int16_t antiDiagBest  = antiDiagNo * gapCost; // init
+
+		std::cout << "antiDiagNo * gapCost " << antiDiagNo * gapCost << std::endl;
+		std::cout << "best - scoreDropOff "  << best - scoreDropOff << std::endl;
+		std::cout << "offset3 " << offset3 << std::endl;
+		std::cout << "antiDiagNo - maxCol " << antiDiagNo - maxCol << std::endl;
+
+		antiDiag3.elem[0] = undefined;
+		antiDiag3.elem[maxCol - offset3] = undefined;
 
 		if (antiDiagNo * gapCost > best - scoreDropOff)
 		{
@@ -324,52 +335,64 @@ extendSeedLGappedXDropRightAVX2(
 			if (antiDiagNo - maxCol == 0) // init first row
 				antiDiag3.elem[maxCol - offset3] = antiDiagNo * gapCost;
 		}
-		printf("antiDiag3 initialized ");
-		print_m256i_16(antiDiag3.simd);
+
+		//printf("antiDiag3 initialized ");
+		//print_m256i_16(antiDiag3.simd);
 
 		//for (int16_t col = minCol; col < maxCol; col += 16)
 		//{
-		short numBases = maxCol - minCol; // max 16
-		assert (numBases < 17);
+		assert (maxCol - minCol < 17);
 
 		// im considering only right side
 		short queryPos = minCol - 1; 
-		short dbPos = antiDiagNo - minCol - 1;
+		short dbPos = antiDiagNo - maxCol;
 
 		// calculate matrix entry (-> antiDiag3[col])
 		// TODO : double check after compilation and put into a separate function
-		printf("antiDiag2 ");
-		print_m256i_16(antiDiag2.simd);
+		//printf("antiDiag2 ");
+		//print_m256i_16(antiDiag2.simd);
 		tmp = shiftLeft (antiDiag2);
-		printf("tmp shiftLeft ");
-		print_m256i_16(tmp.simd);
+		//printf("tmp shiftLeft ");
+		//print_m256i_16(tmp.simd);
 		tmp.simd = _mm256_max_epi16 (antiDiag2.simd, tmp.simd);
 		tmp.simd = _mm256_add_epi16 (tmp.simd, _mm256_set1_epi16 (gapCost));
-		printf("tmp gapCost ");
-		print_m256i_16(tmp.simd);
+		//printf("tmp gapCost ");
+		//print_m256i_16(tmp.simd);
 
 		// need to consider only numBases bases from the sequences
 		__m256i _m_query  = _mm256_loadu_si256 ((__m256i*)(query  + queryPos)); // load sixteen bases from querySeg
 		__m256i _m_target = _mm256_loadu_si256 ((__m256i*)(target + dbPos)); 	// load sixteen bases from targetSeg
 
+		//printf("_m_query ");
+		//print_m256i_16(_m_query);
+		//printf("_m_target ");
+		//print_m256i_16(_m_target);
+
 		// here : score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos])
 		__m256i tmpscore = _mm256_cmpeq_epi16 (_m_query, _m_target); // 0xFFFF where equal, 0 where different
-		printf("tmpscore ");
-		print_m256i_16(tmpscore);
-		printf("antiDiag1 ");
-		print_m256i_16(antiDiag1.simd);
 		tmpscore = _mm256_blendv_epi8 (_mm256_set1_epi16 (scoreMismatch(scoringScheme)), _mm256_set1_epi16 (scoreMatch(scoringScheme)), tmpscore);
 		// here : add tmpscore to antiDiag1 	
 		tmpscore = _mm256_add_epi16 (tmpscore, antiDiag1.simd);
 		tmp.simd = _mm256_max_epi16 (tmp.simd, tmpscore);
-
+		//printf("tmp antiDiag1 ");
+		//print_m256i_16(tmp.simd);
+		printf("tmp ");
+		print_m256i_16(tmp.simd);
+		printf("antiDiag3 ");
+		print_m256i_16(antiDiag3.simd);
+		printf("minCol %d maxCol %d offset3 %d\n", minCol, maxCol, offset3);
 		maskOp (tmp, antiDiag3, minCol, maxCol, offset3);//, minCol, maxCol);
 
 		// issue here I'm updating wrong cell
-		__m256i mask = _mm256_cmpgt_epi16 (_mm256_set1_epi16 (best - scoreDropOff), tmp.simd);  // 0xFFFF true (-1), 0 false
+		printf("tmp ");
+		print_m256i_16(tmp.simd);
+
+		__m256i mask = _mm256_or_si256 (_mm256_cmpgt_epi16 (_mm256_set1_epi16 (best - scoreDropOff), tmp.simd), _mm256_cmpeq_epi16 (_mm256_set1_epi16 (best - scoreDropOff), tmp.simd));  // 0xFFFF true (-1), 0 false
+		printf("mask ");
+		print_m256i_16(mask);
 		antiDiag3.simd = _mm256_blendv_epi8 (tmp.simd, _mm256_set1_epi16 (undefined), mask);
 		//tappabuco = _mm256_load_si256 (&antiDiag3.simd);
-		printf("antiDiag3 updated");
+		printf("antiDiag3 updated ");
 		print_m256i_16(antiDiag3.simd);
 		// TODO: skipping control here double check 	
 		// if true, this should contain antiDiagBest it shouldn't harm
@@ -377,7 +400,7 @@ extendSeedLGappedXDropRightAVX2(
 		//}
 		antiDiagBest = *std::max_element(antiDiag3.elem + offset3, antiDiag3.elem + antiDiag3size);
 		best = (best > antiDiagBest) ? best : antiDiagBest;
-		printf("best %d antiDiagBest %d\n", best, antiDiagBest);
+		printf("best %d antiDiagBest %d\n\n", best, antiDiagBest);
 
 		//int16_t bestCol   = 0;
 		//int16_t bestRow   = 0;
