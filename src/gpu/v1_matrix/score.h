@@ -78,8 +78,8 @@ scoreGapOpen(ScoringSchemeL const& me) {
 }
 
 //returns the gap_open_score NB: valid only for linear gap
-int
-scoreGap(ScoringSchemeL const & me){
+int 
+__device__ __host__ scoreGap(ScoringSchemeL const & me){
 	return me.gap_extend_score;
 }
 
