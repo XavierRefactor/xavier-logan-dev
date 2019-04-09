@@ -153,6 +153,9 @@ int main(int argc, char **argv)
 	filename = temp.c_str();
 	std::cout << "starting benchmark" << std::endl;
 	int maxt = 30;
+	
+	//setting up the gpu environment
+	cudaFree(0);
 	// omp_set_nested(1);
 //#pragma omp parallel
 	{

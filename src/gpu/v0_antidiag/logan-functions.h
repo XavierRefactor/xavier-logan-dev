@@ -307,10 +307,14 @@ extendSeedLGappedXDropOneDirection(
                 db_h[i] = databaseSeg[i];
         }
 	char *q_d, *db_d;
+	auto st = std::chrono::high_resolution_clock::now();
 	cudaErrchk(cudaMalloc(&q_d, querySeg.length() *sizeof(char))); 
         cudaErrchk(cudaMalloc(&db_d, databaseSeg.length()*sizeof(char)));
 	cudaErrchk(cudaMemcpy(q_d, q_h, querySeg.length()*sizeof(char), cudaMemcpyHostToDevice));
         cudaErrchk(cudaMemcpy(db_d, db_h, databaseSeg.length()*sizeof(char),cudaMemcpyHostToDevice));
+	auto en = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double>  tot = en-st ;
+	std::cout << tot.count() << std::endl;
 	while (minCol < maxCol)
 	{	
 
