@@ -190,12 +190,26 @@ void print_m256i_16(__m256i a) {
 			);
 }
 
-inline _m256i_16_t shiftLeft (_m256i_16_t& data) {
+inline _m256i_16_t 
+shiftLeft (_m256i_16_t& data) {
 
 	_m256i_16_t m; 
 	for(int16_t i = 0; i < 15; i++) // data are saved in reversed order
 	{
 		m.elem[i] = data.elem[i+1];
+	}
+	m.elem[15] = data.elem[15];
+	return m;
+}
+
+
+inline _m256i_16_t 
+shiftantiDiag1 (_m256i_16_t& data, short minCol) {
+
+	_m256i_16_t m; 
+	for(int16_t i = 0; i < 15; i++) // data are saved in reversed order
+	{
+		m.elem[i+minCol] = data.elem[i+minCol-1];
 	}
 	m.elem[15] = data.elem[15];
 	return m;
@@ -211,7 +225,7 @@ maskOp (_m256i_16_t& dat, _m256i_16_t& antiDiag3, short& minCol, short& maxCol, 
 
 	for(short i = minCol; i < maxCol; i++) // data are saved in reversed order
 	{
-		dat.elem[i] = tmp.elem[i-1-offset3];
+		dat.elem[i] = tmp.elem[i - 1 - offset3];
 	}
 }
 
@@ -335,29 +349,42 @@ extendSeedLGappedXDropRightAVX2(
 
 		// calculate matrix entry (-> antiDiag3[col])
 		// TODO : double check after compilation and put into a separate function
+		printf("antiDiag2 ");
+		print_m256i_16(antiDiag2.simd);
 		tmp = shiftLeft (antiDiag2);
+		printf("tmp ");
+		print_m256i_16(tmp.simd);
 
 		tmp.simd = _mm256_max_epi16 (antiDiag2.simd, tmp.simd);
+		printf("tmp ");
+		print_m256i_16(tmp.simd);
 		tmp.simd = _mm256_add_epi16 (tmp.simd, _mm256_set1_epi16 (gapCost));
+		printf("tmp ");
+		print_m256i_16(tmp.simd);
 		// need to consider only numBases bases from the sequences
 		_m256i_16_t _m_query, _m_target;
-		_m_query.simd = _mm256_loadu_si256 ((__m256i*)(query  + queryPos)); // load sixteen bases from querySeg
+
+		_m_query.simd  = _mm256_loadu_si256 ((__m256i*)(query  + queryPos)); // load sixteen bases from querySeg
 		_m_target.simd = _mm256_loadu_si256 ((__m256i*)(target + dbPos)); 	// load sixteen bases from targetSeg
 
 		// bases on target need to be reversed
 		std::reverse(_m_target.elem, _m_target.elem + nbases);
 
+		print_m256i_16 (_m_query.simd );
+		print_m256i_16 (_m_target.simd);
 		// here : score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos])
 		__m256i tmpscore = _mm256_cmpeq_epi16 (_m_query.simd, _m_target.simd); // 0xFFFF where equal, 0 where different
 		tmpscore = _mm256_blendv_epi8 (_mm256_set1_epi16 (scoreMismatch(scoringScheme)), _mm256_set1_epi16 (scoreMatch(scoringScheme)), tmpscore);
 		// here : add tmpscore to antiDiag1 	
+		printf("tmpscore ");
+		print_m256i_16(tmpscore);
 		tmpscore = _mm256_add_epi16 (tmpscore, antiDiag1.simd);
+		printf("tmpscore ");
+		print_m256i_16(tmpscore);
+		printf("antiDiag1 ");
+		print_m256i_16(antiDiag1.simd);
 		tmp.simd = _mm256_max_epi16 (tmp.simd, tmpscore);
-		//printf("tmp antiDiag1 ");
-		//print_m256i_16(tmp.simd);
-		//printf("antiDiag3 ");
-		//print_m256i_16(antiDiag3.simd);
-		//printf("minCol %d maxCol %d offset3 %d\n", minCol, maxCol, offset3);
+
 		maskOp (tmp, antiDiag3, minCol, maxCol, offset3);//, minCol, maxCol);
 
 		// issue here I'm updating wrong cell
