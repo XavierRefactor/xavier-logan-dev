@@ -392,7 +392,7 @@ void __global__ extendSeedLGappedXDropOneDirection(
 
 }
 
-int extendSeedL(SeedL& seed,
+int extendSeedL(SeedL &seed,
 			ExtensionDirectionL direction,
 			std::string const& target,
 			std::string const& query,
@@ -415,7 +415,7 @@ int extendSeedL(SeedL& seed,
 	//assert(scoreMismatch(penalties) < 0);
 	//assert(scoreMatch(penalties) > 0); 
 	//assert(scoreGapOpen(penalties) == scoreGapExtend(penalties));
-
+	SeedL *seed_ptr = &seed;
 	int *scoreLeft=(int *)malloc(sizeof(int));
 	int *scoreRight=(int *)malloc(sizeof(int));
 	int len = max(query.length(),target.length())*2;
@@ -460,7 +460,7 @@ int extendSeedL(SeedL& seed,
 		cudaErrchk(cudaMalloc(&seed_d, sizeof(SeedL)));
 		cudaErrchk(cudaMalloc(&scoreLeft_d, sizeof(int)));
 
-		cudaErrchk(cudaMemcpy(seed_d, &seed, sizeof(SeedL), cudaMemcpyHostToDevice));//check
+		cudaErrchk(cudaMemcpy(seed_d, seed_ptr, sizeof(SeedL), cudaMemcpyHostToDevice));//check
 		//call GPU to extend the seed
 		extendSeedLGappedXDropOneDirection <<<1, 1024>>> (seed_d, q_l_d, db_l_d, EXTEND_LEFTL, penalties, XDrop, scoreLeft_d, a1_l, a2_l, a3_l);//check seed
 		
@@ -468,7 +468,7 @@ int extendSeedL(SeedL& seed,
 		cudaErrchk(cudaPeekAtLastError());
 		cudaErrchk(cudaDeviceSynchronize());
 
-		cudaErrchk(cudaMemcpy(&seed, seed_d, sizeof(SeedL), cudaMemcpyDeviceToHost));//check
+		cudaErrchk(cudaMemcpy(seed_ptr, seed_d, sizeof(SeedL), cudaMemcpyDeviceToHost));//check
 		cudaErrchk(cudaMemcpy(scoreLeft, scoreLeft_d, sizeof(int), cudaMemcpyDeviceToHost));//check
 
 		free(q_l);
@@ -517,14 +517,14 @@ int extendSeedL(SeedL& seed,
 		cudaErrchk(cudaMalloc(&seed_d, sizeof(SeedL)));
 		cudaErrchk(cudaMalloc(&scoreRight_d, sizeof(int)));
 
-		cudaErrchk(cudaMemcpy(seed_d, &seed, sizeof(SeedL), cudaMemcpyHostToDevice));//check
+		cudaErrchk(cudaMemcpy(seed_d, seed_ptr, sizeof(SeedL), cudaMemcpyHostToDevice));//check
 		//call GPU to extend the seed
 		extendSeedLGappedXDropOneDirection <<<1, 1024>>> (seed_d, q_r_d, db_r_d, EXTEND_LEFTL, penalties, XDrop, scoreRight_d, a1_r, a2_r, a3_r);//check seed
 		
 		cudaErrchk(cudaPeekAtLastError());
 		cudaErrchk(cudaDeviceSynchronize());
 
-		cudaErrchk(cudaMemcpy(&seed, seed_d, sizeof(SeedL), cudaMemcpyDeviceToHost));//check
+		cudaErrchk(cudaMemcpy(seed_ptr, seed_d, sizeof(SeedL), cudaMemcpyDeviceToHost));//check
 		cudaErrchk(cudaMemcpy(scoreRight, scoreRight_d, sizeof(int), cudaMemcpyDeviceToHost));//check
 
 		free(q_r);
