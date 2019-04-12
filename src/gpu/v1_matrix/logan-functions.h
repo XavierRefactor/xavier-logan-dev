@@ -193,7 +193,7 @@ __device__ inline void swapAntiDiags(int *antiDiag1,
 	int *tmp = antiDiag1;
 	antiDiag1 = antiDiag2;
 	antiDiag2 = antiDiag3;
-	__syncthreads();
+	//__syncthreads();
 	antiDiag3 = tmp;
 }
 
@@ -327,7 +327,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		a1size = a2size;
 		a2size = a3size;
 		a3size = t_l;
-		__syncthreads();
+		//__syncthreads();
 		
 		//if(threadIdx.x == 0){
                 //        for(int i = 0; i < 20; i++){
@@ -346,7 +346,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		int antiDiagBest = antiDiagNo * gapCost;	
 		//__syncthreads();	
 		computeAntidiag(antiDiag1,antiDiag2,antiDiag3,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,querySeg,databaseSeg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
-	 	__syncthreads();
+	 	//__syncthreads();
 
 		antiDiagBest = array_max(antiDiag3, a3size);
 		//if(threadIdx.x == 0){
@@ -380,7 +380,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		minCol = max(minCol,(antiDiagNo + 2 - rows));
 		// end of querySeg reached?
 		maxCol = min(maxCol, cols);
-		__syncthreads();	
+		//__syncthreads();	
 	}
 	//if(threadIdx.x==0)
 	//	printf("BEST: %d\n", best);	
@@ -441,7 +441,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
 	//if(threadIdx.x == 0)
 	//	printf("%d \n", longestExtensionScore );
 	//}
-	__syncthreads();
+	//__syncthreads();
 }
 
 
@@ -488,15 +488,15 @@ inline int extendSeedL(SeedL &seed,
 		//allocate memory on host and copy string
 		char *q_l = (char *)malloc(sizeof(char)*queryPrefix.length());
 		char *db_l = (char *)malloc(sizeof(char)*targetPrefix.length());
-		//queryPrefix.copy(q_l, queryPrefix.length());
-		//targetPrefix.copy(db_l, targetPrefix.length());
+		queryPrefix.copy(q_l, queryPrefix.length());
+		targetPrefix.copy(db_l, targetPrefix.length());
 		for(int i = 0; i < queryPrefix.length(); i++){
 			q_l[i]=queryPrefix[i];
 		}
 		//std::cout << std::endl;
-		for(int i = 0; i < targetPrefix.length(); i++){
-                        db_l[i]=targetPrefix[i];
-                }
+		//for(int i = 0; i < targetPrefix.length(); i++){
+                //        db_l[i]=targetPrefix[i];
+                //}
 		//declare vars for the gpu
 		char *q_l_d, *db_l_d;
 		int *a1_l, *a2_l, *a3_l; //AAAA think if a fourth is necessary for the swap
@@ -525,18 +525,17 @@ inline int extendSeedL(SeedL &seed,
 		auto end_t1 = std::chrono::high_resolution_clock::now();
 		auto start_c = std::chrono::high_resolution_clock::now();
 		extendSeedLGappedXDropOneDirection <<<1, N_THREADS>>> (seed_d, q_l_d, db_l_d, EXTEND_LEFTL, penalties, XDrop, scoreLeft_d, a1_l, a2_l, a3_l, queryPrefix.length(), targetPrefix.length());//check seed
-		auto end_c = std::chrono::high_resolution_clock::now();
-		auto start_t2 = std::chrono::high_resolution_clock::now();
 		cudaErrchk(cudaPeekAtLastError());
 		cudaErrchk(cudaDeviceSynchronize());
-
+		auto end_c = std::chrono::high_resolution_clock::now();
+                auto start_t2 = std::chrono::high_resolution_clock::now();
 		cudaErrchk(cudaMemcpy(seed_ptr, seed_d, sizeof(SeedL), cudaMemcpyDeviceToHost));//check
 		cudaErrchk(cudaMemcpy(scoreLeft, scoreLeft_d, sizeof(int), cudaMemcpyDeviceToHost));//check
 		auto end_t2 = std::chrono::high_resolution_clock::now();
 		transfer1=end_t1-start_t1;
 		transfer2=end_t2-start_t2;
 		compute=end_c-start_c;
-		std::cout << "Transfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  << std::endl;
+		std::cout << "\nTransfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  << std::endl;
 		free(q_l);
 		free(db_l);
 		cudaErrchk(cudaFree(a1_l));
@@ -558,16 +557,16 @@ inline int extendSeedL(SeedL &seed,
 		//allocate memory on host and copy string
 		char *q_r = (char *)malloc(sizeof(char)*querySuffix.length());
 		char *db_r = (char *)malloc(sizeof(char)*targetSuffix.length());
-		//querySuffix.copy(q_r, querySuffix.length());
-		//targetSuffix.copy(db_r, targetSuffix.length());
+		querySuffix.copy(q_r, querySuffix.length());
+		targetSuffix.copy(db_r, targetSuffix.length());
 
-		for(int i = 0; i < querySuffix.length(); i++){
-                        q_r[i]=querySuffix[i];
-                }
+		//for(int i = 0; i < querySuffix.length(); i++){
+                //        q_r[i]=querySuffix[i];
+                //}
                 //std::cout << std::endl;
-                for(int i = 0; i < targetSuffix.length(); i++){
-                        db_r[i]=targetSuffix[i];
-                }
+                //for(int i = 0; i < targetSuffix.length(); i++){
+                //        db_r[i]=targetSuffix[i];
+                //}
 		//declare vars for the gpu
 		char *q_r_d, *db_r_d;
 		int *a1_r, *a2_r, *a3_r; //AAAA think if a fourth is necessary for the swap
@@ -596,18 +595,17 @@ inline int extendSeedL(SeedL &seed,
 		auto end_t1 = std::chrono::high_resolution_clock::now();
                 auto start_c = std::chrono::high_resolution_clock::now();
 		extendSeedLGappedXDropOneDirection <<<1, N_THREADS>>> (seed_d, q_r_d, db_r_d, EXTEND_RIGHTL, penalties, XDrop, scoreRight_d, a1_r, a2_r, a3_r, querySuffix.length(),targetSuffix.length());//check seed
-		auto end_c = std::chrono::high_resolution_clock::now();
-                auto start_t2 = std::chrono::high_resolution_clock::now();
 		cudaErrchk(cudaPeekAtLastError());
 		cudaErrchk(cudaDeviceSynchronize());
-
+		auto end_c = std::chrono::high_resolution_clock::now();
+                auto start_t2 = std::chrono::high_resolution_clock::now();
 		cudaErrchk(cudaMemcpy(seed_ptr, seed_d, sizeof(SeedL), cudaMemcpyDeviceToHost));//check
 		cudaErrchk(cudaMemcpy(scoreRight, scoreRight_d, sizeof(int), cudaMemcpyDeviceToHost));//check
 		auto end_t2 = std::chrono::high_resolution_clock::now();
                 transfer1=end_t1-start_t1;
                 transfer2=end_t2-start_t2;
                 compute=end_c-start_c;
-		std::cout << "Transfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  << "\n\n";
+		std::cout << "Transfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  << "\n";
 		free(q_r);
 		free(db_r);
 		cudaErrchk(cudaFree(a1_r));
