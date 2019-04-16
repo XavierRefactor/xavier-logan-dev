@@ -20,7 +20,7 @@
 //using namespace seqan;
 // #include <bits/stdc++.h> 
 
-#define N_THREADS 1000
+#define N_THREADS 1024
 #define MIN -2147483648
 
 #define cudaErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -269,7 +269,12 @@ __global__ void extendSeedLGappedXDropOneDirection(
 {
 	//typedef typename Size<TQuerySegment>::Type int;
 	//typedef typename SeedL<Simple,TConfig>::int int;
-	
+	//__shared__ int a1p[N_THREADS];
+	//__shared__ int a2p[N_THREADS];
+	//__shared__ int a3p[N_THREADS];
+	//int* antiDiag1 = (int*) a1p;
+	//int* antiDiag2 = (int*) a2p;
+	//int* antiDiag3 = (int*) a3p;
 	//dimension of the antidiagonals
 	int a1size = 0, a2size = 0, a3size = 0;
 	
@@ -357,21 +362,47 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		//}
         	//std::cout << '\n';
 		best = (best > antiDiagBest) ? best : antiDiagBest;
-		// Calculate new minCol and minCol
+		// Calculate new minCol minCol
+
+		__shared__ int newMin;
+		//if(threadIdx.x == 0)
+			newMin = 0;
+		//int newMax=0;
+		__syncthreads();
+		if(threadIdx.x == 0) printf("Newmin in: %d ", newMin);
+		int indexMin = threadIdx.x + minCol;
+		if((indexMin - offset3 < a3size) && (indexMin - offset2 - 1 < a2size)&&(antiDiag3[indexMin - offset3] == undefined)&&(antiDiag2[indexMin - offset2 - 1] == undefined))
+		{	
+			atomicAdd(&newMin,1);
+
+		}
+		__syncthreads();
+		//int indexMax = threadIdx.x + maxCol;
+		// Calculate new maxCol
+		//if(indexMax - offset3 > 0)
+	 	//{
+		//	if((antiDiag3[indexMax - offset3 - 1] == undefined) && (antiDiag2[indexMax - offset2 - 1] == undefined)){
+		//		--newMax;
+		//	}
+		//}
+		if(threadIdx.x == 0) printf("Newmin: %d Mincol before: %d", newMin, minCol);
+		//minCol += newMin;
+		__syncthreads();
+		//maxCol = maxCol - newMax + 1;
+		//original min and max col update
 		while (minCol - offset3 < a3size && antiDiag3[minCol - offset3] == undefined &&
 			   minCol - offset2 - 1 < a2size && antiDiag2[minCol - offset2 - 1] == undefined)
 		{
 			++minCol;
 		}
-
-		// Calculate new maxCol
+		if(threadIdx.x == 0) printf(" Mincol after: %d\n", minCol);
 		while (maxCol - offset3 > 0 && (antiDiag3[maxCol - offset3 - 1] == undefined) &&
 									   (antiDiag2[maxCol - offset2 - 1] == undefined))
 	 	{
 			--maxCol;
 		}
 		++maxCol;
-
+		
 		// Calculate new lowerDiag and upperDiag of extended seed
 		calcExtendedLowerDiag(&lowerDiag, minCol, antiDiagNo);
 		calcExtendedUpperDiag(&upperDiag, maxCol - 1, antiDiagNo);
@@ -390,7 +421,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
 	//if(threadIdx.x==0)
 		//printf("%d %d %d\n", a1size, a2size, a3size); 
 	//__syncthreads();
-	__syncthreads();
+	//__syncthreads();
 	//*res = longestExtensionScore;
 	//__syncthreads();
 	if (longestExtensionScore == undefined)
@@ -502,7 +533,7 @@ inline int extendSeedL(SeedL &seed,
 		int *a1_l, *a2_l, *a3_l; //AAAA think if a fourth is necessary for the swap
 		int *scoreLeft_d;
 		SeedL *seed_d;
-		std::chrono::duration<double>  transfer1, transfer2, compute;
+		std::chrono::duration<double>  transfer1, transfer2, compute, tfree;
 		auto start_t1 = std::chrono::high_resolution_clock::now();
 		//allocate memory for the antidiagonals
 		cudaErrchk(cudaMalloc(&a1_l, min(queryPrefix.length(),targetPrefix.length())*sizeof(int)));
@@ -535,7 +566,7 @@ inline int extendSeedL(SeedL &seed,
 		transfer1=end_t1-start_t1;
 		transfer2=end_t2-start_t2;
 		compute=end_c-start_c;
-		std::cout << "\nTransfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  << std::endl;
+		auto start_f = std::chrono::high_resolution_clock::now();
 		free(q_l);
 		free(db_l);
 		cudaErrchk(cudaFree(a1_l));
@@ -545,7 +576,9 @@ inline int extendSeedL(SeedL &seed,
 		cudaErrchk(cudaFree(db_l_d));
 		cudaErrchk(cudaFree(seed_d));
 		cudaErrchk(cudaFree(scoreLeft_d));
-		
+		auto end_f = std::chrono::high_resolution_clock::now();
+		tfree = end_f - start_f;
+		std::cout << "\nTransfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  <<" Free time: "<< tfree.count() << std::endl;	
 	}
 
 	if (direction == EXTEND_RIGHTL || direction == EXTEND_BOTHL){
@@ -568,11 +601,12 @@ inline int extendSeedL(SeedL &seed,
                 //        db_r[i]=targetSuffix[i];
                 //}
 		//declare vars for the gpu
+
 		char *q_r_d, *db_r_d;
 		int *a1_r, *a2_r, *a3_r; //AAAA think if a fourth is necessary for the swap
 		int *scoreRight_d;
 		SeedL *seed_d;
-		std::chrono::duration<double>  transfer1, transfer2, compute;
+		std::chrono::duration<double>  transfer1, transfer2, compute, tfree;
                 auto start_t1 = std::chrono::high_resolution_clock::now();
 		//allocate memory for the antidiagonals
 		cudaErrchk(cudaMalloc(&a1_r, min(querySuffix.length(),targetSuffix.length())*sizeof(int)));
@@ -605,9 +639,9 @@ inline int extendSeedL(SeedL &seed,
                 transfer1=end_t1-start_t1;
                 transfer2=end_t2-start_t2;
                 compute=end_c-start_c;
-		std::cout << "Transfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  << "\n";
 		free(q_r);
 		free(db_r);
+		auto start_f = std::chrono::high_resolution_clock::now();
 		cudaErrchk(cudaFree(a1_r));
 		cudaErrchk(cudaFree(a2_r));
 		cudaErrchk(cudaFree(a3_r));
@@ -615,7 +649,9 @@ inline int extendSeedL(SeedL &seed,
 		cudaErrchk(cudaFree(db_r_d));
 		cudaErrchk(cudaFree(seed_d));
 		cudaErrchk(cudaFree(scoreRight_d));
-
+		auto end_f = std::chrono::high_resolution_clock::now();
+		tfree = end_f - start_f;
+		std::cout << "\nTransfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  <<" Free time: "<< tfree.count() << std::endl;
 
 	}
 
