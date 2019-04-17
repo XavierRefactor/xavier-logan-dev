@@ -261,20 +261,20 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		ScoringSchemeL scoringScheme,
 		int scoreDropOff,
 		int *res,
-		int *antiDiag1,
-		int *antiDiag2,
-		int *antiDiag3,
+		// int *antiDiag1,
+		// int *antiDiag2,
+		// int *antiDiag3,
 		int qL,
 		int dbL)
 {
 	//typedef typename Size<TQuerySegment>::Type int;
 	//typedef typename SeedL<Simple,TConfig>::int int;
-	//__shared__ int a1p[N_THREADS];
-	//__shared__ int a2p[N_THREADS];
-	//__shared__ int a3p[N_THREADS];
-	//int* antiDiag1 = (int*) a1p;
-	//int* antiDiag2 = (int*) a2p;
-	//int* antiDiag3 = (int*) a3p;
+	__shared__ int antiDiag1p[N_THREADS];
+	__shared__ int antiDiag2p[N_THREADS];
+	__shared__ int antiDiag3p[N_THREADS];
+	int* antiDiag1 = (int*) antiDiag1p;
+	int* antiDiag2 = (int*) antiDiag2p;
+	int* antiDiag3 = (int*) antiDiag3p;
 	//dimension of the antidiagonals
 	int a1size = 0, a2size = 0, a3size = 0;
 	
@@ -283,9 +283,6 @@ __global__ void extendSeedLGappedXDropOneDirection(
 	if (rows == 1 || cols == 1)
 		return;
 
-	// int minimumVal = INT_MIN;//as the minimum value will always be calculated starting from an integer, we can fix it without the need to call the function
-	//int len = 2 * max(cols, rows); // number of antidiagonals (does not change in any implementation)
-	// int minErrScore = minimumVal / len; // minimal allowed error penalty
 	int gapCost = scoreGap(scoringScheme);
 	//printf("%d\n", gapCost);
 	int undefined = MIN - gapCost;
@@ -303,27 +300,16 @@ __global__ void extendSeedLGappedXDropOneDirection(
 
 	int lowerDiag = 0;
 	int upperDiag = 0;
-	//if(threadIdx.x == 0){
-	//	printf("SIZEOF Q: %d GPU: ", qL);
-	//	for(int i = 0; i < qL; i++)
-	//		printf("%c", querySeg[i]);
-	//	printf("\n");
-	//}
-	//printf("%d %d %d %d\n", getBeginPositionH(*seed), getBeginPositionV(*seed), getEndPositionH(*seed), getEndPositionV(*seed));
+
 	while (minCol < maxCol)
 	{	
 
 		
 		++antiDiagNo;
- 		//if(threadIdx.x == 0){
-                //        for(int i = 0; i < 20; i++){
-                //                printf("%d ", antiDiag3[i]);
-                //        }
-                //        printf("\n");
-                //}
-		//swapAntiDiags(antiDiag1, antiDiag2, antiDiag3);
-		
-		//antidiag swap
+ 		//antidiagswap
+ 		//antiDiag2 -> antiDiag1
+		//antiDiag3 -> antiDiag2
+		//antiDiag1 -> antiDiag3
 		int *t = antiDiag1;
 		antiDiag1 = antiDiag2;
 		antiDiag2 = antiDiag3;
@@ -332,51 +318,35 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		a1size = a2size;
 		a2size = a3size;
 		a3size = t_l;
-		//__syncthreads();
 		
-		//if(threadIdx.x == 0){
-                //        for(int i = 0; i < 20; i++){
-                //                printf("%d ", antiDiag3[i]);
-                //        }
-                //        printf("\n");
-                //}
-		//antiDiag2 -> antiDiag1
-		//antiDiag3 -> antiDiag2
-		//antiDiag1 -> antiDiag3
 		offset1 = offset2;
 		offset2 = offset3;
 		offset3 = minCol-1;
 		initAntiDiag3(antiDiag3, &a3size, offset3, maxCol, antiDiagNo, best - scoreDropOff, gapCost, undefined);
 
 		int antiDiagBest = antiDiagNo * gapCost;	
-		//__syncthreads();	
+		
 		computeAntidiag(antiDiag1,antiDiag2,antiDiag3,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,querySeg,databaseSeg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
-	 	//__syncthreads();
+	 	
 
 		antiDiagBest = array_max(antiDiag3, a3size);
-		//if(threadIdx.x == 0){
-		//	for(int i = 0; i < 20; i++){
-		//		printf("%d ", antiDiag3[i]);
-		//	}
-		//	printf("\n");
-		//}
-        	//std::cout << '\n';
+	
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 		// Calculate new minCol minCol
 
-		__shared__ int newMin;
-		//if(threadIdx.x == 0)
-			newMin = 0;
-		//int newMax=0;
-		__syncthreads();
-		if(threadIdx.x == 0) printf("Newmin in: %d ", newMin);
-		int indexMin = threadIdx.x + minCol;
-		if((indexMin - offset3 < a3size) && (indexMin - offset2 - 1 < a2size)&&(antiDiag3[indexMin - offset3] == undefined)&&(antiDiag2[indexMin - offset2 - 1] == undefined))
-		{	
-			atomicAdd(&newMin,1);
+		// __shared__ int newMin;
+		// //if(threadIdx.x == 0)
+		// 	newMin = 0;
+		// //int newMax=0;
+		// __syncthreads();
+		// if(threadIdx.x == 0) printf("Newmin in: %d ", newMin);
+		// int indexMin = threadIdx.x + minCol;
+		// if((indexMin - offset3 < a3size) && (indexMin - offset2 - 1 < a2size)&&(antiDiag3[indexMin - offset3] == undefined)&&(antiDiag2[indexMin - offset2 - 1] == undefined))
+		// {	
+		// 	atomicAdd(&newMin,1);
 
-		}
-		__syncthreads();
+		// }
+		// __syncthreads();
 		//int indexMax = threadIdx.x + maxCol;
 		// Calculate new maxCol
 		//if(indexMax - offset3 > 0)
@@ -385,7 +355,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		//		--newMax;
 		//	}
 		//}
-		if(threadIdx.x == 0) printf("Newmin: %d Mincol before: %d", newMin, minCol);
+		// if(threadIdx.x == 0) printf("Newmin: %d Mincol before: %d", newMin, minCol);
 		//minCol += newMin;
 		__syncthreads();
 		//maxCol = maxCol - newMax + 1;
@@ -395,7 +365,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		{
 			++minCol;
 		}
-		if(threadIdx.x == 0) printf(" Mincol after: %d\n", minCol);
+		// if(threadIdx.x == 0) printf(" Mincol after: %d\n", minCol);
 		while (maxCol - offset3 > 0 && (antiDiag3[maxCol - offset3 - 1] == undefined) &&
 									   (antiDiag2[maxCol - offset2 - 1] == undefined))
 	 	{
@@ -411,19 +381,13 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		minCol = max(minCol,(antiDiagNo + 2 - rows));
 		// end of querySeg reached?
 		maxCol = min(maxCol, cols);
-		//__syncthreads();	
+	
 	}
-	//if(threadIdx.x==0)
-	//	printf("BEST: %d\n", best);	
+
 	int longestExtensionCol = a3size + offset3 - 2;
 	int longestExtensionRow = antiDiagNo - longestExtensionCol;
 	int longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
-	//if(threadIdx.x==0)
-		//printf("%d %d %d\n", a1size, a2size, a3size); 
-	//__syncthreads();
-	//__syncthreads();
-	//*res = longestExtensionScore;
-	//__syncthreads();
+	
 	if (longestExtensionScore == undefined)
 	{
 		if (antiDiag2[a2size -2] != undefined)
@@ -432,8 +396,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
 			longestExtensionCol = a2size + offset2 - 2;
 			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
 			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
-			//if(threadIdx.x==0)
-                		//printf("1 %d %d %d\n", longestExtensionCol, longestExtensionRow, longestExtensionScore); 
+			
 		}
 		else if (a2size > 2 && antiDiag2[a2size-3] != undefined)
 		{
@@ -441,8 +404,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
 			longestExtensionCol = a2size + offset2 - 3;
 			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
 			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
-			//if(threadIdx.x==0)
-                		//printf("2 %d %d %d\n", longestExtensionCol, longestExtensionRow, longestExtensionScore); 
+			
 		}
 	}
 
@@ -458,21 +420,16 @@ __global__ void extendSeedLGappedXDropOneDirection(
 				longestExtensionScore = antiDiag1[i];
 				longestExtensionCol = i + offset1;
 				longestExtensionRow = antiDiagNo - 2 - longestExtensionCol;
-				//if(threadIdx.x==0)
-                                //	printf("3 %d %d %d\n", longestExtensionCol, longestExtensionRow, longestExtensionScore);
+				
 			}
 		}
 	}
 	// update seed
-	if (longestExtensionScore != undefined)//AAAA it was !=
+	if (longestExtensionScore != undefined)
 		updateExtendedSeedL(*seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
 	
-	//__syncthreads();
 	*res = longestExtensionScore;
-	//if(threadIdx.x == 0)
-	//	printf("%d \n", longestExtensionScore );
-	//}
-	//__syncthreads();
+	
 }
 
 
@@ -507,12 +464,10 @@ inline int extendSeedL(SeedL &seed,
 	setScoreGap(penalties, max(scoreGap(penalties), minErrScore));
 	setScoreMismatch(penalties, max(scoreMismatch(penalties), minErrScore));
 
-	//Result scoreFinal;
-	//std::cout << seed.beginPositionH << " "<<seed.beginPositionV << " " <<seed.endPositionH << " " << seed.beginPositionH << std::endl;
+	
 	if (direction == EXTEND_LEFTL || direction == EXTEND_BOTHL){
 
-		//AAAA maybe extracting the substring could be avoided and we can directly copy the chars in the character array instead
-
+		
 		std::string queryPrefix = query.substr(0, getBeginPositionV(seed));	// from read start til start seed (seed not included)
 		std::string targetPrefix = target.substr(0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
 		
@@ -521,24 +476,19 @@ inline int extendSeedL(SeedL &seed,
 		char *db_l = (char *)malloc(sizeof(char)*targetPrefix.length());
 		queryPrefix.copy(q_l, queryPrefix.length());
 		targetPrefix.copy(db_l, targetPrefix.length());
-		for(int i = 0; i < queryPrefix.length(); i++){
-			q_l[i]=queryPrefix[i];
-		}
-		//std::cout << std::endl;
-		//for(int i = 0; i < targetPrefix.length(); i++){
-                //        db_l[i]=targetPrefix[i];
-                //}
+				
 		//declare vars for the gpu
 		char *q_l_d, *db_l_d;
-		int *a1_l, *a2_l, *a3_l; //AAAA think if a fourth is necessary for the swap
+		// int *a1_l, *a2_l, *a3_l; //AAAA think if a fourth is necessary for the swap
 		int *scoreLeft_d;
 		SeedL *seed_d;
 		std::chrono::duration<double>  transfer1, transfer2, compute, tfree;
 		auto start_t1 = std::chrono::high_resolution_clock::now();
+
 		//allocate memory for the antidiagonals
-		cudaErrchk(cudaMalloc(&a1_l, min(queryPrefix.length(),targetPrefix.length())*sizeof(int)));
-		cudaErrchk(cudaMalloc(&a2_l, min(queryPrefix.length(),targetPrefix.length())*sizeof(int)));
-		cudaErrchk(cudaMalloc(&a3_l, min(queryPrefix.length(),targetPrefix.length())*sizeof(int)));
+		// cudaErrchk(cudaMalloc(&a1_l, min(queryPrefix.length(),targetPrefix.length())*sizeof(int)));
+		// cudaErrchk(cudaMalloc(&a2_l, min(queryPrefix.length(),targetPrefix.length())*sizeof(int)));
+		// cudaErrchk(cudaMalloc(&a3_l, min(queryPrefix.length(),targetPrefix.length())*sizeof(int)));
 
 		//allocate memory for the strings and copy them
 		cudaErrchk(cudaMalloc(&q_l_d, queryPrefix.length()*sizeof(char)));
@@ -555,13 +505,13 @@ inline int extendSeedL(SeedL &seed,
 		//call GPU to extend the seed
 		auto end_t1 = std::chrono::high_resolution_clock::now();
 		auto start_c = std::chrono::high_resolution_clock::now();
-		extendSeedLGappedXDropOneDirection <<<1, N_THREADS>>> (seed_d, q_l_d, db_l_d, EXTEND_LEFTL, penalties, XDrop, scoreLeft_d, a1_l, a2_l, a3_l, queryPrefix.length(), targetPrefix.length());//check seed
+		extendSeedLGappedXDropOneDirection <<<1, N_THREADS>>> (seed_d, q_l_d, db_l_d, EXTEND_LEFTL, penalties, XDrop, scoreLeft_d, queryPrefix.length(), targetPrefix.length());//check seed
 		cudaErrchk(cudaPeekAtLastError());
 		cudaErrchk(cudaDeviceSynchronize());
 		auto end_c = std::chrono::high_resolution_clock::now();
-                auto start_t2 = std::chrono::high_resolution_clock::now();
+        auto start_t2 = std::chrono::high_resolution_clock::now();
 		cudaErrchk(cudaMemcpy(seed_ptr, seed_d, sizeof(SeedL), cudaMemcpyDeviceToHost));//check
-		cudaErrchk(cudaMemcpy(scoreLeft, scoreLeft_d, sizeof(int), cudaMemcpyDeviceToHost));//check
+		cudaErrchk(cudaMemcpy(scoreLeft, scoreLeft_d, sizeof(int), cudaMemcpyDeviceToHost));
 		auto end_t2 = std::chrono::high_resolution_clock::now();
 		transfer1=end_t1-start_t1;
 		transfer2=end_t2-start_t2;
@@ -569,9 +519,9 @@ inline int extendSeedL(SeedL &seed,
 		auto start_f = std::chrono::high_resolution_clock::now();
 		free(q_l);
 		free(db_l);
-		cudaErrchk(cudaFree(a1_l));
-		cudaErrchk(cudaFree(a2_l));
-		cudaErrchk(cudaFree(a3_l));
+		// cudaErrchk(cudaFree(a1_l));
+		// cudaErrchk(cudaFree(a2_l));
+		// cudaErrchk(cudaFree(a3_l));
 		cudaErrchk(cudaFree(q_l_d));
 		cudaErrchk(cudaFree(db_l_d));
 		cudaErrchk(cudaFree(seed_d));
@@ -592,26 +542,18 @@ inline int extendSeedL(SeedL &seed,
 		char *db_r = (char *)malloc(sizeof(char)*targetSuffix.length());
 		querySuffix.copy(q_r, querySuffix.length());
 		targetSuffix.copy(db_r, targetSuffix.length());
-
-		//for(int i = 0; i < querySuffix.length(); i++){
-                //        q_r[i]=querySuffix[i];
-                //}
-                //std::cout << std::endl;
-                //for(int i = 0; i < targetSuffix.length(); i++){
-                //        db_r[i]=targetSuffix[i];
-                //}
 		//declare vars for the gpu
 
 		char *q_r_d, *db_r_d;
-		int *a1_r, *a2_r, *a3_r; //AAAA think if a fourth is necessary for the swap
+		// int *a1_r, *a2_r, *a3_r; 
 		int *scoreRight_d;
 		SeedL *seed_d;
 		std::chrono::duration<double>  transfer1, transfer2, compute, tfree;
                 auto start_t1 = std::chrono::high_resolution_clock::now();
 		//allocate memory for the antidiagonals
-		cudaErrchk(cudaMalloc(&a1_r, min(querySuffix.length(),targetSuffix.length())*sizeof(int)));
-		cudaErrchk(cudaMalloc(&a2_r, min(querySuffix.length(),targetSuffix.length())*sizeof(int)));
-		cudaErrchk(cudaMalloc(&a3_r, min(querySuffix.length(),targetSuffix.length())*sizeof(int)));
+		// cudaErrchk(cudaMalloc(&a1_r, min(querySuffix.length(),targetSuffix.length())*sizeof(int)));
+		// cudaErrchk(cudaMalloc(&a2_r, min(querySuffix.length(),targetSuffix.length())*sizeof(int)));
+		// cudaErrchk(cudaMalloc(&a3_r, min(querySuffix.length(),targetSuffix.length())*sizeof(int)));
 
 		//allocate memory for the strings and copy them
 		cudaErrchk(cudaMalloc(&q_r_d, querySuffix.length()*sizeof(char)));
@@ -628,7 +570,7 @@ inline int extendSeedL(SeedL &seed,
 		//call GPU to extend the seed
 		auto end_t1 = std::chrono::high_resolution_clock::now();
                 auto start_c = std::chrono::high_resolution_clock::now();
-		extendSeedLGappedXDropOneDirection <<<1, N_THREADS>>> (seed_d, q_r_d, db_r_d, EXTEND_RIGHTL, penalties, XDrop, scoreRight_d, a1_r, a2_r, a3_r, querySuffix.length(),targetSuffix.length());//check seed
+		extendSeedLGappedXDropOneDirection <<<1, N_THREADS>>> (seed_d, q_r_d, db_r_d, EXTEND_RIGHTL, penalties, XDrop, scoreRight_d, querySuffix.length(),targetSuffix.length());//check seed
 		cudaErrchk(cudaPeekAtLastError());
 		cudaErrchk(cudaDeviceSynchronize());
 		auto end_c = std::chrono::high_resolution_clock::now();
@@ -642,9 +584,9 @@ inline int extendSeedL(SeedL &seed,
 		free(q_r);
 		free(db_r);
 		auto start_f = std::chrono::high_resolution_clock::now();
-		cudaErrchk(cudaFree(a1_r));
-		cudaErrchk(cudaFree(a2_r));
-		cudaErrchk(cudaFree(a3_r));
+		// cudaErrchk(cudaFree(a1_r));
+		// cudaErrchk(cudaFree(a2_r));
+		// cudaErrchk(cudaFree(a3_r));
 		cudaErrchk(cudaFree(q_r_d));
 		cudaErrchk(cudaFree(db_r_d));
 		cudaErrchk(cudaFree(seed_d));
