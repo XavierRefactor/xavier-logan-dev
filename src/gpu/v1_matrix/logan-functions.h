@@ -40,21 +40,56 @@ enum ExtensionDirectionL
     EXTEND_BOTHL  = 3
 };
 
-__device__ inline int array_max(int *array, 
-						int dim) //TODO optimize this
+__device__ inline int array_max(int *array,
+				int dim)
 {
-	int max = MIN;
-	for(int i = 0; i < dim; i++)
-	{
-		if(array[i]>max)
+	__shared__ int localArray[N_THREADS];
+	int threadId = threadIdx.x;
+	//int gridId = blockIdx.x*blockDim.x + threadIdx.x;
+	localArray[threadId]=MIN;
+	int max_l=MIN;	
+	if(threadId<dim)
+		localArray[threadId]=array[threadId];
+	
+
+	//if(dim<32){
+
+	//	localArray[threadId] = (localArray[threadId]> localArray[threadId+32]) ?  localArray[threadId] :  localArray[threadId+32]; 
+	//	localArray[threadId] = (localArray[threadId]> localArray[threadId+16]) ?  localArray[threadId] :  localArray[threadId+16];
+	//	localArray[threadId] = (localArray[threadId]> localArray[threadId+8]) ?  localArray[threadId] :  localArray[threadId+8]; 
+	//	localArray[threadId] = (localArray[threadId]> localArray[threadId+4]) ?  localArray[threadId] :  localArray[threadId+4];	
+	//	localArray[threadId] = (localArray[threadId]> localArray[threadId+2]) ?  localArray[threadId] :  localArray[threadId+2];
+	//	localArray[threadId] = (localArray[threadId]> localArray[threadId+1]) ?  localArray[threadId] :  localArray[threadId+1]; 
+	//}
+
+	
+	if(1){
+		for(int offset = dim/2; offset>0; offset>>=1){
+                //int index = 2*offset*threadId;
+                	//if(threadId < offset )
+        		localArray[threadId] = max(localArray[threadId], localArray[threadId+offset]);
+                	
+                	//
+        	}
+		max_l = localArray[0];
+	}
+
+	//__syncthreads();
+	else{
+		for(int i = 0; i < dim; i++)
 		{
-			max = array[i];
+			if(array[i]>max_l)
+			{
+				max_l = array[i];
+			}
 		}
 	}
-	//if(threadIdx.x==0)
-	//	printf("MAX: %d\n", max);
-	return max;
-
+	//if(threadIdx.x ==0)
+	//	printf("MAX: %d", max);
+	//if(threadIdx.x == 0)
+	//	printf(" MAX reduction: %d\n", localArray[0]);
+	return  max_l;
+	//return max;
 }
 
 
