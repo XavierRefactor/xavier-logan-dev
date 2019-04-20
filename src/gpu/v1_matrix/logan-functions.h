@@ -41,63 +41,22 @@ enum ExtensionDirectionL
 };
 
 __device__ inline int array_max(int *array,
-				int dim)
+				int dim,
+				int minCol,
+				int ant_offset)
 {
-	int blockSize = N_THREADS;
-	__shared__ int localArray[N_THREADS];
-	int threadId = threadIdx.x;
-	int gridId = blockIdx.x*(blockSize*2) + threadId;
-	int gridSize = blockSize*2*gridDim.x;
-	localArray[threadId] = 0;
-
-	while(gridId < N_THREADS){
-		localArray[threadId] = max(array[gridId], array[gridId+blockSize]);
-		gridId += gridSize;
-		__syncthreads();
+	//printf("%d\n", dim1);
+	__shared__ int localArray[N_THREADS/2];
+	unsigned int tid = threadIdx.x;
+	if(tid < dim/2){
+		localArray[tid] = max(array[tid+minCol-ant_offset],array[tid+minCol-ant_offset+dim/2]);
 	}
-
-	if (blockSize >= 512) { if (threadId < 256) { localArray[threadId] = (localArray[threadId]> localArray[threadId+ 256]) ?  localArray[threadId] :  localArray[threadId+ 256]; } __syncthreads(); }
-	if (blockSize >= 256) { if (threadId < 128) { localArray[threadId] = (localArray[threadId]> localArray[threadId+ 128]) ?  localArray[threadId] :  localArray[threadId+ 128]; } __syncthreads(); }
-	if (blockSize >= 128) { if (threadId <  64) { localArray[threadId] = (localArray[threadId]> localArray[threadId+  64]) ?  localArray[threadId] :  localArray[threadId+  64]; } __syncthreads(); }
-
-
-	if(threadId<32){
-		if (blockSize >=  64) localArray[threadId] = (localArray[threadId]> localArray[threadId+32]) ?  localArray[threadId] :  localArray[threadId+32]; 
-		if (blockSize >=  32) localArray[threadId] = (localArray[threadId]> localArray[threadId+16]) ?  localArray[threadId] :  localArray[threadId+16];
-		if (blockSize >=  16) localArray[threadId] = (localArray[threadId]> localArray[threadId+8]) ?  localArray[threadId] :  localArray[threadId+8]; 
-		if (blockSize >=   8) localArray[threadId] = (localArray[threadId]> localArray[threadId+4]) ?  localArray[threadId] :  localArray[threadId+4];	
-		if (blockSize >=   4) localArray[threadId] = (localArray[threadId]> localArray[threadId+2]) ?  localArray[threadId] :  localArray[threadId+2];
-		if (blockSize >=   2) localArray[threadId] = (localArray[threadId]> localArray[threadId+1]) ?  localArray[threadId] :  localArray[threadId+1]; 
+		
+	for(int offset = dim/4; offset > 0; offset>>=1){
+		if(tid < offset) localArray[tid] = max(localArray[tid],localArray[tid+offset]);
 	}
-
+	return localArray[0];
 	
-	// if(1){
-	// 	for(int offset = dim/2; offset>0; offset>>=1){
- //                //int index = 2*offset*threadId;
- //                	//if(threadId < offset )
- //        		localArray[threadId] = max(localArray[threadId], localArray[threadId+offset]);
-                	
- //                	//
- //        	}
-	// 	max_l = localArray[0];
-	// }
-
-	//__syncthreads();
-
-	// for(int i = 0; i < dim; i++)
-	// {
-	// 	if(array[i]>max_l)
-	// 	{
-	// 		max_l = array[i];
-	// 	}
-	// }
-	
-	//if(threadIdx.x ==0)
-	//	printf("MAX: %d", max);
-	//if(threadIdx.x == 0)
-	//	printf(" MAX reduction: %d\n", localArray[0]);
-	return localArray[0];;
-	//return max;
 }
 
 
@@ -201,7 +160,7 @@ __device__ inline void computeAntidiag(int *antiDiag1,
 		}
 		//printf("%d ", antiDiag3[i3]);			
 	}
-	__syncthreads();
+	//__syncthreads();
 	
 	//if(threadId == 0){
 	//	printf("\n");
@@ -264,7 +223,9 @@ __device__ inline int initAntiDiag3(int *antiDiag3,
 	return offset;
 }
 
-__device__ inline void initAntiDiags(int *antiDiag2,
+__device__ inline void initAntiDiags(
+			   int *antiDiag1,
+			   int *antiDiag2,
 			   int *antiDiag3,
 			   int *a2size,
 			   int *a3size,
@@ -274,7 +235,16 @@ __device__ inline void initAntiDiags(int *antiDiag2,
 {
 	// antiDiagonals will be swaped in while loop BEFORE computation of antiDiag3 entries
 	//  -> no initialization of antiDiag1 necessary
+	int tid = threadIdx.x;
+	if(tid<N_THREADS){
+	
+		antiDiag1[tid]=MIN;			
+		antiDiag2[tid]=MIN;
+		antiDiag3[tid]=MIN;
+		
 
+	}
+	__syncthreads();
 	//antiDiag2.resize(1);
 	*a2size = 1;
 
@@ -336,7 +306,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
 	int offset2 = 0; //                                                       in antiDiag2
 	int offset3 = 0; //                                                       in antiDiag3
 
-	initAntiDiags(antiDiag2, antiDiag3, &a2size, &a3size, scoreDropOff, gapCost, undefined);
+	initAntiDiags(antiDiag1,antiDiag2, antiDiag3, &a2size, &a3size, scoreDropOff, gapCost, undefined);
 	int antiDiagNo = 1; // the currently calculated anti-diagonal
 
 	int best = 0; // maximal score value in the DP matrix (for drop-off calculation)
@@ -372,7 +342,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		computeAntidiag(antiDiag1,antiDiag2,antiDiag3,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,querySeg,databaseSeg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
 	 	
 
-		antiDiagBest = array_max(antiDiag3, a3size);
+		antiDiagBest = array_max(antiDiag3, a3size, minCol, offset3);
 	
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 		// Calculate new minCol minCol
