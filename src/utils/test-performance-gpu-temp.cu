@@ -114,7 +114,7 @@ vector<std::string> split (const std::string &s, char delim)
 myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
 {
 
-	ScoringSchemeL penalties(mat, mis, -2, gap);
+	ScoringSchemeL penalties(mat, mis, -1, gap);
 	//Result result(kmerLen);
 	int result;
 	myinfo loganresult;

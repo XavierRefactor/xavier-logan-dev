@@ -96,13 +96,13 @@ __device__ inline void updateExtendedSeedL(SeedL& seed,
 	}
 }
 
-__device__ inline void computeAntidiag(int *antiDiag1,
+__device__ inline void computeAntidiagRight(int *antiDiag1,
 				int *antiDiag2,
 				int *antiDiag3,
 				int offset1,
 				int offset2,
 				int offset3,
-				ExtensionDirectionL direction,
+				//ExtensionDirectionL direction,
 		//		int direction,
 				int antiDiagNo,
 				int gapCost,
@@ -132,17 +132,74 @@ __device__ inline void computeAntidiag(int *antiDiag1,
 
 		// indices in query and database segments
 		int queryPos, dbPos;
-		if (direction == EXTEND_RIGHTL)
-		{
-			queryPos = col - 1;
-			dbPos = antiDiagNo - col - 1;
-		}
-		else // direction == EXTEND_LEFTL
-		{
-			queryPos = cols - 1 - col;
-			dbPos = rows - 1 + col - antiDiagNo;
-		}
+		
+		queryPos = col - 1;
+		dbPos = antiDiagNo - col - 1;
 	
+		
+		// Calculate matrix entry (-> antiDiag3[col])
+		int tmp = max(antiDiag2[i2-1], antiDiag2[i2]) +gapCost;
+		tmp = max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
+		
+		if (tmp < best - scoreDropOff)
+		{
+			//printf("in\n");
+			antiDiag3[i3] = undefined;
+		}
+		else
+		{
+			antiDiag3[i3] = tmp;
+			//antiDiagBest = max(antiDiagBest, tmp);
+		}
+		//printf("%d ", antiDiag3[i3]);			
+	}
+	//__syncthreads();
+	
+	//if(threadId == 0){
+	//	printf("\n");
+	//}
+}
+
+__device__ inline void computeAntidiagLeft(int *antiDiag1,
+				int *antiDiag2,
+				int *antiDiag3,
+				int offset1,
+				int offset2,
+				int offset3,
+				//ExtensionDirectionL direction,
+		//		int direction,
+				int antiDiagNo,
+				int gapCost,
+				ScoringSchemeL scoringScheme,
+				char* querySeg,
+				char* databaseSeg,
+				int undefined,
+				int best,
+				int scoreDropOff,
+				int cols,
+				int rows,
+				int maxCol,
+				int minCol)
+{
+	//printf(" GPU: %d\n", antiDiag1[minCol - offset1]);
+	int threadId = threadIdx.x;
+	//for (int col = minCol; col < maxCol; ++col) {
+	// indices on anti-diagonals
+	//int threadId = threadIdx.x;
+	//if(threadId == 0)
+		//printf(" GPU: %c\n", querySeg[0]);
+	int col = threadId + minCol;
+	if(col < maxCol){
+		int i3 = col - offset3;
+		int i2 = col - offset2;
+		int i1 = col - offset1;
+
+		// indices in query and database segments
+		int queryPos, dbPos;
+		
+		queryPos = cols - 1 - col;
+		dbPos = rows - 1 + col - antiDiagNo;
+		
 		
 		// Calculate matrix entry (-> antiDiag3[col])
 		int tmp = max(antiDiag2[i2-1], antiDiag2[i2]) +gapCost;
@@ -337,39 +394,18 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		offset3 = minCol-1;
 		initAntiDiag3(antiDiag3, &a3size, offset3, maxCol, antiDiagNo, best - scoreDropOff, gapCost, undefined);
 
-		int antiDiagBest = antiDiagNo * gapCost;	
-		
-		computeAntidiag(antiDiag1,antiDiag2,antiDiag3,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,querySeg,databaseSeg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
-	 	
+		//int antiDiagBest;// = antiDiagNo * gapCost;	
+		if(direction==EXTEND_RIGHTL){
+			computeAntidiagRight(antiDiag1,antiDiag2,antiDiag3,offset1,offset2,offset3,antiDiagNo,gapCost,scoringScheme,querySeg,databaseSeg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
+		}
+	 	else{
+	 		computeAntidiagLeft(antiDiag1,antiDiag2,antiDiag3,offset1,offset2,offset3,antiDiagNo,gapCost,scoringScheme,querySeg,databaseSeg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
+	 	}
 
-		antiDiagBest = array_max(antiDiag3, a3size, minCol, offset3);
+		int antiDiagBest = array_max(antiDiag3, a3size, minCol, offset3);//maybe can be implemented as a shared value?
 	
 		best = (best > antiDiagBest) ? best : antiDiagBest;
-		// Calculate new minCol minCol
-
-		// __shared__ int newMin;
-		// //if(threadIdx.x == 0)
-		// 	newMin = 0;
-		// //int newMax=0;
-		// __syncthreads();
-		// if(threadIdx.x == 0) printf("Newmin in: %d ", newMin);
-		// int indexMin = threadIdx.x + minCol;
-		// if((indexMin - offset3 < a3size) && (indexMin - offset2 - 1 < a2size)&&(antiDiag3[indexMin - offset3] == undefined)&&(antiDiag2[indexMin - offset2 - 1] == undefined))
-		// {	
-		// 	atomicAdd(&newMin,1);
-
-		// }
-		// __syncthreads();
-		//int indexMax = threadIdx.x + maxCol;
-		// Calculate new maxCol
-		//if(indexMax - offset3 > 0)
-	 	//{
-		//	if((antiDiag3[indexMax - offset3 - 1] == undefined) && (antiDiag2[indexMax - offset2 - 1] == undefined)){
-		//		--newMax;
-		//	}
-		//}
-		// if(threadIdx.x == 0) printf("Newmin: %d Mincol before: %d", newMin, minCol);
-		//minCol += newMin;
+		
 		__syncthreads();
 		//maxCol = maxCol - newMax + 1;
 		//original min and max col update
@@ -582,7 +618,7 @@ inline int extendSeedL(SeedL &seed,
 		cudaErrchk(cudaMemcpy(seed_d, seed_ptr, sizeof(SeedL), cudaMemcpyHostToDevice));//check
 		//call GPU to extend the seed
 		auto end_t1 = std::chrono::high_resolution_clock::now();
-                auto start_c = std::chrono::high_resolution_clock::now();
+        auto start_c = std::chrono::high_resolution_clock::now();
 		extendSeedLGappedXDropOneDirection <<<1, N_THREADS>>> (seed_d, q_r_d, db_r_d, EXTEND_RIGHTL, penalties, XDrop, scoreRight_d, querySuffix.length(),targetSuffix.length());//check seed
 		cudaErrchk(cudaPeekAtLastError());
 		cudaErrchk(cudaDeviceSynchronize());
