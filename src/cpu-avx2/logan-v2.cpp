@@ -15,7 +15,7 @@
 #include"score.h"
 #include <immintrin.h>
 
-#define DEBUG
+//#define DEBUG
 
 //======================================================================================
 // GLOBAL DEFINITION
@@ -95,11 +95,11 @@ rightAfterDown (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
 		vector_union_t& vqueryv, const short queryh[], const short queryv[])
 {
 	// (a) shift to the left on query horizontal
-	leftShift (vqueryh);
+	vqueryh = leftShift (vqueryh);
 	vqueryh.elem[LOGICALWIDTH-1] = queryh[hoffset++];
 	// (b) shift left on updated vector 1 (this places the right-aligned vector 2 as a left-aligned vector 1)
 	antiDiag1.simd = antiDiag2.simd;
-	leftShift (antiDiag1);
+	antiDiag1 = leftShift (antiDiag1);
 	antiDiag2.simd = antiDiag3.simd;
 }
 
@@ -109,12 +109,12 @@ downAfterRight (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
 		vector_union_t& vqueryv, const short queryh[], const short queryv[])
 {
 	//(a) shift to the right on query vertical
-	rightShift (vqueryv);
-	vqueryh.elem[0] = queryv[voffset++];
+	vqueryv = rightShift (vqueryv);
+	vqueryv.elem[0] = queryv[voffset++];
 	//(b) shift to the right on updated vector 2 (this places the left-aligned vector 3 as a right-aligned vector 2)
 	antiDiag1.simd = antiDiag2.simd;
 	antiDiag2.simd = antiDiag3.simd;
-	rightShift (antiDiag2);
+	antiDiag2 = rightShift (antiDiag2);
 }
 
 void
@@ -153,6 +153,11 @@ move (const short& prevDir, const short& nextDir, vector_union_t& antiDiag1, vec
 	else if(prevDir == DOWN && nextDir == DOWN)
 	{
 		downAfterDown (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
+	}
+	else
+	{
+		printf("ERROR\n");
+		exit(1);
 	}
 }
 
@@ -263,10 +268,10 @@ LoganAVX2(
 	vqueryh.elem[LOGICALWIDTH] = NINF;
 	vqueryv.elem[LOGICALWIDTH] = NINF;
 
-#ifdef DEBUG
-	print_vector_c(vqueryh.simd);
-	print_vector_c(vqueryv.simd);
-#endif
+//#ifdef DEBUG
+//	print_vector_c(vqueryh.simd);
+//	print_vector_c(vqueryv.simd);
+//#endif
 
 	// this should point to the next value to be loaded into vqueryh and vqueryv
 	int hoffset = LOGICALWIDTH;
@@ -293,14 +298,21 @@ LoganAVX2(
 
 	short prevDir = RIGHT;
 	short antiDiagNo = 1;
+	short antiDiagBest = antiDiagNo * gapCost;
+	short best = 0;
 
 	// TODO: Phase III in adaptive version begins when both hoffset < hlength and voffset < vlength are verified 
 	// This loop should looks different in the adaptive version
 	while(hoffset < hlength && voffset < vlength)
 	{
+
+#ifdef DEBUG
+	print_vector_c(vqueryh.simd);
+	print_vector_c(vqueryv.simd);
+#endif
 		// antiDiagBest initialization
 		antiDiagNo++;
-		short antiDiagBest = antiDiagNo * gapCost;
+		antiDiagBest = antiDiagNo * gapCost;
 
 		// antiDiag1F (final)
 		// POST-IT: -1 for a match and 0 for a mismatch
@@ -308,43 +320,48 @@ LoganAVX2(
 		m = _mm256_blendv_epi8 (vmismatchCost, vmatchCost, m);
 		vector_t antiDiag1F = _mm256_adds_epi16 (m, antiDiag1.simd);
 
-	//#ifdef DEBUG
-	//	printf("antiDiag1: ");
-	//	print_vector_d(antiDiag1.simd);
-	//	printf("antiDiag1F: ");
-	//	print_vector_d(antiDiag1F);
-	//#endif
+	#ifdef DEBUG
+		printf("antiDiag1: ");
+		print_vector_d(antiDiag1.simd);
+		printf("antiDiag1F: ");
+		print_vector_d(antiDiag1F);
+	#endif
 
 		// antiDiag2S (shift)
 		vector_union_t antiDiag2S = leftShift (antiDiag2);
-	//#ifdef DEBUG
-	//	printf("antiDiag2S: ");
-	//	print_vector_d(antiDiag2S.simd);
-	//#endif
+	#ifdef DEBUG
+		printf("antiDiag2S: ");
+		print_vector_d(antiDiag2S.simd);
+	#endif
 		// antiDiag2M (pairwise max)
 		vector_t antiDiag2M = _mm256_max_epi16 (antiDiag2S.simd, antiDiag2.simd);
-	//#ifdef DEBUG
-	//	printf("antiDiag2M: ");
-	//	print_vector_d(antiDiag2M);
-	//#endif
+	#ifdef DEBUG
+		printf("antiDiag2M: ");
+		print_vector_d(antiDiag2M);
+	#endif
 		// antiDiag2F (final)
 		vector_t antiDiag2F = _mm256_adds_epi16 (antiDiag2M, vgapCost);
-	//#ifdef DEBUG
-	//	printf("antiDiag2F: ");
-	//	print_vector_d(antiDiag2F);
-	//#endif
+	#ifdef DEBUG
+		printf("antiDiag2F: ");
+		print_vector_d(antiDiag2F);
+	#endif
 
 		// Compute antiDiag3
 		antiDiag3.simd = _mm256_max_epi16 (antiDiag1F, antiDiag2F);
-	//#ifdef DEBUG
-	//	printf("antiDiag3: ");
-	//	print_vector_d(antiDiag3.simd);
-	//	printf("\n");
-	//#endif
+	#ifdef DEBUG
+		printf("antiDiag3: ");
+		print_vector_d(antiDiag3.simd);
+		printf("\n");
+	#endif
 
 		// TODO: x-drop termination
 
+		// TODO: update best
+		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
+		best = (best > antiDiagBest) ? best : antiDiagBest;
+
 		// antiDiag swap, offset updates, and new base load
+
 		short nextDir = prevDir ^ 1;
 		move (prevDir, nextDir, antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
 
@@ -368,31 +385,31 @@ LoganAVX2(
 		m = _mm256_blendv_epi8 (vmismatchCost, vmatchCost, m);
 		vector_t antiDiag1F = _mm256_adds_epi16 (m, antiDiag1.simd);
 
-	//#ifdef DEBUG
-	//	printf("antiDiag1: ");
-	//	print_vector_d(antiDiag1.simd);
-	//	printf("antiDiag1F: ");
-	//	print_vector_d(antiDiag1F);
-	//#endif
+	#ifdef DEBUG
+		printf("antiDiag1: ");
+		print_vector_d(antiDiag1.simd);
+		printf("antiDiag1F: ");
+		print_vector_d(antiDiag1F);
+	#endif
 
 		// antiDiag2S (shift)
 		vector_union_t antiDiag2S = leftShift (antiDiag2);
-	//#ifdef DEBUG
-	//	printf("antiDiag2S: ");
-	//	print_vector_d(antiDiag2S.simd);
-	//#endif
+	#ifdef DEBUG
+		printf("antiDiag2S: ");
+		print_vector_d(antiDiag2S.simd);
+	#endif
 		// antiDiag2M (pairwise max)
 		vector_t antiDiag2M = _mm256_max_epi16 (antiDiag2S.simd, antiDiag2.simd);
-	//#ifdef DEBUG
-	//	printf("antiDiag2M: ");
-	//	print_vector_d(antiDiag2M);
-	//#endif
+	#ifdef DEBUG
+		printf("antiDiag2M: ");
+		print_vector_d(antiDiag2M);
+	#endif
 		// antiDiag2F (final)
 		vector_t antiDiag2F = _mm256_adds_epi16 (antiDiag2M, vgapCost);
-	//#ifdef DEBUG
-	//	printf("antiDiag2F: ");
-	//	print_vector_d(antiDiag2F);
-	//#endif
+	#ifdef DEBUG
+		printf("antiDiag2F: ");
+		print_vector_d(antiDiag2F);
+	#endif
 
 		// Compute antiDiag3
 		antiDiag3.simd = _mm256_max_epi16 (antiDiag1F, antiDiag2F);
@@ -407,21 +424,17 @@ LoganAVX2(
 		prevDir = nextDir;
 	}
 
-		// TODO: update best
-		//antiDiagBest = *std::max_element(antiDiag3.elem + offset3, antiDiag3.elem + antiDiag3size);
-		//best = (best > antiDiagBest) ? best : antiDiagBest;
-
-	#ifdef DEBUG
-		printf("antiDiag1: ");
-		print_vector_d(antiDiag1.simd);
-		printf("antiDiag2: ");
-		print_vector_d(antiDiag2.simd);
-		// -15 should be off (it will be shifted off next iteration)
-		printf("antiDiag3: ");
-		print_vector_d(antiDiag3.simd);
-		printf("\n");
-	#endif
-
+	//#ifdef DEBUG
+	//	printf("antiDiag1: ");
+	//	print_vector_d(antiDiag1.simd);
+	//	printf("antiDiag2: ");
+	//	print_vector_d(antiDiag2.simd);
+	//	// -15 should be off (it will be shifted off next iteration)
+	//	printf("antiDiag3: ");
+	//	print_vector_d(antiDiag3.simd);
+	//	printf("\n");
+	//#endif
+		printf("best %d\n", best);
 	// TODO: find positions of longest extension
 	// TODO: update seed
 	// return 0;
