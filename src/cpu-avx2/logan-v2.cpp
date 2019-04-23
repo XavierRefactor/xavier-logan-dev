@@ -1,5 +1,5 @@
 //==================================================================
-// Title:  C++ x-drop seed-and-extend alignment algorithm
+// Title:  LOGAN: X-Drop Adaptive Banded Alignment
 // Author: G. Guidi, E. Younis
 // Date:   22 April 2019
 //==================================================================
@@ -161,7 +161,7 @@ move (const short& prevDir, const short& nextDir, vector_union_t& antiDiag1, vec
 //======================================================================================
 
 //int
-//extendSeedLGappedXDropAVX2(
+//LoganAVX2(
 //		SeedL & seed,
 //		std::string const & querySeg,
 //		std::string const & databaseSeg,
@@ -169,42 +169,39 @@ move (const short& prevDir, const short& nextDir, vector_union_t& antiDiag1, vec
 //		ScoringSchemeL &scoringScheme,
 //		short const &scoreDropOff)
 //{
-int main(int argc, char const *argv[])
+
+// 1st prototype
+void
+LoganAVX2(
+		std::string const& targetSeg,
+		std::string const& querySeg,
+		ScoringSchemeL& scoringScheme)
 {
-	//TODO: check scoring scheme correctness/input parameters
+//int main(int argc, char const *argv[])
+//{
+	// TODO: check scoring scheme correctness/input parameters
+	// TODO: chop sequences in left and right extension
 
-	//unsigned short cols = querySeg.length() + 1;
-	//unsigned short rows = databaseSeg.length() + 1;
-
-	//if (rows <= 1 || cols <= 1)
-	//	return 0;
-
-	// convert from string to __m256i* array
-	// this is the entire sequences 	
-	//short* queryh = new short[cols]; 
-	//short* queryv = new short[rows];
-	//std::copy(querySeg.begin(), querySeg.end(), queryh); 	
-	//std::copy(databaseSeg.begin(), databaseSeg.end(), queryv); 
-
-#ifdef DEBUG
-	//test hardcoded
-	//short queryh[32] = {'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A'};
-	//short queryv[32] = {'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A'};
-	short queryh[32] = {'A', 'C', 'T', 'G', 'A', 'A', 'T', 'C', 'A', 'C', 'T', 'G', 'A', 'A', 'T', 'C', 'A', 'C', 'T', 'G', 'A', 'A', 'T', 'C', 'A', 'C', 'T', 'G', 'A', 'A', 'T', 'C'};
-	short queryv[32] = {'G', 'C', 'T', 'A', 'A', 'A', 'G', 'C', 'G', 'C', 'T', 'A', 'A', 'A', 'G', 'C', 'G', 'C', 'T', 'A', 'A', 'A', 'G', 'C', 'G', 'C', 'T', 'A', 'A', 'A', 'G', 'C'};
-	int hlength = 32;
-	int vlength = 32;
-#endif
+	unsigned short hlength = targetSeg.length() + 1;
+	unsigned short vlength = querySeg.length()  + 1;
 
 	if (hlength <= 1 || vlength <= 1)
-		return 0;
+		return;
 
+	// Convert from string to int array
+	// This is the entire sequences 	
+	short* queryh = new short[hlength]; 
+	short* queryv = new short[vlength];
+	std::copy(targetSeg.begin(), targetSeg.end(), queryh); 	
+	std::copy(querySeg.begin(), querySeg.end(), queryv); 
+
+	//Redundant piece of code
 	//setScoreGap(scoringScheme, scoreGap(scoringScheme));
 	//setScoreMismatch(scoringScheme, scoreMismatch(scoringScheme));
 
-	short matchCost    =  1; //scoreMatch(scoringScheme);
-	short mismatchCost = -1; //scoreMismatch(scoringScheme);
-	short gapCost      = -1; //scoreGap(scoringScheme);
+	short matchCost    = scoreMatch(scoringScheme   );
+	short mismatchCost = scoreMismatch(scoringScheme);
+	short gapCost      = scoreGap(scoringScheme     );
 
 	vector_t vmatchCost    = _mm256_set1_epi16 (matchCost   );
 	vector_t vmismatchCost = _mm256_set1_epi16 (mismatchCost);
@@ -295,11 +292,16 @@ int main(int argc, char const *argv[])
 	//======================================================================================
 
 	short prevDir = RIGHT;
+	short antiDiagNo = 1;
 
 	// TODO: Phase III in adaptive version begins when both hoffset < hlength and voffset < vlength are verified 
 	// This loop should looks different in the adaptive version
 	while(hoffset < hlength && voffset < vlength)
 	{
+		// antiDiagBest initialization
+		antiDiagNo++;
+		short antiDiagBest = antiDiagNo * gapCost;
+
 		// antiDiag1F (final)
 		// POST-IT: -1 for a match and 0 for a mismatch
 		vector_t m = _mm256_cmpeq_epi16 (vqueryh.simd, vqueryv.simd);
@@ -422,6 +424,5 @@ int main(int argc, char const *argv[])
 
 	// TODO: find positions of longest extension
 	// TODO: update seed
-
-	return 0;
+	// return 0;
 }
