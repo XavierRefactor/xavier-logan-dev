@@ -30,19 +30,27 @@ typedef union {
 } vector_union_t;
 
 void
-print_m256i_16c(vector_t a) {
+print_vector_c(vector_t a) {
 
-	vector_union_t t;
-	t.simd = a;
+	vector_union_t tmp;
+	tmp.simd = a;
 
-	// modify with for loop
-	printf("{%c,%c,%c,%c,%c,%c,%c,%c,"
-			"%c,%c,%c,%c,%c,%c,%c,%c}\n",
-			t.elem[ 0], t.elem[ 1], t.elem[ 2], t.elem[ 3],
-			t.elem[ 4], t.elem[ 5], t.elem[ 6], t.elem[ 7],
-			t.elem[ 8], t.elem[ 9], t.elem[10], t.elem[11],
-			t.elem[12], t.elem[13], t.elem[14], t.elem[15]
-			);
+	printf("{");
+	for (int i = 0; i < VECTORWIDTH-1; ++i)
+		printf("%c,", tmp.elem[i]);
+	printf("%c}\n", tmp.elem[VECTORWIDTH]);
+}
+
+void
+print_vector_d(vector_t a) {
+
+	vector_union_t tmp;
+	tmp.simd = a;
+
+	printf("{");
+	for (int i = 0; i < VECTORWIDTH-1; ++i)
+		printf("%d,", tmp.elem[i]);
+	printf("%d}\n", tmp.elem[VECTORWIDTH]);
 }
 
 inline vector_union_t
@@ -50,12 +58,11 @@ leftShift (const vector_union_t& a) {
 
 	vector_union_t b; 
 
-	for(short i = 0; i < (VECTORWIDTH - 1); i++)         // data are saved in reversed order
-		b.elem[i] = a.elem[i + 1]; // count is the offset difference
+	for(short i = 0; i < (VECTORWIDTH - 1); i++)	// data are saved in reversed order
+		b.elem[i] = a.elem[i + 1];
 
 	// replicating last element
 	b.elem[VECTORWIDTH - 1] = NINF;
-
 	return b;
 }
 
@@ -64,29 +71,12 @@ rightShift (const vector_union_t& a) {
 
 	vector_union_t b; 
 
-	for(short i = 0; i < (VECTORWIDTH - 1); i++)         // data are saved in reversed order
-		b.elem[i + 1] = a.elem[i]; // count is the offset difference
+	for(short i = 0; i < (VECTORWIDTH - 1); i++)	// data are saved in reversed order
+		b.elem[i + 1] = a.elem[i];
 
 	// replicating last element
 	b.elem[0] = NINF;
-
 	return b;
-}
-
-void
-print_m256i_16d(vector_t a) {
-
-	vector_union_t t;
-	t.simd = a;
-
-	// modify with for loop
-	printf("{%d,%d,%d,%d,%d,%d,%d,%d,"
-			"%d,%d,%d,%d,%d,%d,%d,%d}\n",
-			t.elem[ 0], t.elem[ 1], t.elem[ 2], t.elem[ 3],
-			t.elem[ 4], t.elem[ 5], t.elem[ 6], t.elem[ 7],
-			t.elem[ 8], t.elem[ 9], t.elem[10], t.elem[11],
-			t.elem[12], t.elem[13], t.elem[14], t.elem[15]
-			);
 }
 
 void
@@ -95,11 +85,9 @@ rightAfterDown (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
 		vector_union_t& vqueryv, const short queryh[], const short queryv[])
 {
 	// (a) shift to the left on query horizontal
-	// A, C, T, NINF
-	// C, T, ?, NINF
 	leftShift (vqueryh);
 	vqueryh.elem[LOGICALWIDTH-1] = queryh[hoffset++];
-	// (b) shift left on updated vector 1 (This places the right-aligned vector 2 as a left-aligned vector 1)
+	// (b) shift left on updated vector 1 (this places the right-aligned vector 2 as a left-aligned vector 1)
 	antiDiag1.simd = antiDiag2.simd;
 	leftShift (antiDiag1);
 	antiDiag2.simd = antiDiag3.simd;
@@ -111,11 +99,9 @@ downAfterRight (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
 		vector_union_t& vqueryv, const short queryh[], const short queryv[])
 {
 	//(a) shift to the right on query vertical
-	// A, C, T, NINF
-	// ?, A, C, NINF
 	rightShift (vqueryv);
 	vqueryh.elem[0] = queryv[voffset++];
-	//(b) shift to the right on updated vector 2 (This places the left-aligned vector 3 as a right-aligned vector 2)
+	//(b) shift to the right on updated vector 2 (this places the left-aligned vector 3 as a right-aligned vector 2)
 	antiDiag1.simd = antiDiag2.simd;
 	antiDiag2.simd = antiDiag3.simd;
 	rightShift (antiDiag2);
@@ -126,7 +112,7 @@ rightAfterRight (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
 	vector_union_t& antiDiag3, int& hoffset, int& voffset, vector_union_t& vqueryh, 
 		vector_union_t& vqueryv, const short queryh[], const short queryv[])
 {
-
+	// TODO
 }
 
 void
@@ -134,7 +120,7 @@ downAfterDown (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
 	vector_union_t& antiDiag3, int& hoffset, int& voffset, vector_union_t& vqueryh, 
 		vector_union_t& vqueryv, const short queryh[], const short queryv[])
 {
-
+	// TODO
 }
 
 void
@@ -171,7 +157,8 @@ move (const short& prevDir, const short& nextDir, vector_union_t& antiDiag1, vec
 //{
 int main(int argc, char const *argv[])
 {
-	// check scoring scheme correctness/input parameters
+	// TODO : check scoring scheme correctness/input parameters
+
 	//unsigned short cols = querySeg.length() + 1;
 	//unsigned short rows = databaseSeg.length() + 1;
 
@@ -182,13 +169,14 @@ int main(int argc, char const *argv[])
 	// this is the entire sequences 	
 	//short* queryh = new short[cols]; 
 	//short* queryv = new short[rows];
+	//std::copy(querySeg.begin(), querySeg.end(), queryh); 	
+	//std::copy(databaseSeg.begin(), databaseSeg.end(), queryv); 
+
+	// test hardcoded
 	//short queryh[32] = {'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A'};
 	//short queryv[32] = {'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A'};
 	short queryh[32] = {'A', 'C', 'T', 'G', 'A', 'A', 'T', 'C', 'A', 'C', 'T', 'G', 'A', 'A', 'T', 'C', 'A', 'C', 'T', 'G', 'A', 'A', 'T', 'C', 'A', 'C', 'T', 'G', 'A', 'A', 'T', 'C'};
 	short queryv[32] = {'G', 'C', 'T', 'A', 'A', 'A', 'G', 'C', 'G', 'C', 'T', 'A', 'A', 'A', 'G', 'C', 'G', 'C', 'T', 'A', 'A', 'A', 'G', 'C', 'G', 'C', 'T', 'A', 'A', 'A', 'G', 'C'};
-	//std::copy(querySeg.begin(), querySeg.end(), queryh); 	
-	//std::copy(databaseSeg.begin(), databaseSeg.end(), queryv); 
-
 	int hlength = 32;
 	int vlength = 32;
 
@@ -206,8 +194,11 @@ int main(int argc, char const *argv[])
 	vector_t vmismatchCost = _mm256_set1_epi16 (mismatchCost);
 	vector_t vgapCost      = _mm256_set1_epi16 (gapCost     );
 
-	// phase I
-	// so we need one more space for the off-grid values and one more space for antiDiag2
+	//======================================================================================
+	// PHASE I (initial values load using dynamic programming)
+	//======================================================================================
+
+	// we need one more space for the off-grid values and one more space for antiDiag2
 	short phase1_data[LOGICALWIDTH + 3][LOGICALWIDTH + 3];
 
 	// phase1_data initialization
@@ -283,7 +274,10 @@ int main(int argc, char const *argv[])
 	//print_m256i_16d(antiDiag1.simd);
 	//print_m256i_16d(antiDiag2.simd);
 
-	// phase II
+	//======================================================================================
+	// PHASE II (core vectorized computation)
+	//======================================================================================
+
 	// compute
 	short prevDir = RIGHT;
 	//short count = 0;
@@ -341,7 +335,10 @@ int main(int argc, char const *argv[])
 	//antiDiagBest = *std::max_element(antiDiag3.elem + offset3, antiDiag3.elem + antiDiag3size);
 	//best = (best > antiDiagBest) ? best : antiDiagBest;
 
-	// phase III
+	//======================================================================================
+	// PHASE III (reaching end of sequences)
+	//======================================================================================
+
 	for (int i = 0; i < (LOGICALWIDTH - 1); i++)
 	{
 		// ONEF
@@ -395,10 +392,8 @@ int main(int argc, char const *argv[])
 		// -15 should be off (it will be shifted off next iteration)
 		print_m256i_16d(antiDiag3.simd);
 		printf("\n");
-	// reach end of sequences
 
 	// find positions of longest extension
 	// update seed
 	return 0;
-
 }
