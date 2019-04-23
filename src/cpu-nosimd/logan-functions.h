@@ -130,7 +130,7 @@ computeAntidiag(std::vector<int> &antiDiag1,
 			antiDiag3[i3] = tmp;
 			//antiDiagBest = max(antiDiagBest, tmp);
 		}
-	
+
 	
 	}
 }
@@ -274,9 +274,8 @@ extendSeedLGappedXDropOneDirection(
 	// std::chrono::duration<double>  diff;
 	// auto start = std::chrono::high_resolution_clock::now();
 	while (minCol < maxCol)
-	{	
+	{
 
-		
 		++antiDiagNo;
 		swapAntiDiags(antiDiag1, antiDiag2, antiDiag3);
 		//antiDiag2 -> antiDiag1
@@ -284,7 +283,7 @@ extendSeedLGappedXDropOneDirection(
 		//antiDiag1 -> antiDiag3
 		offset1 = offset2;
 		offset2 = offset3;
-		offset3 = minCol-1;
+		offset3 = minCol - 1;
 		initAntiDiag3(antiDiag3, offset3, maxCol, antiDiagNo, best - scoreDropOff, gapCost, undefined);
 
 		int antiDiagBest = antiDiagNo * gapCost;
@@ -294,10 +293,12 @@ extendSeedLGappedXDropOneDirection(
 		computeAntidiag(antiDiag1,antiDiag2,antiDiag3,offset1,offset2,offset3,direction,antiDiagNo,gapCost,scoringScheme,querySeg,databaseSeg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
 		//auto end = std::chrono::high_resolution_clock::now();
 		//diff += end-start;
-		
+		for(int i = 0; i < antiDiag3.size(); i++)
+			std::cout << antiDiag3[i] << " ";
+		std::cout << std::endl;
 		antiDiagBest = *max_element(antiDiag3.begin(), antiDiag3.end());
 		best = (best > antiDiagBest) ? best : antiDiagBest;
-		std::cout << "LONGEST: antiDiagBest\t" << antiDiagBest << "\tbest\t" << best << std::endl;
+		//std::cout << "LONGEST: antiDiagBest\t" << antiDiagBest << "\tbest\t" << best << std::endl;
 
 
 		// Calculate new minCol and minCol
