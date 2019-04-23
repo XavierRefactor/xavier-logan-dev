@@ -514,137 +514,105 @@ inline int extendSeedL(SeedL &seed,
 	setScoreMismatch(penalties, max(scoreMismatch(penalties), minErrScore));
 
 	
-	if (direction == EXTEND_LEFTL || direction == EXTEND_BOTHL){
+	//if (direction == EXTEND_LEFTL || direction == EXTEND_BOTHL){
 
 		
-		std::string queryPrefix = query.substr(0, getBeginPositionV(seed));	// from read start til start seed (seed not included)
-		std::string targetPrefix = target.substr(0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
-		
-		//allocate memory on host and copy string
-		char *q_l = (char *)malloc(sizeof(char)*queryPrefix.length());
-		char *db_l = (char *)malloc(sizeof(char)*targetPrefix.length());
-		queryPrefix.copy(q_l, queryPrefix.length());
-		targetPrefix.copy(db_l, targetPrefix.length());
-				
-		//declare vars for the gpu
-		char *q_l_d, *db_l_d;
-		// int *a1_l, *a2_l, *a3_l; //AAAA think if a fourth is necessary for the swap
-		int *scoreLeft_d;
-		SeedL *seed_d;
-		std::chrono::duration<double>  transfer1, transfer2, compute, tfree;
-		auto start_t1 = std::chrono::high_resolution_clock::now();
+	std::string queryPrefix = query.substr(0, getBeginPositionV(seed));					// from read start til start seed (seed not included)
+	std::string targetPrefix = target.substr(0, getBeginPositionH(seed));				// from read start til start seed (seed not included)
+	std::string querySuffix = query.substr(getEndPositionV(seed), query.length());		// from end seed until the end (seed not included)
+	std::string targetSuffix = target.substr(getEndPositionH(seed), target.length()); 	// from end seed until the end (seed not included)
+	
+	//allocate memory on host and copy string
+	char *q_l = (char *)malloc(sizeof(char)*queryPrefix.length());
+	char *db_l = (char *)malloc(sizeof(char)*targetPrefix.length());
+	queryPrefix.copy(q_l, queryPrefix.length());
+	targetPrefix.copy(db_l, targetPrefix.length());
+	char *q_r = (char *)malloc(sizeof(char)*querySuffix.length());
+	char *db_r = (char *)malloc(sizeof(char)*targetSuffix.length());
+	querySuffix.copy(q_r, querySuffix.length());
+	targetSuffix.copy(db_r, targetSuffix.length());
+			
+	//declare vars for the gpu
+	char *q_l_d, *db_l_d;
+	char *q_r_d, *db_r_d;
+	int *scoreLeft_d;
+	int *scoreRight_d;
+	SeedL *seed_d_l;
+	SeedL *seed_d_r;
+	
+	std::chrono::duration<double>  transfer1, transfer2, compute, tfree;
+	auto start_t1 = std::chrono::high_resolution_clock::now();
 
-		//allocate memory for the antidiagonals
-		// cudaErrchk(cudaMalloc(&a1_l, min(queryPrefix.length(),targetPrefix.length())*sizeof(int)));
-		// cudaErrchk(cudaMalloc(&a2_l, min(queryPrefix.length(),targetPrefix.length())*sizeof(int)));
-		// cudaErrchk(cudaMalloc(&a3_l, min(queryPrefix.length(),targetPrefix.length())*sizeof(int)));
+	
 
-		//allocate memory for the strings and copy them
-		cudaErrchk(cudaMalloc(&q_l_d, queryPrefix.length()*sizeof(char)));
-		cudaErrchk(cudaMalloc(&db_l_d, targetPrefix.length()*sizeof(char)));
+	//allocate memory for values on GPU
 
-		cudaErrchk(cudaMemcpy(q_l_d, q_l, queryPrefix.length()*sizeof(char),cudaMemcpyHostToDevice));
-		cudaErrchk(cudaMemcpy(db_l_d, db_l, targetPrefix.length()*sizeof(char),cudaMemcpyHostToDevice));
+	//allocate memory for the sequences
+	cudaErrchk(cudaMalloc(&q_l_d, queryPrefix.length()*sizeof(char)));
+	cudaErrchk(cudaMalloc(&db_l_d, targetPrefix.length()*sizeof(char)));
+	cudaErrchk(cudaMalloc(&q_r_d, querySuffix.length()*sizeof(char)));
+	cudaErrchk(cudaMalloc(&db_r_d, targetSuffix.length()*sizeof(char)));
+	//allocate memory for seed and score
+	cudaErrchk(cudaMalloc(&seed_d_l, sizeof(SeedL)));
+	cudaErrchk(cudaMalloc(&scoreLeft_d, sizeof(int)));
+	cudaErrchk(cudaMalloc(&seed_d_r, sizeof(SeedL)));
+	cudaErrchk(cudaMalloc(&scoreRight_d, sizeof(int)));
 
-		//allocate memory for seed and score
-		cudaErrchk(cudaMalloc(&seed_d, sizeof(SeedL)));
-		cudaErrchk(cudaMalloc(&scoreLeft_d, sizeof(int)));
+	//copy sequences and seed on GPU
+	cudaErrchk(cudaMemcpy(q_l_d, q_l, queryPrefix.length()*sizeof(char),cudaMemcpyHostToDevice));
+	cudaErrchk(cudaMemcpy(db_l_d, db_l, targetPrefix.length()*sizeof(char),cudaMemcpyHostToDevice));
+	cudaErrchk(cudaMemcpy(q_r_d, q_r, querySuffix.length()*sizeof(char),cudaMemcpyHostToDevice));
+	cudaErrchk(cudaMemcpy(db_r_d, db_r, targetSuffix.length()*sizeof(char),cudaMemcpyHostToDevice));
 
-		cudaErrchk(cudaMemcpy(seed_d, seed_ptr, sizeof(SeedL), cudaMemcpyHostToDevice));//check
-		//call GPU to extend the seed
-		auto end_t1 = std::chrono::high_resolution_clock::now();
-		auto start_c = std::chrono::high_resolution_clock::now();
-		extendSeedLGappedXDropOneDirection <<<1, N_THREADS>>> (seed_d, q_l_d, db_l_d, EXTEND_LEFTL, penalties, XDrop, scoreLeft_d, queryPrefix.length(), targetPrefix.length());//check seed
-		cudaErrchk(cudaPeekAtLastError());
-		cudaErrchk(cudaDeviceSynchronize());
-		auto end_c = std::chrono::high_resolution_clock::now();
-        auto start_t2 = std::chrono::high_resolution_clock::now();
-		cudaErrchk(cudaMemcpy(seed_ptr, seed_d, sizeof(SeedL), cudaMemcpyDeviceToHost));//check
-		cudaErrchk(cudaMemcpy(scoreLeft, scoreLeft_d, sizeof(int), cudaMemcpyDeviceToHost));
-		auto end_t2 = std::chrono::high_resolution_clock::now();
-		transfer1=end_t1-start_t1;
-		transfer2=end_t2-start_t2;
-		compute=end_c-start_c;
-		auto start_f = std::chrono::high_resolution_clock::now();
-		free(q_l);
-		free(db_l);
-		// cudaErrchk(cudaFree(a1_l));
-		// cudaErrchk(cudaFree(a2_l));
-		// cudaErrchk(cudaFree(a3_l));
-		cudaErrchk(cudaFree(q_l_d));
-		cudaErrchk(cudaFree(db_l_d));
-		cudaErrchk(cudaFree(seed_d));
-		cudaErrchk(cudaFree(scoreLeft_d));
-		auto end_f = std::chrono::high_resolution_clock::now();
-		tfree = end_f - start_f;
-		std::cout << "\nTransfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  <<" Free time: "<< tfree.count() << std::endl;	
-	}
+	cudaErrchk(cudaMemcpy(seed_d_l, seed_ptr, sizeof(SeedL), cudaMemcpyHostToDevice));
+	cudaErrchk(cudaMemcpy(seed_d_r, seed_ptr, sizeof(SeedL), cudaMemcpyHostToDevice));
 
-	if (direction == EXTEND_RIGHTL || direction == EXTEND_BOTHL){
+	//call GPU to extend the seed
+	auto end_t1 = std::chrono::high_resolution_clock::now();
+	auto start_c = std::chrono::high_resolution_clock::now();
+	
+	extendSeedLGappedXDropOneDirection <<<1, N_THREADS>>> (seed_d_l, q_l_d, db_l_d, EXTEND_LEFTL, penalties, XDrop, scoreLeft_d, queryPrefix.length(), targetPrefix.length());//check seed
+	extendSeedLGappedXDropOneDirection <<<1, N_THREADS>>> (seed_d_r, q_r_d, db_r_d, EXTEND_RIGHTL, penalties, XDrop, scoreRight_d, querySuffix.length(),targetSuffix.length());//check seed
+	
+	cudaErrchk(cudaPeekAtLastError());
+	cudaErrchk(cudaDeviceSynchronize());
+	
+	auto end_c = std::chrono::high_resolution_clock::now();
+    auto start_t2 = std::chrono::high_resolution_clock::now();
 
-		std::string querySuffix = query.substr(getEndPositionV(seed), query.length());		// from end seed until the end (seed not included)
-		std::string targetSuffix = target.substr(getEndPositionH(seed), target.length()); 	// from end seed until the end (seed not included)
-		
-		//allocate memory on host
-		//allocate memory on host and copy string
-		char *q_r = (char *)malloc(sizeof(char)*querySuffix.length());
-		char *db_r = (char *)malloc(sizeof(char)*targetSuffix.length());
-		querySuffix.copy(q_r, querySuffix.length());
-		targetSuffix.copy(db_r, targetSuffix.length());
-		//declare vars for the gpu
+	cudaErrchk(cudaMemcpy(seed_ptr, seed_d_l, sizeof(SeedL), cudaMemcpyDeviceToHost));//check
+	cudaErrchk(cudaMemcpy(scoreLeft, scoreLeft_d, sizeof(int), cudaMemcpyDeviceToHost));
+	cudaErrchk(cudaMemcpy(seed_ptr, seed_d_r, sizeof(SeedL), cudaMemcpyDeviceToHost));//check
+	cudaErrchk(cudaMemcpy(scoreRight, scoreRight_d, sizeof(int), cudaMemcpyDeviceToHost));//check
+	
+	auto end_t2 = std::chrono::high_resolution_clock::now();
+	
+	transfer1=end_t1-start_t1;
+	transfer2=end_t2-start_t2;
+	compute=end_c-start_c;
+	
+	auto start_f = std::chrono::high_resolution_clock::now();
+	
+	free(q_l);
+	free(db_l);
+	free(q_r);
+	free(db_r);
 
-		char *q_r_d, *db_r_d;
-		// int *a1_r, *a2_r, *a3_r; 
-		int *scoreRight_d;
-		SeedL *seed_d;
-		std::chrono::duration<double>  transfer1, transfer2, compute, tfree;
-                auto start_t1 = std::chrono::high_resolution_clock::now();
-		//allocate memory for the antidiagonals
-		// cudaErrchk(cudaMalloc(&a1_r, min(querySuffix.length(),targetSuffix.length())*sizeof(int)));
-		// cudaErrchk(cudaMalloc(&a2_r, min(querySuffix.length(),targetSuffix.length())*sizeof(int)));
-		// cudaErrchk(cudaMalloc(&a3_r, min(querySuffix.length(),targetSuffix.length())*sizeof(int)));
+	cudaErrchk(cudaFree(q_l_d));
+	cudaErrchk(cudaFree(db_l_d));
+	cudaErrchk(cudaFree(seed_d_l));
+	cudaErrchk(cudaFree(scoreLeft_d));
+	cudaErrchk(cudaFree(q_r_d));
+	cudaErrchk(cudaFree(db_r_d));
+	cudaErrchk(cudaFree(seed_d_r));
+	cudaErrchk(cudaFree(scoreRight_d));
 
-		//allocate memory for the strings and copy them
-		cudaErrchk(cudaMalloc(&q_r_d, querySuffix.length()*sizeof(char)));
-		cudaErrchk(cudaMalloc(&db_r_d, targetSuffix.length()*sizeof(char)));
+	auto end_f = std::chrono::high_resolution_clock::now();
+	tfree = end_f - start_f;
+	std::cout << "\nTransfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  <<" Free time: "<< tfree.count() << std::endl;	
+	
 
-		cudaErrchk(cudaMemcpy(q_r_d, q_r, querySuffix.length()*sizeof(char),cudaMemcpyHostToDevice));
-		cudaErrchk(cudaMemcpy(db_r_d, db_r, targetSuffix.length()*sizeof(char),cudaMemcpyHostToDevice));
-
-		//allocate memory for seed and score
-		cudaErrchk(cudaMalloc(&seed_d, sizeof(SeedL)));
-		cudaErrchk(cudaMalloc(&scoreRight_d, sizeof(int)));
-
-		cudaErrchk(cudaMemcpy(seed_d, seed_ptr, sizeof(SeedL), cudaMemcpyHostToDevice));//check
-		//call GPU to extend the seed
-		auto end_t1 = std::chrono::high_resolution_clock::now();
-        auto start_c = std::chrono::high_resolution_clock::now();
-		extendSeedLGappedXDropOneDirection <<<1, N_THREADS>>> (seed_d, q_r_d, db_r_d, EXTEND_RIGHTL, penalties, XDrop, scoreRight_d, querySuffix.length(),targetSuffix.length());//check seed
-		cudaErrchk(cudaPeekAtLastError());
-		cudaErrchk(cudaDeviceSynchronize());
-		auto end_c = std::chrono::high_resolution_clock::now();
-                auto start_t2 = std::chrono::high_resolution_clock::now();
-		cudaErrchk(cudaMemcpy(seed_ptr, seed_d, sizeof(SeedL), cudaMemcpyDeviceToHost));//check
-		cudaErrchk(cudaMemcpy(scoreRight, scoreRight_d, sizeof(int), cudaMemcpyDeviceToHost));//check
-		auto end_t2 = std::chrono::high_resolution_clock::now();
-                transfer1=end_t1-start_t1;
-                transfer2=end_t2-start_t2;
-                compute=end_c-start_c;
-		free(q_r);
-		free(db_r);
-		auto start_f = std::chrono::high_resolution_clock::now();
-		// cudaErrchk(cudaFree(a1_r));
-		// cudaErrchk(cudaFree(a2_r));
-		// cudaErrchk(cudaFree(a3_r));
-		cudaErrchk(cudaFree(q_r_d));
-		cudaErrchk(cudaFree(db_r_d));
-		cudaErrchk(cudaFree(seed_d));
-		cudaErrchk(cudaFree(scoreRight_d));
-		auto end_f = std::chrono::high_resolution_clock::now();
-		tfree = end_f - start_f;
-		std::cout << "\nTransfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  <<" Free time: "<< tfree.count() << std::endl;
-
-	}
+	
 
 
 	int *res=(int *)malloc(sizeof(int));
