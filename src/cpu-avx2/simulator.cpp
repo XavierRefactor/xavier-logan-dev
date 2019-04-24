@@ -13,13 +13,13 @@
 #include<inttypes.h>
 #include<assert.h>
 #include<iterator>
-#include <immintrin.h>
-#include <seqan/sequence.h>
-#include <seqan/align.h>
-#include <seqan/seeds.h>
-#include <seqan/score.h>
-#include <seqan/modifier.h>
-#include"logan-v2.cpp"
+#include<x86intrin.h>
+#include<seqan/sequence.h>
+#include<seqan/align.h>
+#include<seqan/seeds.h>
+#include<seqan/score.h>
+#include<seqan/modifier.h>
+#include"logan.cpp"
 
 //======================================================================================
 // READ SIMULATOR

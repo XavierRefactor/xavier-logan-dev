@@ -11,29 +11,45 @@
 #include<inttypes.h>
 #include<assert.h>
 #include<iterator>
+#include<x86intrin.h>
 #include"logan.h"
 #include"score.h"
-#include <immintrin.h>
-// TODO: add global include!
-
-//#define DEBUG
 
 //======================================================================================
-// GLOBAL DEFINITION
+// GLOBAL FUNCTION DECLARATION
 //======================================================================================
 
+#ifdef __AVX2__ 	// Compile flag: -mavx2
 #define VECTORWIDTH  (16)
 #define LOGICALWIDTH (VECTORWIDTH - 1)
+#define add_func  _mm256_adds_epi16 // saturated arithmetic
+#define max_func  _mm256_max_epi16  // max
+#define slli_func 	// AVX2 does not have proper slli (sad) TODO: code here our function
+#define srli_func 	// AVX2 does not have proper srli (sad) TODO: code here our function
+#elif __SSE4_2__ 	// Compile flag: -msse4.2
+#define VECTORWIDTH  (8)
+#define LOGICALWIDTH (VECTORWIDTH - 1)
+#define add_func  _mm_adds_epi16 // saturated arithmetic
+#define max_func  _mm_max_epi16  // max
+#define slli_func _mm_slli_epi16 // left shift
+#define srli_func _mm_srli_epi16 // right shift
+#elif __AVX512F__ 	// Compile flag: -march=skylake-avx512
+#define VECTORWIDTH  (32)
+#define LOGICALWIDTH (VECTORWIDTH - 1)
+#define add_func  _mm512_adds_epi16 // saturated arithmetic
+#define max_func  _mm512_max_epi16  // max
+#define slli_func _mm512_slli_epi16 // left shift
+#define srli_func _mm512_srli_epi16 // right shift
+#endif
+
+//======================================================================================
+// GLOBAL VARIABLE DEFINITION
+//======================================================================================
+
+//#define DEBUG
+#define NINF  (std::numeric_limits<short>::min())
 #define RIGHT (0)
 #define DOWN  (1)
-#define NINF  (std::numeric_limits<short>::min())
-
-#if ___AVX2 // TODO: look for the right flag
-#if VECTORWIDTH == 16
-#define add_func _mm256_adds_epi16
-#define sub
-
-# if VEC
 
 //======================================================================================
 // UTILS
