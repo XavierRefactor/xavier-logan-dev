@@ -47,9 +47,9 @@
 
 #ifndef SEQAN_SEEDS_SEEDS_EXTENSION_H_
 #define SEQAN_SEEDS_SEEDS_EXTENSION_H_
-//#define BEST
-#define LONGEST
-#define KMER_LENGTH 17
+#define BEST
+//#define LONGEST
+#define KMER_LENGTH 0
 
 namespace seqan {
 
@@ -739,8 +739,6 @@ _extendSeedGappedXDropOneDirection(
         }
 #endif
         best = _max(best, antiDiagBest);
-
-        std::cout << "BEST: antiDiagBest\t" << antiDiagBest << "\tbest\t" << best << std::endl;
 
         // Calculate new minCol and minCol
         while (minCol - offset3 < length(antiDiag3) && antiDiag3[minCol - offset3] == undefined &&

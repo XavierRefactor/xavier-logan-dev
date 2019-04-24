@@ -1,5 +1,5 @@
 //==================================================================
-// Title:  C++ x-drop seed-and-extend alignment algorithm
+// Title:  LOGAN: X-Drop Adaptive Banded Alignment
 // Author: G. Guidi, E. Younis
 // Date:   22 April 2019
 //==================================================================
@@ -11,15 +11,49 @@
 #include<inttypes.h>
 #include<assert.h>
 #include<iterator>
+#include<x86intrin.h>
 #include"logan.h"
 #include"score.h"
-#include <immintrin.h>
 
+//======================================================================================
+// GLOBAL FUNCTION DECLARATION
+//======================================================================================
+
+#ifdef __AVX2__ 	// Compile flag: -mavx2
 #define VECTORWIDTH  (16)
 #define LOGICALWIDTH (VECTORWIDTH - 1)
+#define add_func  _mm256_adds_epi16 // saturated arithmetic
+#define max_func  _mm256_max_epi16  // max
+#define slli_func 	// AVX2 does not have proper slli (sad) TODO: code here our function
+#define srli_func 	// AVX2 does not have proper srli (sad) TODO: code here our function
+#elif __SSE4_2__ 	// Compile flag: -msse4.2
+#define VECTORWIDTH  (8)
+#define LOGICALWIDTH (VECTORWIDTH - 1)
+#define add_func  _mm_adds_epi16 // saturated arithmetic
+#define max_func  _mm_max_epi16  // max
+#define slli_func _mm_slli_epi16 // left shift
+#define srli_func _mm_srli_epi16 // right shift
+#elif __AVX512F__ 	// Compile flag: -march=skylake-avx512
+#define VECTORWIDTH  (32)
+#define LOGICALWIDTH (VECTORWIDTH - 1)
+#define add_func  _mm512_adds_epi16 // saturated arithmetic
+#define max_func  _mm512_max_epi16  // max
+#define slli_func _mm512_slli_epi16 // left shift
+#define srli_func _mm512_srli_epi16 // right shift
+#endif
+
+//======================================================================================
+// GLOBAL VARIABLE DEFINITION
+//======================================================================================
+
+//#define DEBUG
+#define NINF  (std::numeric_limits<short>::min())
 #define RIGHT (0)
 #define DOWN  (1)
-#define NINF  (std::numeric_limits<short>::min())
+
+//======================================================================================
+// UTILS
+//======================================================================================
 
 typedef __m256i vector_t;
 typedef int16_t element_t;
@@ -53,6 +87,7 @@ print_vector_d(vector_t a) {
 	printf("%d}\n", tmp.elem[VECTORWIDTH]);
 }
 
+// Optimize with intrinsics
 inline vector_union_t
 leftShift (const vector_union_t& a) {
 
@@ -85,11 +120,11 @@ rightAfterDown (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
 		vector_union_t& vqueryv, const short queryh[], const short queryv[])
 {
 	// (a) shift to the left on query horizontal
-	leftShift (vqueryh);
+	vqueryh = leftShift (vqueryh);
 	vqueryh.elem[LOGICALWIDTH-1] = queryh[hoffset++];
 	// (b) shift left on updated vector 1 (this places the right-aligned vector 2 as a left-aligned vector 1)
 	antiDiag1.simd = antiDiag2.simd;
-	leftShift (antiDiag1);
+	antiDiag1 = leftShift (antiDiag1);
 	antiDiag2.simd = antiDiag3.simd;
 }
 
@@ -99,12 +134,12 @@ downAfterRight (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
 		vector_union_t& vqueryv, const short queryh[], const short queryv[])
 {
 	//(a) shift to the right on query vertical
-	rightShift (vqueryv);
-	vqueryh.elem[0] = queryv[voffset++];
+	vqueryv = rightShift (vqueryv);
+	vqueryv.elem[0] = queryv[voffset++];
 	//(b) shift to the right on updated vector 2 (this places the left-aligned vector 3 as a right-aligned vector 2)
 	antiDiag1.simd = antiDiag2.simd;
 	antiDiag2.simd = antiDiag3.simd;
-	rightShift (antiDiag2);
+	antiDiag2 = rightShift (antiDiag2);
 }
 
 void
@@ -144,10 +179,19 @@ move (const short& prevDir, const short& nextDir, vector_union_t& antiDiag1, vec
 	{
 		downAfterDown (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
 	}
+	else
+	{
+		printf("ERROR\n");
+		exit(1);
+	}
 }
 
+//======================================================================================
+// X-DROP (not yet) ADAPTIVE (not yet) BANDED ALIGNMENT
+//======================================================================================
+
 //int
-//extendSeedLGappedXDropAVX2(
+//LoganAVX2(
 //		SeedL & seed,
 //		std::string const & querySeg,
 //		std::string const & databaseSeg,
@@ -155,40 +199,39 @@ move (const short& prevDir, const short& nextDir, vector_union_t& antiDiag1, vec
 //		ScoringSchemeL &scoringScheme,
 //		short const &scoreDropOff)
 //{
-int main(int argc, char const *argv[])
+
+// 1st prototype
+void
+LoganAVX2(
+		std::string const& targetSeg,
+		std::string const& querySeg,
+		ScoringSchemeL& scoringScheme)
 {
-	// TODO : check scoring scheme correctness/input parameters
+//int main(int argc, char const *argv[])
+//{
+	// TODO: check scoring scheme correctness/input parameters
+	// TODO: chop sequences in left and right extension
 
-	//unsigned short cols = querySeg.length() + 1;
-	//unsigned short rows = databaseSeg.length() + 1;
-
-	//if (rows <= 1 || cols <= 1)
-	//	return 0;
-
-	// convert from string to __m256i* array
-	// this is the entire sequences 	
-	//short* queryh = new short[cols]; 
-	//short* queryv = new short[rows];
-	//std::copy(querySeg.begin(), querySeg.end(), queryh); 	
-	//std::copy(databaseSeg.begin(), databaseSeg.end(), queryv); 
-
-	// test hardcoded
-	//short queryh[32] = {'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A'};
-	//short queryv[32] = {'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A', 'A'};
-	short queryh[32] = {'A', 'C', 'T', 'G', 'A', 'A', 'T', 'C', 'A', 'C', 'T', 'G', 'A', 'A', 'T', 'C', 'A', 'C', 'T', 'G', 'A', 'A', 'T', 'C', 'A', 'C', 'T', 'G', 'A', 'A', 'T', 'C'};
-	short queryv[32] = {'G', 'C', 'T', 'A', 'A', 'A', 'G', 'C', 'G', 'C', 'T', 'A', 'A', 'A', 'G', 'C', 'G', 'C', 'T', 'A', 'A', 'A', 'G', 'C', 'G', 'C', 'T', 'A', 'A', 'A', 'G', 'C'};
-	int hlength = 32;
-	int vlength = 32;
+	unsigned short hlength = targetSeg.length() + 1;
+	unsigned short vlength = querySeg.length()  + 1;
 
 	if (hlength <= 1 || vlength <= 1)
-		return 0;
+		return;
 
+	// Convert from string to int array
+	// This is the entire sequences 	
+	short* queryh = new short[hlength]; 
+	short* queryv = new short[vlength];
+	std::copy(targetSeg.begin(), targetSeg.end(), queryh); 	
+	std::copy(querySeg.begin(), querySeg.end(), queryv); 
+
+	//Redundant piece of code
 	//setScoreGap(scoringScheme, scoreGap(scoringScheme));
 	//setScoreMismatch(scoringScheme, scoreMismatch(scoringScheme));
 
-	short matchCost    =  1; //scoreMatch(scoringScheme);
-	short mismatchCost = -1; //scoreMismatch(scoringScheme);
-	short gapCost      = -1; //scoreGap(scoringScheme);
+	short matchCost    = scoreMatch(scoringScheme   );
+	short mismatchCost = scoreMismatch(scoringScheme);
+	short gapCost      = scoreGap(scoringScheme     );
 
 	vector_t vmatchCost    = _mm256_set1_epi16 (matchCost   );
 	vector_t vmismatchCost = _mm256_set1_epi16 (mismatchCost);
@@ -199,19 +242,19 @@ int main(int argc, char const *argv[])
 	//======================================================================================
 
 	// we need one more space for the off-grid values and one more space for antiDiag2
-	short phase1_data[LOGICALWIDTH + 3][LOGICALWIDTH + 3];
+	short phase1_data[LOGICALWIDTH + 2][LOGICALWIDTH + 2];
 
 	// phase1_data initialization
 	phase1_data[0][0] = 0;
-	for (int i = 1; i < LOGICALWIDTH + 3; i++)
+	for (int i = 1; i < LOGICALWIDTH + 2; i++)
 	{
 		phase1_data[0][i] = -i;
 		phase1_data[i][0] = -i;
 	}
 
-	// dynamic programming loop to fill phase1_data
-	for(int i = 1; i < LOGICALWIDTH + 3; i++)
-		for(int j = 1; j < LOGICALWIDTH + 3; j++)
+	// dynamic programming loop to fill phase1_data[][]
+	for(int i = 1; i < LOGICALWIDTH + 2; i++)
+		for(int j = 1; j < LOGICALWIDTH + 2; j++)
 		{
 			short onef = phase1_data[i-1][j-1];
 			if(queryh[i-1] == queryv[j-1])
@@ -223,14 +266,15 @@ int main(int argc, char const *argv[])
 			phase1_data[i][j] = std::max(onef, twof);
 		}
 
-	//for(int i = 1; i < LOGICALWIDTH + 3; i++)
-	//{
-	//	for(int j = 1; j < LOGICALWIDTH + 3; j++)
-	//	{
-	//	std::cout << phase1_data[i][j] << '\t';
-	//	}
-	//std::cout << std::endl;
-	//}
+#ifdef DEBUG
+	// print phase1_data[][]
+	for(int i = 1; i < LOGICALWIDTH + 2; i++)
+	{
+		for(int j = 1; j < LOGICALWIDTH + 2; j++)
+			std::cout << phase1_data[i][j] << '\t';
+		std::cout << std::endl;
+	}
+#endif
 
 	vector_union_t antiDiag1; 	// 16 (vector width) 16-bit integers
 	vector_union_t antiDiag2; 	// 16 (vector width) 16-bit integers
@@ -249,8 +293,10 @@ int main(int argc, char const *argv[])
 	vqueryh.elem[LOGICALWIDTH] = NINF;
 	vqueryv.elem[LOGICALWIDTH] = NINF;
 
-	print_m256i_16c(vqueryh.simd);
-	print_m256i_16c(vqueryv.simd);
+//#ifdef DEBUG
+//	print_vector_c(vqueryh.simd);
+//	print_vector_c(vqueryv.simd);
+//#endif
 
 	// this should point to the next value to be loaded into vqueryh and vqueryv
 	int hoffset = LOGICALWIDTH;
@@ -271,67 +317,84 @@ int main(int argc, char const *argv[])
 	// initialize antiDia3 to -inf
 	antiDiag3.simd = _mm256_set1_epi16(NINF);
 
-	//print_m256i_16d(antiDiag1.simd);
-	//print_m256i_16d(antiDiag2.simd);
-
 	//======================================================================================
 	// PHASE II (core vectorized computation)
 	//======================================================================================
 
-	// compute
 	short prevDir = RIGHT;
-	//short count = 0;
+	short antiDiagNo = 1;
+	short antiDiagBest = antiDiagNo * gapCost;
+	short best = 0;
 
-	// phase III will begin when both hoffset < hlength and voffset < vlength are verified 
-	// in the adaptive version so this loop will be different
+	// TODO: Phase III in adaptive version begins when both hoffset < hlength and voffset < vlength are verified 
+	// This loop should looks different in the adaptive version
 	while(hoffset < hlength && voffset < vlength)
 	{
-		// ONEF
-		//count++;
-		// -1 for a match and 0 for a mismatch
+
+#ifdef DEBUG
+	print_vector_c(vqueryh.simd);
+	print_vector_c(vqueryv.simd);
+#endif
+		// antiDiagBest initialization
+		antiDiagNo++;
+		antiDiagBest = antiDiagNo * gapCost;
+
+		// antiDiag1F (final)
+		// POST-IT: -1 for a match and 0 for a mismatch
 		vector_t m = _mm256_cmpeq_epi16 (vqueryh.simd, vqueryv.simd);
-		//print_m256i_16d(m);
 		m = _mm256_blendv_epi8 (vmismatchCost, vmatchCost, m);
-		//print_m256i_16d(m);
-		vector_t vonef = _mm256_adds_epi16 (m, antiDiag1.simd);
-		//print_m256i_16d(antiDiag1.simd);
-		//printf("vonef ");
-		//print_m256i_16d(vonef);
+		vector_t antiDiag1F = _mm256_adds_epi16 (m, antiDiag1.simd);
 
-		// TWOF
-		//print_m256i_16d(antiDiag2.simd);
-		vector_union_t vtwos = leftShift (antiDiag2);
-		//printf("vtwos ");
-		//print_m256i_16d(vtwos.simd);
-		vector_t vtwom = _mm256_max_epi16 (vtwos.simd, antiDiag2.simd);
-		//printf("vtwom ");
-		//print_m256i_16d(vtwom);
-		vector_t vtwof = _mm256_adds_epi16 (vtwom, vgapCost);
-		//printf("vtwof ");
-		//print_m256i_16d(vtwof);
+	#ifdef DEBUG
+		printf("antiDiag1: ");
+		print_vector_d(antiDiag1.simd);
+		printf("antiDiag1F: ");
+		print_vector_d(antiDiag1F);
+	#endif
 
-		// THREE
-		antiDiag3.simd = _mm256_max_epi16 (vonef, vtwof);
-		//printf("1 ");
-		//print_m256i_16d(antiDiag1.simd);
-		//printf("2 ");
-		//print_m256i_16d(antiDiag2.simd);
-		//printf("3 ");
-		//// -15 should be off (it will be shifted off next iteration)
-		//print_m256i_16d(antiDiag3.simd);
-		//printf("\n");
+		// antiDiag2S (shift)
+		vector_union_t antiDiag2S = leftShift (antiDiag2);
+	#ifdef DEBUG
+		printf("antiDiag2S: ");
+		print_vector_d(antiDiag2S.simd);
+	#endif
+		// antiDiag2M (pairwise max)
+		vector_t antiDiag2M = _mm256_max_epi16 (antiDiag2S.simd, antiDiag2.simd);
+	#ifdef DEBUG
+		printf("antiDiag2M: ");
+		print_vector_d(antiDiag2M);
+	#endif
+		// antiDiag2F (final)
+		vector_t antiDiag2F = _mm256_adds_epi16 (antiDiag2M, vgapCost);
+	#ifdef DEBUG
+		printf("antiDiag2F: ");
+		print_vector_d(antiDiag2F);
+	#endif
 
-		// x-drop termination
+		// Compute antiDiag3
+		antiDiag3.simd = _mm256_max_epi16 (antiDiag1F, antiDiag2F);
+	#ifdef DEBUG
+		printf("antiDiag3: ");
+		print_vector_d(antiDiag3.simd);
+		printf("\n");
+	#endif
+
+		// TODO: x-drop termination
+
+		// TODO: update best
+		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
+		best = (best > antiDiagBest) ? best : antiDiagBest;
+
+		// antiDiag swap, offset updates, and new base load
 
 		short nextDir = prevDir ^ 1;
 		move (prevDir, nextDir, antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
 
+		// direction update
 		prevDir = nextDir;
 	}
 
-	//printf("count %d\n", count);
-
-	// update best
+	// TODO: update best
 	//antiDiagBest = *std::max_element(antiDiag3.elem + offset3, antiDiag3.elem + antiDiag3size);
 	//best = (best > antiDiagBest) ? best : antiDiagBest;
 
@@ -341,59 +404,64 @@ int main(int argc, char const *argv[])
 
 	for (int i = 0; i < (LOGICALWIDTH - 1); i++)
 	{
-		// ONEF
-		//count++;
-		// -1 for a match and 0 for a mismatch
+		// antiDiag1F (final)
+		// POST-IT: -1 for a match and 0 for a mismatch
 		vector_t m = _mm256_cmpeq_epi16 (vqueryh.simd, vqueryv.simd);
-		//print_m256i_16d(m);
 		m = _mm256_blendv_epi8 (vmismatchCost, vmatchCost, m);
-		//print_m256i_16d(m);
-		vector_t vonef = _mm256_adds_epi16 (m, antiDiag1.simd);
-		//print_m256i_16d(antiDiag1.simd);
-		//printf("vonef ");
-		//print_m256i_16d(vonef);
+		vector_t antiDiag1F = _mm256_adds_epi16 (m, antiDiag1.simd);
 
-		// TWOF
-		//print_m256i_16d(antiDiag2.simd);
-		vector_union_t vtwos = leftShift (antiDiag2);
-		//printf("vtwos ");
-		//print_m256i_16d(vtwos.simd);
-		vector_t vtwom = _mm256_max_epi16 (vtwos.simd, antiDiag2.simd);
-		//printf("vtwom ");
-		//print_m256i_16d(vtwom);
-		vector_t vtwof = _mm256_adds_epi16 (vtwom, vgapCost);
-		//printf("vtwof ");
-		//print_m256i_16d(vtwof);
+	#ifdef DEBUG
+		printf("antiDiag1: ");
+		print_vector_d(antiDiag1.simd);
+		printf("antiDiag1F: ");
+		print_vector_d(antiDiag1F);
+	#endif
 
-		// THREE
-		antiDiag3.simd = _mm256_max_epi16 (vonef, vtwof);
-		//printf("1 ");
-		//print_m256i_16d(antiDiag1.simd);
-		//printf("2 ");
-		//print_m256i_16d(antiDiag2.simd);
-		//printf("3 ");
-		//// -15 should be off (it will be shifted off next iteration)
-		//print_m256i_16d(antiDiag3.simd);
-		//printf("\n");
+		// antiDiag2S (shift)
+		vector_union_t antiDiag2S = leftShift (antiDiag2);
+	#ifdef DEBUG
+		printf("antiDiag2S: ");
+		print_vector_d(antiDiag2S.simd);
+	#endif
+		// antiDiag2M (pairwise max)
+		vector_t antiDiag2M = _mm256_max_epi16 (antiDiag2S.simd, antiDiag2.simd);
+	#ifdef DEBUG
+		printf("antiDiag2M: ");
+		print_vector_d(antiDiag2M);
+	#endif
+		// antiDiag2F (final)
+		vector_t antiDiag2F = _mm256_adds_epi16 (antiDiag2M, vgapCost);
+	#ifdef DEBUG
+		printf("antiDiag2F: ");
+		print_vector_d(antiDiag2F);
+	#endif
 
-		// x-drop termination
+		// TODO: update best
+		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
+		best = (best > antiDiagBest) ? best : antiDiagBest;
 
+		// TODO: x-drop termination
+
+		// antiDiag swap, offset updates, and new base load
 		short nextDir = prevDir ^ 1;
 		move (prevDir, nextDir, antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
 
+		// direction update
 		prevDir = nextDir;
 	}
 
-		printf("1 ");
-		print_m256i_16d(antiDiag1.simd);
-		printf("2 ");
-		print_m256i_16d(antiDiag2.simd);
-		printf("3 ");
-		// -15 should be off (it will be shifted off next iteration)
-		print_m256i_16d(antiDiag3.simd);
-		printf("\n");
-
-	// find positions of longest extension
-	// update seed
-	return 0;
+	//#ifdef DEBUG
+	//	printf("antiDiag1: ");
+	//	print_vector_d(antiDiag1.simd);
+	//	printf("antiDiag2: ");
+	//	print_vector_d(antiDiag2.simd);
+	//	// -15 should be off (it will be shifted off next iteration)
+	//	printf("antiDiag3: ");
+	//	print_vector_d(antiDiag3.simd);
+	//	printf("\n");
+	//#endif
+	printf("Logan's best %d", best);
+	// TODO: find positions of longest extension
+	// TODO: update seed
+	// return 0;
 }
