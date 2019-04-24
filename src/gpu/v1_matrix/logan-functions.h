@@ -139,7 +139,8 @@ __device__ inline void computeAntidiagRight(int *antiDiag1,
 		
 		// Calculate matrix entry (-> antiDiag3[col])
 		int tmp = max(antiDiag2[i2-1], antiDiag2[i2]) +gapCost;
-		tmp = max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
+		int score = (querySeg[queryPos] == databaseSeg[dbPos]) ? scoringScheme.match_score  : scoringScheme.mismatch_score;
+		tmp = max(tmp, antiDiag1[i1 - 1] + score);
 		
 		if (tmp < best - scoreDropOff)
 		{
@@ -202,8 +203,9 @@ __device__ inline void computeAntidiagLeft(int *antiDiag1,
 		
 		
 		// Calculate matrix entry (-> antiDiag3[col])
-		int tmp = max(antiDiag2[i2-1], antiDiag2[i2]) +gapCost;
-		tmp = max(tmp, antiDiag1[i1 - 1] + score(scoringScheme, querySeg[queryPos], databaseSeg[dbPos]));
+		int tmp = max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
+		int score = (querySeg[queryPos] == databaseSeg[dbPos]) ? scoringScheme.match_score  : scoringScheme.mismatch_score;
+		tmp = max(tmp, antiDiag1[i1 - 1] + score);
 		
 		if (tmp < best - scoreDropOff)
 		{
@@ -409,6 +411,8 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		__syncthreads();
 		//maxCol = maxCol - newMax + 1;
 		//original min and max col update
+
+		//if(threadIdx.x == 0){
 		while (minCol - offset3 < a3size && antiDiag3[minCol - offset3] == undefined &&
 			   minCol - offset2 - 1 < a2size && antiDiag2[minCol - offset2 - 1] == undefined)
 		{
@@ -430,6 +434,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		minCol = max(minCol,(antiDiagNo + 2 - rows));
 		// end of querySeg reached?
 		maxCol = min(maxCol, cols);
+		//}
 	
 	}
 
@@ -506,6 +511,7 @@ inline int extendSeedL(SeedL &seed,
 	//assert(scoreMatch(penalties) > 0); 
 	//assert(scoreGapOpen(penalties) == scoreGapExtend(penalties));
 	SeedL *seed_ptr = &seed;
+	//ScoringSchemeL *info_ptr = &penalties;
 	int *scoreLeft=(int *)malloc(sizeof(int));
 	int *scoreRight=(int *)malloc(sizeof(int));
 	int len = max(query.length(),target.length())*2;
@@ -539,7 +545,7 @@ inline int extendSeedL(SeedL &seed,
 	int *scoreRight_d;
 	SeedL *seed_d_l;
 	SeedL *seed_d_r;
-	
+	//ScoringSchemeL *info_left_d, *info_right_d;
 	std::chrono::duration<double>  transfer1, transfer2, compute, tfree;
 	auto start_t1 = std::chrono::high_resolution_clock::now();
 
@@ -558,7 +564,11 @@ inline int extendSeedL(SeedL &seed,
 	cudaErrchk(cudaMalloc(&seed_d_r, sizeof(SeedL)));
 	cudaErrchk(cudaMalloc(&scoreRight_d, sizeof(int)));
 
-	//copy sequences and seed on GPU
+	//allocate memory for scoring info
+	//cudaErrchk(cudaMalloc(&info_left_d, sizeof(ScoringSchemeL)));
+        //cudaErrchk(cudaMalloc(&info_right_d, sizeof(ScoringSchemeL)));	
+
+	//copy sequences, seeds and scoring info on GPU
 	cudaErrchk(cudaMemcpy(q_l_d, q_l, queryPrefix.length()*sizeof(char),cudaMemcpyHostToDevice));
 	cudaErrchk(cudaMemcpy(db_l_d, db_l, targetPrefix.length()*sizeof(char),cudaMemcpyHostToDevice));
 	cudaErrchk(cudaMemcpy(q_r_d, q_r, querySuffix.length()*sizeof(char),cudaMemcpyHostToDevice));
@@ -567,6 +577,8 @@ inline int extendSeedL(SeedL &seed,
 	cudaErrchk(cudaMemcpy(seed_d_l, seed_ptr, sizeof(SeedL), cudaMemcpyHostToDevice));
 	cudaErrchk(cudaMemcpy(seed_d_r, seed_ptr, sizeof(SeedL), cudaMemcpyHostToDevice));
 
+	//cudaErrchk(cudaMemcpy(info_left_d, info_ptr, sizeof(ScoringSchemeL), cudaMemcpyHostToDevice));
+        //cudaErrchk(cudaMemcpy(info_right_d, info_ptr, sizeof(ScoringSchemeL), cudaMemcpyHostToDevice));
 	//call GPU to extend the seed
 	auto end_t1 = std::chrono::high_resolution_clock::now();
 	auto start_c = std::chrono::high_resolution_clock::now();
@@ -606,10 +618,11 @@ inline int extendSeedL(SeedL &seed,
 	cudaErrchk(cudaFree(db_r_d));
 	cudaErrchk(cudaFree(seed_d_r));
 	cudaErrchk(cudaFree(scoreRight_d));
-
+	//cudaErrchk(cudaFree(info_left_d));
+	//cudaErrchk(cudaFree(info_right_d));
 	auto end_f = std::chrono::high_resolution_clock::now();
 	tfree = end_f - start_f;
-	std::cout << "\nTransfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  <<" Free time: "<< tfree.count() << std::endl;	
+	//std::cout << "\nTransfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  <<" Free time: "<< tfree.count() << std::endl;	
 	
 
 	
