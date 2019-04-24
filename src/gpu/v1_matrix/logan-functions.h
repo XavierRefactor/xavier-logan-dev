@@ -14,14 +14,19 @@
 
 #include<vector>
 #include<iostream>
+#include <cub/block/block_load.cuh>
+#include <cub/block/block_store.cuh>
+#include <cub/block/block_reduce.cuh>
+#include <cub/cub.cuh>
 // #include<boost/array.hpp>
 #include"logan.h"
 #include"score.h"
-//using namespace seqan;
-// #include <bits/stdc++.h> 
+
+using namespace cub;
 
 #define N_THREADS 1024
 #define MIN -2147483648
+#define BYTES_INT 4
 
 #define cudaErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort = true){
@@ -59,6 +64,16 @@ __device__ inline int array_max(int *array,
 	
 }
 
+template <int BLOCK_THREADS, int ITEMS_PER_THREAD, BlockReduceAlgorithm ALGORITHM>
+__device__ inline int cub_max(int *array){
+
+	typedef BlockReduce<int, BLOCK_THREADS, ALGORITHM> BlockReduceT;
+	__shared__ typename BlockReduceT::TempStorage temp_storage;
+	int data[ITEMS_PER_THREAD];
+	LoadDirectStriped<BLOCK_THREADS>(threadIdx.x, array, data);
+	return BlockReduceT(temp_storage).Reduce(data, cub::Max());
+
+}
 
 //template<typename TSeedL, typename int, typename int>
 __device__ inline void updateExtendedSeedL(SeedL& seed,
@@ -404,9 +419,9 @@ __global__ void extendSeedLGappedXDropOneDirection(
 	 		computeAntidiagLeft(antiDiag1,antiDiag2,antiDiag3,offset1,offset2,offset3,antiDiagNo,gapCost,scoringScheme,querySeg,databaseSeg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
 	 	}
 
-		int antiDiagBest = array_max(antiDiag3, a3size, minCol, offset3);//maybe can be implemented as a shared value?
-	
-		best = (best > antiDiagBest) ? best : antiDiagBest;
+		//int antiDiagBest = array_max(antiDiag3, a3size, minCol, offset3);//maybe can be implemented as a shared value?
+		int antiDiagBest = cub_max<1024, 1, BLOCK_REDUCE_RAKING>(antiDiag3);
+		//int antiDiagBest = cub_max<1024, 1, BLOCK_REDUCE_WARP_REDUCTIONS>(antiDiag3);
 		
 		__syncthreads();
 		//maxCol = maxCol - newMax + 1;
