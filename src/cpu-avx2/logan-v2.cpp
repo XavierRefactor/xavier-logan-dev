@@ -411,8 +411,9 @@ LoganAVX2(
 		print_vector_d(antiDiag2F);
 	#endif
 
-		// Compute antiDiag3
-		antiDiag3.simd = _mm256_max_epi16 (antiDiag1F, antiDiag2F);
+		// TODO: update best
+		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
+		best = (best > antiDiagBest) ? best : antiDiagBest;
 
 		// TODO: x-drop termination
 
@@ -434,7 +435,7 @@ LoganAVX2(
 	//	print_vector_d(antiDiag3.simd);
 	//	printf("\n");
 	//#endif
-		printf("best %d\n", best);
+	printf("Logan's best %d", best);
 	// TODO: find positions of longest extension
 	// TODO: update seed
 	// return 0;

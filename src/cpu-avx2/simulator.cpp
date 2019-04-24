@@ -25,25 +25,27 @@
 // READ SIMULATOR
 //======================================================================================
 
-#define LEN (200)		// read length (this is going to be a distribution of length in
+#define LEN1 (1000)		// read length (this is going to be a distribution of length in
 						// the adaptive version)
+#define LEN2 (1000)		// 2nd read length
 #define MAT	( 1)		// match score
 #define MIS	(-1)		// mismatch score
 #define GAP	(-1)		// gap score
-#define XDROP (50)	// so high so it won't be triggered in SeqAn
+#define XDROP (LEN1)	// so high so it won't be triggered in SeqAn
 
 void 
 readSimulator (std::string& readh, std::string& readv)
 {
 	char bases[4] = {'A', 'T', 'C', 'G'}; 
+	int test = rand();
 
-	for (int i = 0; i < LEN; i++)
-	{
-		// two identical sequences
-		int test = rand();
-		readh = readh + bases[rand() % 4]; 
+	// reads are currently identical
+	// read horizontal
+	for (int i = 0; i < LEN1; i++)
+		readh = readh + bases[test % 4];
+	// read vertical
+	for (int i = 0; i < LEN2; i++)
 		readv = readv + bases[test % 4];
-	}
 }
 
 //======================================================================================
@@ -56,25 +58,31 @@ int main(int argc, char const *argv[])
 
 	// Simulate pair of read
 	readSimulator(targetSeg, querySeg);
-	std::cout << std::endl;
-	std::cout << targetSeg << std::endl;
-	std::cout << std::endl;
-	std::cout << querySeg  << std::endl;
-	std::cout << std::endl;
 
 	// Logan
 	ScoringSchemeL scoringSchemeLogan(MAT, MIS, GAP);
 	// 1st prototype without seed and x-drop termination (not adaptive band so sequences 
 	// have same length)
+	std::chrono::duration<double> diff1;
+	auto start1 = std::chrono::high_resolution_clock::now();
 	LoganAVX2(targetSeg, querySeg, scoringSchemeLogan);
+	auto end1 = std::chrono::high_resolution_clock::now();
+	diff1 = end1-start1;
+	// score off by factor of 5
+	std::cout << " in " << diff1.count() << " sec " << std::endl;
 
 	// SeqAn
 	seqan::Score<int, seqan::Simple> scoringSchemeSeqAn(MAT, MIS, GAP);
 	seqan::Seed<seqan::Simple> seed(0, 0, 0);
+	std::chrono::duration<double> diff2;
+	auto start2 = std::chrono::high_resolution_clock::now();
 	int score = seqan::extendSeed(seed, targetSeg, querySeg, seqan::EXTEND_RIGHT, 
 		scoringSchemeSeqAn, XDROP, seqan::GappedXDrop(), 0);
+	auto end2 = std::chrono::high_resolution_clock::now();
+	diff2 = end2-start2;
 
-	std::cout << "" << score << std::endl;
+	// SeqAn is doing more computation
+	std::cout << "SeqAn's best " << score << " in " << diff2.count() << " sec " << std::endl;
 
 	return 0;
 }
