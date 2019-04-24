@@ -14,6 +14,7 @@
 #include"logan.h"
 #include"score.h"
 #include <immintrin.h>
+// TODO: add global include!
 
 //#define DEBUG
 
@@ -26,6 +27,13 @@
 #define RIGHT (0)
 #define DOWN  (1)
 #define NINF  (std::numeric_limits<short>::min())
+
+#if ___AVX2 // TODO: look for the right flag
+#if VECTORWIDTH == 16
+#define add_func _mm256_adds_epi16
+#define sub
+
+# if VEC
 
 //======================================================================================
 // UTILS
@@ -63,6 +71,7 @@ print_vector_d(vector_t a) {
 	printf("%d}\n", tmp.elem[VECTORWIDTH]);
 }
 
+// Optimize with intrinsics
 inline vector_union_t
 leftShift (const vector_union_t& a) {
 
