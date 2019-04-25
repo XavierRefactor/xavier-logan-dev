@@ -25,9 +25,9 @@
 // READ SIMULATOR
 //======================================================================================
 
-#define LEN1 (1000)		// read length (this is going to be a distribution of length in
+#define LEN1 (10000)		// read length (this is going to be a distribution of length in
 						// the adaptive version)
-#define LEN2 (1000)		// 2nd read length
+#define LEN2 (10000)		// 2nd read length
 #define MAT	( 1)		// match score
 #define MIS	(-1)		// mismatch score
 #define GAP	(-1)		// gap score
@@ -37,15 +37,23 @@ void
 readSimulator (std::string& readh, std::string& readv)
 {
 	char bases[4] = {'A', 'T', 'C', 'G'}; 
-	int test = rand();
 
 	// reads are currently identical
 	// read horizontal
 	for (int i = 0; i < LEN1; i++)
-		readh = readh + bases[test % 4];
+	{
+		readh = readh + bases[rand() % 4];
+		readv = readv + bases[rand() % 4];
+	}
+	//for (int i = LEN1; i < LEN2; i++)
+	//{
+	//	int test = rand();
+	//	readv = readv + bases[test % 4];
+	//}
+
 	// read vertical
-	for (int i = 0; i < LEN2; i++)
-		readv = readv + bases[test % 4];
+	//for (int i = 0; i < LEN2; i++)
+	//	readv = readv + bases[test % 4];
 }
 
 //======================================================================================
@@ -58,6 +66,8 @@ int main(int argc, char const *argv[])
 
 	// Simulate pair of read
 	readSimulator(targetSeg, querySeg);
+	std::cout << targetSeg << "\n" << std::endl;
+	std::cout << querySeg << "\n" << std::endl;
 
 	// Logan
 	ScoringSchemeL scoringSchemeLogan(MAT, MIS, GAP);
