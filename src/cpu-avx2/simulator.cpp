@@ -22,21 +22,32 @@
 #include "logan.cpp"
 #include "ksw2/ksw2.h"
 #include "ksw2/ksw2_extz2_sse.c" // global and extension with SSE intrinsics; Suzuki'
+#ifdef __cplusplus
+extern "C" {
+#endif
 #include "libgaba/gaba.h" 		 // sometimes the forefront vector will not reach the end 
 								 // of the sequences. It is more likely to occur when the input 
 								 // sequence lengths greatly differ
-
+#ifdef __cplusplus
+}
+#endif
 //======================================================================================
 // READ SIMULATOR
 //======================================================================================
 
-#define LEN1 (10000)		// read length (this is going to be a distribution of length in
+// Logan AVVX2 can achieve at most a score of 32,767
+// Future work: remove this limitation
+#define LEN1 (32767)	// read length (this is going to be a distribution of length in
 						// the adaptive version)
-#define LEN2 (10000)		// 2nd read length
+#define LEN2 (200)		// 2nd read length
 #define MAT	( 1)		// match score
 #define MIS	(-1)		// mismatch score
 #define GAP	(-1)		// gap score
-#define XDROP (LEN2)	// so high so it won't be triggered in SeqAn
+#define XDROP (LEN1)	// so high so it won't be triggered in SeqAn
+#define LOGAN
+#define KSW2
+//#define LIBGABA
+#define SEQAN
 
 void 
 readSimulator (std::string& readh, std::string& readv)
@@ -46,15 +57,16 @@ readSimulator (std::string& readh, std::string& readv)
 	// read horizontal
 	for (int i = 0; i < LEN1; i++)
 	{
-		readh = readh + bases[rand() % 4];
-		//readv = readv + bases[test % 4];
+		int test = rand();
+		readh = readh + bases[test % 4];
+		readv = readv + bases[test % 4];
 	}
 
 	// read vertical
-	for (int i = 0; i < LEN2; i++)
-	{
-		readv = readv + bases[rand() % 4];
-	}
+	//for (int i = 0; i < LEN2; i++)
+	//{
+	//	readv = readv + bases[rand() % 4];
+	//}
 }
 
 //======================================================================================
@@ -74,6 +86,7 @@ int main(int argc, char const *argv[])
 	// LOGAN
 	//======================================================================================
 
+#ifdef LOGAN
 	ScoringSchemeL scoringSchemeLogan(MAT, MIS, GAP);
 	// 1st prototype without seed and x-drop termination
 	std::chrono::duration<double> diff1;
@@ -83,11 +96,13 @@ int main(int argc, char const *argv[])
 	diff1 = end1-start1;
 	// score off by factor of 5
 	std::cout << " in " << diff1.count() << " sec " << std::endl;
+#endif
 
 	//======================================================================================
 	// KSW2 GLOBAL AND EXTENSION, SSE4.1
 	//======================================================================================
 
+#ifdef KSW2
 	int8_t a = MAT, b = MIS < 0? MIS : -MIS; // a>0 and b<0
 	int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
 	int tl = strlen(targetSeg.c_str()), ql = strlen(querySeg.c_str());
@@ -124,71 +139,75 @@ int main(int argc, char const *argv[])
 	free(ts); free(qs);
 
 	std::cout << "ksw2's best " << ez.score << " in " << diff2.count() << " sec " << std::endl;
+#endif
 
 	//======================================================================================
-	// LIBGABA, AVX2
+	// LIBGABA (SegFault)
 	//======================================================================================
 
-	//gaba_t *ctx = gaba_init(GABA_PARAMS(
-	//	// match award, mismatch penalty, gap open penalty (G_i), and gap extension penalty (G_e)
-	//	GABA_SCORE_SIMPLE(MAT, MIS, 0, GAP),
-	//	gfa : 0,
-	//	gfb : 0,
-	//	xdrop : XDROP,
-	//	filter_thresh : 0,
-	//));
+#ifdef GABA
+	gaba_t *ctx = gaba_init(GABA_PARAMS(
+		// match award, mismatch penalty, gap open penalty (G_i), and gap extension penalty (G_e)
+		GABA_SCORE_SIMPLE(2, 2, -GAP, -GAP),
+		gfa : 0,
+		gfb : 0,
+		xdrop : 100,
+		filter_thresh : 0,
+	));
 
-	//std::chrono::duration<double> diff3;
-	//auto start3 = std::chrono::high_resolution_clock::now();
+	std::chrono::duration<double> diff3;
+	auto start3 = std::chrono::high_resolution_clock::now();
 
-	//char const t[64] = {0};	// tail array
-	//gaba_section_t asec = gaba_build_section(0, (uint8_t const *)targetSeg.c_str(), (uint32_t)targetSeg.size());
-	//gaba_section_t bsec = gaba_build_section(2, (uint8_t const *)querySeg.c_str(),  (uint32_t)querySeg.size());
-	//gaba_section_t tail = gaba_build_section(4, t, 64);
+	char const t[64] = {0};	// tail array
+	gaba_section_t asec = gaba_build_section(0, (uint8_t const *)targetSeg.c_str(), (uint32_t)targetSeg.size());
+	gaba_section_t bsec = gaba_build_section(2, (uint8_t const *)querySeg.c_str(),  (uint32_t)querySeg.size());
+	gaba_section_t tail = gaba_build_section(4, t, 64);
 
-	//// create thread-local object
-	//gaba_dp_t *dp = gaba_dp_init(ctx);	// dp[0] holds a 64-cell-wide context
+	// create thread-local object
+	gaba_dp_t *dp = gaba_dp_init(ctx);	// dp[0] holds a 64-cell-wide context
 
-	//// init section pointers
-	//gaba_section_t const *ap = &asec, *bp = &bsec;
-	//gaba_fill_t const *f = gaba_dp_fill_root(dp, // dp -> &dp[_dp_ctx_index(band_width)] makes the band width selectable
-	//	ap, 0,					// a-side (reference side) sequence and start position
-	//	bp, 0,					// b-side (query)
-	//	UINT32_MAX				// max extension length
-	//);
+	// init section pointers
+	gaba_section_t const *ap = &asec, *bp = &bsec;
+	gaba_fill_t const *f = gaba_dp_fill_root(dp, // dp -> &dp[_dp_ctx_index(band_width)] makes the band width selectable
+		ap, 0,					// a-side (reference side) sequence and start position
+		bp, 0,					// b-side (query)
+		UINT32_MAX				// max extension length
+	);
 
-	//// until x-drop condition is detected
-	//// x-drop has to be within [-127, 127] in libagaba
-	//gaba_fill_t const *m = f;
-	//// track max
-	//while((f->status & GABA_TERM) == 0) {
-	//	// substitute the pointer by the tail section's if it reached the end
-	//	if(f->status & GABA_UPDATE_A) { ap = &tail; }
-	//	if(f->status & GABA_UPDATE_B) { bp = &tail; }
+	// until x-drop condition is detected
+	// x-drop has to be within [-127, 127] in libagaba
+	gaba_fill_t const *m = f;
+	// track max
+	while((f->status & GABA_TERM) == 0) {
+		// substitute the pointer by the tail section's if it reached the end
+		if(f->status & GABA_UPDATE_A) { ap = &tail; }
+		if(f->status & GABA_UPDATE_B) { bp = &tail; }
 
-	//	f = gaba_dp_fill(dp, f, ap, bp, UINT32_MAX);	// extend the banded matrix
-	//	m = f->max > m->max ? f : m;					// swap if maximum score was updated
-	//}
+		f = gaba_dp_fill(dp, f, ap, bp, UINT32_MAX);	// extend the banded matrix
+		m = f->max > m->max ? f : m;					// swap if maximum score was updated
+	}
 
-	//// alignment path
-	//gaba_alignment_t *r = gaba_dp_trace(dp,
-	//	m,		// section with the max
-	//	NULL	// custom allocator: see struct gaba_alloc_s in gaba.h
-	//);
+	// alignment path
+	gaba_alignment_t *r = gaba_dp_trace(dp,
+		m,		// section with the max
+		NULL	// custom allocator: see struct gaba_alloc_s in gaba.h
+	);
 
-	//auto end3 = std::chrono::high_resolution_clock::now();
-	//diff3 = end3-start3;
+	auto end3 = std::chrono::high_resolution_clock::now();
+	diff3 = end3-start3;
 
-	//// clean up
-	//gaba_dp_res_free(dp, r); gaba_dp_clean(dp);
-	//gaba_clean(ctx);
+	// clean up
+	gaba_dp_res_free(dp, r); gaba_dp_clean(dp);
+	gaba_clean(ctx);
 
-	//std::cout << "Libgaba's best " << r->score << " in " << diff3.count() << " sec " << std::endl;
+	std::cout << "Libgaba's best " << r->score << " in " << diff3.count() << " sec " << std::endl;
+#endif
 
 	//======================================================================================
 	// SEQAN
 	//======================================================================================
 
+#ifdef SEQAN
 	// SeqAn
 	seqan::Score<int, seqan::Simple> scoringSchemeSeqAn(MAT, MIS, GAP);
 	seqan::Seed<seqan::Simple> seed(0, 0, 0);
@@ -201,6 +220,7 @@ int main(int argc, char const *argv[])
 
 	// SeqAn is doing more computation
 	std::cout << "SeqAn's best " << score << " in " << diff4.count() << " sec " << std::endl;
+#endif
 
 	return 0;
 }

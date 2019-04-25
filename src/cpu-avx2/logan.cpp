@@ -188,8 +188,8 @@ LoganAVX2(
 	// TODO: check scoring scheme correctness/input parameters
 	// TODO: chop sequences in left and right extension
 
-	unsigned short hlength = targetSeg.length() + 1;
-	unsigned short vlength = querySeg.length()  + 1;
+	unsigned int hlength = targetSeg.length() + 1;
+	unsigned int vlength = querySeg.length()  + 1;
 
 	if (hlength <= 1 || vlength <= 1)
 		return;
@@ -562,6 +562,9 @@ LoganAVX2(
 	}
 
 	printf("Logan's best %d", best);
+
+	delete [] queryh;
+	delete [] queryv;
 	// TODO: find positions of longest extension
 	// TODO: update seed
 	// return 0;
