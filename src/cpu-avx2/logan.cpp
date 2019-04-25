@@ -22,6 +22,7 @@
 //#ifdef __AVX2__ 	// Compile flag: -mavx2
 //#define VECTORWIDTH  (16)
 //#define LOGICALWIDTH (VECTORWIDTH - 1)
+//#define vector_t     __m256i
 ////#define add_func  _mm256_adds_epi16 // saturated arithmetic
 ////#define max_func  _mm256_max_epi16  // max
 ////#define slli_func 	// AVX2 does not have proper slli (sad) TODO: code here our function
@@ -29,6 +30,7 @@
 //#elif __SSE4_2__ 	// Compile flag: -msse4.2
 //#define VECTORWIDTH  (8)
 //#define LOGICALWIDTH (VECTORWIDTH - 1)
+//#define vector_t     __m128i
 //#define add_func  _mm_adds_epi16 // saturated arithmetic
 //#define max_func  _mm_max_epi16  // max
 //#define slli_func _mm_slli_epi16 // left shift
@@ -36,12 +38,14 @@
 //#elif __AVX512F__ 	// Compile flag: -march=skylake-avx512
 //#define VECTORWIDTH  (32)
 //#define LOGICALWIDTH (VECTORWIDTH - 1)
+//#define vector_t     __m512i
 //#define add_func  _mm512_adds_epi16 // saturated arithmetic
 //#define max_func  _mm512_max_epi16  // max
 //#define slli_func _mm512_slli_epi16 // left shift
 //#define srli_func _mm512_srli_epi16 // right shift
 //#endif
 
+//From: https://github.com/ocxtal/adaptivebandbench
 //#define VEC_SHIFT_R(a) { \
 //	__m256i tmp1 = _mm256_permute2x128_si256((a##1), (a##2), 0x21); \
 //	__m256i tmp2 = _mm256_permute2x128_si256((a##1), (a##2), 0x83); \
@@ -72,8 +76,8 @@
 // UTILS
 //======================================================================================
 
-typedef __m256i vector_t;
 typedef int16_t element_t;
+typedef __m256i vector_t;	// TODO: based on intrinsics
 
 typedef union {
 	vector_t  simd;
@@ -104,7 +108,7 @@ print_vector_d(vector_t a) {
 	printf("%d}\n", tmp.elem[VECTORWIDTH-1]);
 }
 
-// Optimize with intrinsics
+// TODO: optimize with intrinsics
 inline vector_union_t
 leftShift (const vector_union_t& a) {
 
@@ -118,6 +122,7 @@ leftShift (const vector_union_t& a) {
 	return b;
 }
 
+// TODO: optimize with intrinsics
 inline vector_union_t
 rightShift (const vector_union_t& a) {
 
@@ -159,54 +164,6 @@ moveDown (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
 	antiDiag2 = rightShift (antiDiag2);
 }
 
-//void
-//rightAfterRight (vector_union_t& antiDiag1, vector_union_t& antiDiag2, 
-//	vector_union_t& antiDiag3, int& hoffset, int& voffset, vector_union_t& vqueryh, 
-//		vector_union_t& vqueryv, const short queryh[], const short queryv[])
-//{
-//	// TODO
-//	// (a) shift to the left on query horizontal
-//	// (b) shift left on updated vector 1 (this places the right-aligned vector 2 as a left-aligned vector 1)
-//}
-//
-//void
-//downAfterDown (vector_union_t& antiDiag1, vector_union_t& antiDiag2, 
-//	vector_union_t& antiDiag3, int& hoffset, int& voffset, vector_union_t& vqueryh, 
-//		vector_union_t& vqueryv, const short queryh[], const short queryv[])
-//{
-//	// TODO
-//	// (a) shift to the right on query vertical
-//	// (b) shift to the right on updated vector 2 (this places the left-aligned vector 3 as a right-aligned vector 2)
-//}
-
-void
-move (const short& prevDir, const short& nextDir, vector_union_t& antiDiag1, vector_union_t& antiDiag2, 
-	vector_union_t& antiDiag3, int& hoffset, int& voffset, vector_union_t& vqueryh, vector_union_t& vqueryv,
-		const short queryh[], const short queryv[])
-{
-	if(prevDir == RIGHT && nextDir == DOWN)
-	{
-		moveDown (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
-	}
-	else if(prevDir == DOWN && nextDir == RIGHT)
-	{
-		moveRight (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
-	}
-	else if(prevDir == RIGHT && nextDir == RIGHT)
-	{
-		moveRight (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
-	}
-	else if(prevDir == DOWN && nextDir == DOWN)
-	{
-		moveDown (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
-	}
-	else
-	{
-		printf("ERROR\n");
-		exit(1);
-	}
-}
-
 //======================================================================================
 // X-DROP (not yet) ADAPTIVE (not yet) BANDED ALIGNMENT
 //======================================================================================
@@ -228,8 +185,6 @@ LoganAVX2(
 		std::string const& querySeg,
 		ScoringSchemeL& scoringScheme)
 {
-//int main(int argc, char const *argv[])
-//{
 	// TODO: check scoring scheme correctness/input parameters
 	// TODO: chop sequences in left and right extension
 
@@ -261,9 +216,10 @@ LoganAVX2(
 	//======================================================================================
 	// PHASE I (initial values load using dynamic programming)
 	//======================================================================================
-		#ifdef DEBUG
-			printf("Phase I\n");
-		#endif
+
+#ifdef DEBUG
+	printf("Phase I\n");
+#endif
 	// we need one more space for the off-grid values and one more space for antiDiag2
 	short phase1_data[LOGICALWIDTH + 2][LOGICALWIDTH + 2];
 
@@ -316,11 +272,6 @@ LoganAVX2(
 	vqueryh.elem[LOGICALWIDTH] = NINF;
 	vqueryv.elem[LOGICALWIDTH] = NINF;
 
-//#ifdef DEBUG
-//	print_vector_c(vqueryh.simd);
-//	print_vector_c(vqueryv.simd);
-//#endif
-
 	// this should point to the next value to be loaded into vqueryh and vqueryv
 	int hoffset = LOGICALWIDTH;
 	int voffset = LOGICALWIDTH;
@@ -336,10 +287,7 @@ LoganAVX2(
 	for (int i = 1; i <= LOGICALWIDTH; ++i)
 		antiDiag2.elem[i] = phase1_data[i + 1][LOGICALWIDTH - i + 1];
 	antiDiag2.elem[0] = NINF;
-	printf("%d\n", antiDiag1.elem[LOGICALWIDTH]);
-	print_vector_d(antiDiag1.simd);
-	print_vector_d(antiDiag2.simd);
-	print_vector_d(antiDiag3.simd);
+
 	// initialize antiDia3 to -inf
 	antiDiag3.simd = _mm256_set1_epi16(NINF);
 
@@ -350,19 +298,20 @@ LoganAVX2(
 	short antiDiagNo = 1;
 	short antiDiagBest = antiDiagNo * gapCost;
 	short best = 0;
-	#ifdef DEBUG
-		printf("Phase II\n");
-	#endif
-	// TODO: Phase III in adaptive version begins when both hoffset < hlength and voffset < vlength are verified 
-	// This loop should looks different in the adaptive version
+
+#ifdef DEBUG
+	printf("Phase II\n");
+#endif
+
 	while(hoffset < hlength && voffset < vlength)
 	{
-#ifdef DEBUG
-printf("\n");
 
+#ifdef DEBUG
+	printf("\n");
 	print_vector_c(vqueryh.simd);
 	print_vector_c(vqueryv.simd);
 #endif
+
 		// antiDiagBest initialization
 		antiDiagNo++;
 		antiDiagBest = antiDiagNo * gapCost;
@@ -424,7 +373,6 @@ printf("\n");
 			#ifdef DEBUG
 			printf("RIGHT\n");
 			#endif
-
 			moveRight (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
 		}
 		else
@@ -436,21 +384,21 @@ printf("\n");
 		}
 	}
 
-	// Here we are at atleast one edge.
-	int dir = hoffset >= hlength ? DOWN : RIGHT;
-		#ifdef DEBUG
-			printf("Phase III\n");
-		#endif
 	// Phase III (we are on one edge)
-	//for (int i = 0; i < (LOGICALWIDTH - 1); i++)
+	int dir = hoffset >= hlength ? DOWN : RIGHT;
+
+#ifdef DEBUG
+	printf("Phase III\n");
+#endif
+
 	while(hoffset < hlength || voffset < vlength)
 	{
 
-#ifdef DEBUG
+	#ifdef DEBUG
 		printf("\n");
-	print_vector_c(vqueryh.simd);
-	print_vector_c(vqueryv.simd);
-#endif
+		print_vector_c(vqueryh.simd);
+		print_vector_c(vqueryv.simd);
+	#endif
 		// antiDiagBest initialization
 		antiDiagNo++;
 		antiDiagBest = antiDiagNo * gapCost;
@@ -506,7 +454,7 @@ printf("\n");
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 
 		// antiDiag swap, offset updates, and new base load
-		if ( dir == RIGHT )
+		if (dir == RIGHT)
 		{
 		#ifdef DEBUG
 			printf("RIGHT\n");
@@ -525,12 +473,12 @@ printf("\n");
 	//======================================================================================
 	// PHASE IV (reaching end of sequences)
 	//======================================================================================
-		#ifdef DEBUG
-			printf("Phase IV\n");
-		#endif
+
+#ifdef DEBUG
+	printf("Phase IV\n");
+#endif
 	for (int i = 0; i < (LOGICALWIDTH - 3); i++)
 	{
-		
 		// antiDiag1F (final)
 		// POST-IT: -1 for a match and 0 for a mismatch
 		vector_t m = _mm256_cmpeq_epi16 (vqueryh.simd, vqueryv.simd);
@@ -586,7 +534,7 @@ printf("\n");
 		// antiDiag swap, offset updates, and new base load
 		short nextDir = dir ^ 1;
 		// antiDiag swap, offset updates, and new base load
-		if ( nextDir == RIGHT )
+		if (nextDir == RIGHT)
 		{
 		#ifdef DEBUG
 			printf("RIGHT\n");
