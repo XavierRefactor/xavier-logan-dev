@@ -39,18 +39,20 @@
 #define set1_func   _mm_set1_epi16  // set1 operation
 #define blendv_func _mm_blendv_epi8 // blending operation
 #define cmpeq_func  _mm_cmpeq_epi16 // compare equality operation
-#endif
 //#define slli_func _mm_slli_epi16 // left shift
 //#define srli_func _mm_srli_epi16 // right shift
 //#elif __AVX512F__ 	// Compile flag: -march=skylake-avx512
 //#define VECTORWIDTH  (32)
 //#define LOGICALWIDTH (VECTORWIDTH - 1)
-//#define vector_t  __m512i
-//#define add_func  _mm512_adds_epi16 // saturated arithmetic
-//#define max_func  _mm512_max_epi16  // max
-////#define slli_func _mm512_slli_epi16 // left shift
-////#define srli_func _mm512_srli_epi16 // right shift
-//#endif
+//#define vector_t    __m512i
+//#define add_func    _mm512_adds_epi16 // saturated arithmetic
+//#define max_func    _mm512_max_epi16  // max
+//#define set1_func   _mm512_set1_epi16  // set1 operation
+//#define blendv_func _mm256_blendv_epi8 // blending operation
+//#define cmpeq_func  _mm256_cmpeq_epi16 // compare equality operation
+//#define slli_func _mm512_slli_epi16 // left shift
+//#define srli_func _mm512_srli_epi16 // right shift
+#endif
 
 //From: https://github.com/ocxtal/adaptivebandbench
 //#define VEC_SHIFT_R(a) { \
