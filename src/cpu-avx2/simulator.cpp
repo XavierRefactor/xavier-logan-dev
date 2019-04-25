@@ -21,8 +21,7 @@
 #include <seqan/modifier.h>
 #include "logan.cpp"
 #include "ksw2/ksw2.h"
-#include "ksw2/ksw2_extz2_sse.c" // global and extension with SSE intrinsics; Suzuki's
-#include "ksw2/ksw2_gg2_sse.c"	 // global alignment with SSE intrinsics; Suzuki's
+#include "ksw2/ksw2_extz2_sse.c" // global and extension with SSE intrinsics; Suzuki'
 #include "libgaba/gaba.h" 		 // sometimes the forefront vector will not reach the end 
 								 // of the sequences. It is more likely to occur when the input 
 								 // sequence lengths greatly differ
@@ -31,13 +30,13 @@
 // READ SIMULATOR
 //======================================================================================
 
-#define LEN1 (10000)	// read length (this is going to be a distribution of length in
+#define LEN1 (1000)	// read length (this is going to be a distribution of length in
 						// the adaptive version)
 #define LEN2 (10000)	// 2nd read length
 #define MAT	( 1)		// match score
 #define MIS	(-1)		// mismatch score
 #define GAP	(-1)		// gap score
-#define XDROP (127)		// so high so it won't be triggered in SeqAn
+#define XDROP (LEN1)	// so high so it won't be triggered in SeqAn
 
 void 
 readSimulator (std::string& readh, std::string& readv)
@@ -47,8 +46,9 @@ readSimulator (std::string& readh, std::string& readv)
 	// read horizontal
 	for (int i = 0; i < LEN1; i++)
 	{
-		readh = readh + bases[rand() % 4];
-		readv = readv + bases[rand() % 4];
+		int test = rand();
+		readh = readh + bases[test % 4];
+		readv = readv + bases[test % 4];
 	}
 
 	// read vertical
