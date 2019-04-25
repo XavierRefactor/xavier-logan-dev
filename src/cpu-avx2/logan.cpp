@@ -367,7 +367,16 @@ LoganAVX2(
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 
 		// antiDiag swap, offset updates, and new base load
-		//if(antiDiag3.elem[MIDDLE] < antiDiag3.elem[MIDDLE + 1])
+		// It's a mixture of our decison and heuristics
+		//int maxpos, max = 0;
+		//for(int i = 0; i < VECTORWIDTH; ++i)
+		//	if(antiDiag3.elem[i] > max)
+		//	{
+		//		maxpos = i;
+		//		max = antiDiag3.elem[i];
+		//	}
+
+		//if(maxpos > MIDDLE)
 		if(antiDiag3.elem[MIDDLE] < antiDiag3.elem[MIDDLE + 1])
 		{
 			#ifdef DEBUG
