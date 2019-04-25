@@ -19,30 +19,37 @@
 // GLOBAL FUNCTION DECLARATION
 //======================================================================================
 
-//#ifdef __AVX2__ 	// Compile flag: -mavx2
-//#define VECTORWIDTH  (16)
-//#define LOGICALWIDTH (VECTORWIDTH - 1)
-//#define vector_t     __m256i
-////#define add_func  _mm256_adds_epi16 // saturated arithmetic
-////#define max_func  _mm256_max_epi16  // max
-////#define slli_func 	// AVX2 does not have proper slli (sad) TODO: code here our function
-////#define srli_func 	// AVX2 does not have proper srli (sad) TODO: code here our function
-//#elif __SSE4_2__ 	// Compile flag: -msse4.2
-//#define VECTORWIDTH  (8)
-//#define LOGICALWIDTH (VECTORWIDTH - 1)
-//#define vector_t     __m128i
-//#define add_func  _mm_adds_epi16 // saturated arithmetic
-//#define max_func  _mm_max_epi16  // max
+#ifdef __AVX2__ 	// Compile flag: -mavx2
+#define VECTORWIDTH  (16)
+#define LOGICALWIDTH (VECTORWIDTH - 1)
+#define vector_t    __m256i
+#define add_func    _mm256_adds_epi16  // saturated arithmetic
+#define max_func    _mm256_max_epi16   // max
+#define set1_func   _mm256_set1_epi16  // set1 operation
+#define blendv_func _mm256_blendv_epi8 // blending operation
+#define cmpeq_func  _mm256_cmpeq_epi16 // compare equality operation
+//#define slli_func 	// AVX2 does not have proper slli (sad) TODO: code here our function
+//#define srli_func 	// AVX2 does not have proper srli (sad) TODO: code here our function
+#elif __SSE4_2__ 	// Compile flag: -msse4.2
+#define VECTORWIDTH  (8)
+#define LOGICALWIDTH (VECTORWIDTH - 1)
+#define vector_t    __m128i
+#define add_func    _mm_adds_epi16 // saturated arithmetic
+#define max_func    _mm_max_epi16  // max
+#define set1_func   _mm_set1_epi16  // set1 operation
+#define blendv_func _mm_blendv_epi8 // blending operation
+#define cmpeq_func  _mm_cmpeq_epi16 // compare equality operation
+#endif
 //#define slli_func _mm_slli_epi16 // left shift
 //#define srli_func _mm_srli_epi16 // right shift
 //#elif __AVX512F__ 	// Compile flag: -march=skylake-avx512
 //#define VECTORWIDTH  (32)
 //#define LOGICALWIDTH (VECTORWIDTH - 1)
-//#define vector_t     __m512i
+//#define vector_t  __m512i
 //#define add_func  _mm512_adds_epi16 // saturated arithmetic
 //#define max_func  _mm512_max_epi16  // max
-//#define slli_func _mm512_slli_epi16 // left shift
-//#define srli_func _mm512_srli_epi16 // right shift
+////#define slli_func _mm512_slli_epi16 // left shift
+////#define srli_func _mm512_srli_epi16 // right shift
 //#endif
 
 //From: https://github.com/ocxtal/adaptivebandbench
@@ -65,8 +72,6 @@
 //======================================================================================
 
 //#define DEBUG
-#define VECTORWIDTH  (16)
-#define LOGICALWIDTH (VECTORWIDTH - 1)
 #define NINF  	(std::numeric_limits<short>::min())
 #define RIGHT 	(0)
 #define DOWN  	(1)
@@ -77,7 +82,6 @@
 //======================================================================================
 
 typedef int16_t element_t;
-typedef __m256i vector_t;	// TODO: based on intrinsics
 
 typedef union {
 	vector_t  simd;
@@ -209,9 +213,9 @@ LoganAVX2(
 	short mismatchCost = scoreMismatch(scoringScheme);
 	short gapCost      = scoreGap(scoringScheme     );
 
-	vector_t vmatchCost    = _mm256_set1_epi16 (matchCost   );
-	vector_t vmismatchCost = _mm256_set1_epi16 (mismatchCost);
-	vector_t vgapCost      = _mm256_set1_epi16 (gapCost     );
+	vector_t vmatchCost    = set1_func (matchCost   );
+	vector_t vmismatchCost = set1_func (mismatchCost);
+	vector_t vgapCost      = set1_func (gapCost     );
 
 	//======================================================================================
 	// PHASE I (initial values load using dynamic programming)
@@ -220,6 +224,7 @@ LoganAVX2(
 #ifdef DEBUG
 	printf("Phase I\n");
 #endif
+	printf("VECTORWIDTH %d\n", VECTORWIDTH);
 	// we need one more space for the off-grid values and one more space for antiDiag2
 	short phase1_data[LOGICALWIDTH + 2][LOGICALWIDTH + 2];
 
@@ -289,7 +294,7 @@ LoganAVX2(
 	antiDiag2.elem[0] = NINF;
 
 	// initialize antiDia3 to -inf
-	antiDiag3.simd = _mm256_set1_epi16(NINF);
+	antiDiag3.simd = set1_func (NINF);
 
 	//======================================================================================
 	// PHASE II (core vectorized computation)
@@ -318,9 +323,9 @@ LoganAVX2(
 
 		// antiDiag1F (final)
 		// POST-IT: -1 for a match and 0 for a mismatch
-		vector_t m = _mm256_cmpeq_epi16 (vqueryh.simd, vqueryv.simd);
-		m = _mm256_blendv_epi8 (vmismatchCost, vmatchCost, m);
-		vector_t antiDiag1F = _mm256_adds_epi16 (m, antiDiag1.simd);
+		vector_t m = cmpeq_func (vqueryh.simd, vqueryv.simd);
+		m = blendv_func (vmismatchCost, vmatchCost, m);
+		vector_t antiDiag1F = add_func (m, antiDiag1.simd);
 
 	#ifdef DEBUG
 		printf("antiDiag1: ");
@@ -336,13 +341,13 @@ LoganAVX2(
 		print_vector_d(antiDiag2S.simd);
 	#endif
 		// antiDiag2M (pairwise max)
-		vector_t antiDiag2M = _mm256_max_epi16 (antiDiag2S.simd, antiDiag2.simd);
+		vector_t antiDiag2M = max_func (antiDiag2S.simd, antiDiag2.simd);
 	#ifdef DEBUG
 		printf("antiDiag2M: ");
 		print_vector_d(antiDiag2M);
 	#endif
 		// antiDiag2F (final)
-		vector_t antiDiag2F = _mm256_adds_epi16 (antiDiag2M, vgapCost);
+		vector_t antiDiag2F = add_func (antiDiag2M, vgapCost);
 	#ifdef DEBUG
 		printf("antiDiag2F: ");
 		print_vector_d(antiDiag2F);
@@ -352,7 +357,7 @@ LoganAVX2(
 		print_vector_d(antiDiag2.simd);
 	#endif
 		// Compute antiDiag3
-		antiDiag3.simd = _mm256_max_epi16 (antiDiag1F, antiDiag2F);
+		antiDiag3.simd = max_func (antiDiag1F, antiDiag2F);
 		// we need to have always antiDiag3 left-aligned
 		antiDiag3.elem[LOGICALWIDTH] = NINF;
 	#ifdef DEBUG
@@ -414,9 +419,9 @@ LoganAVX2(
 
 		// antiDiag1F (final)
 		// POST-IT: -1 for a match and 0 for a mismatch
-		vector_t m = _mm256_cmpeq_epi16 (vqueryh.simd, vqueryv.simd);
-		m = _mm256_blendv_epi8 (vmismatchCost, vmatchCost, m);
-		vector_t antiDiag1F = _mm256_adds_epi16 (m, antiDiag1.simd);
+		vector_t m = cmpeq_func (vqueryh.simd, vqueryv.simd);
+		m = blendv_func (vmismatchCost, vmatchCost, m);
+		vector_t antiDiag1F = add_func (m, antiDiag1.simd);
 
 	#ifdef DEBUG
 		printf("antiDiag1: ");
@@ -432,13 +437,13 @@ LoganAVX2(
 		print_vector_d(antiDiag2S.simd);
 	#endif
 		// antiDiag2M (pairwise max)
-		vector_t antiDiag2M = _mm256_max_epi16 (antiDiag2S.simd, antiDiag2.simd);
+		vector_t antiDiag2M = max_func (antiDiag2S.simd, antiDiag2.simd);
 	#ifdef DEBUG
 		printf("antiDiag2M: ");
 		print_vector_d(antiDiag2M);
 	#endif
 		// antiDiag2F (final)
-		vector_t antiDiag2F = _mm256_adds_epi16 (antiDiag2M, vgapCost);
+		vector_t antiDiag2F = add_func (antiDiag2M, vgapCost);
 	#ifdef DEBUG
 		printf("antiDiag2F: ");
 		print_vector_d(antiDiag2F);
@@ -448,7 +453,7 @@ LoganAVX2(
 		print_vector_d(antiDiag2.simd);
 	#endif
 		// Compute antiDiag3
-		antiDiag3.simd = _mm256_max_epi16 (antiDiag1F, antiDiag2F);
+		antiDiag3.simd = max_func (antiDiag1F, antiDiag2F);
 		// we need to have always antiDiag3 left-aligned
 		antiDiag3.elem[LOGICALWIDTH] = NINF;
 	#ifdef DEBUG
@@ -490,9 +495,9 @@ LoganAVX2(
 	{
 		// antiDiag1F (final)
 		// POST-IT: -1 for a match and 0 for a mismatch
-		vector_t m = _mm256_cmpeq_epi16 (vqueryh.simd, vqueryv.simd);
-		m = _mm256_blendv_epi8 (vmismatchCost, vmatchCost, m);
-		vector_t antiDiag1F = _mm256_adds_epi16 (m, antiDiag1.simd);
+		vector_t m = cmpeq_func (vqueryh.simd, vqueryv.simd);
+		m = blendv_func (vmismatchCost, vmatchCost, m);
+		vector_t antiDiag1F = add_func (m, antiDiag1.simd);
 
 	#ifdef DEBUG
 		printf("\n");
@@ -509,20 +514,20 @@ LoganAVX2(
 		print_vector_d(antiDiag2S.simd);
 	#endif
 		// antiDiag2M (pairwise max)
-		vector_t antiDiag2M = _mm256_max_epi16 (antiDiag2S.simd, antiDiag2.simd);
+		vector_t antiDiag2M = max_func (antiDiag2S.simd, antiDiag2.simd);
 	#ifdef DEBUG
 		printf("antiDiag2M: ");
 		print_vector_d(antiDiag2M);
 	#endif
 
 		// antiDiag2F (final)
-		vector_t antiDiag2F = _mm256_adds_epi16 (antiDiag2M, vgapCost);
+		vector_t antiDiag2F = add_func (antiDiag2M, vgapCost);
 	#ifdef DEBUG
 		printf("antiDiag2F: ");
 		print_vector_d(antiDiag2F);
 	#endif
 		// Compute antiDiag3
-		antiDiag3.simd = _mm256_max_epi16 (antiDiag1F, antiDiag2F);
+		antiDiag3.simd = max_func (antiDiag1F, antiDiag2F);
 		// we need to have always antiDiag3 left-aligned
 		antiDiag3.elem[LOGICALWIDTH] = NINF;
 	#ifdef DEBUG
