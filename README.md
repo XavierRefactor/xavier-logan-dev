@@ -1,5 +1,3 @@
-# LOGAN
-LOGAN: a high-performance x-drop LOnG-read sequence AlignmeNt algorithm
+![](https://github.com/giuliaguidi/logan/blob/master/src/utils/loganpng.png)
 
-Post-it note: 2-bit compression.
-
+     
