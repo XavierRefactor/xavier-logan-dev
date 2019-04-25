@@ -1,3 +1,3 @@
-![](https://github.com/giuliaguidi/logan/blob/master/src/utils/loganpng.png)
+![](https://github.com/giuliaguidi/logan/blob/master/src/utils/logan.jpeg)
 
      

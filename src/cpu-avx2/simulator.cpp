@@ -30,13 +30,13 @@
 // READ SIMULATOR
 //======================================================================================
 
-#define LEN1 (1000)	// read length (this is going to be a distribution of length in
+#define LEN1 (10000)		// read length (this is going to be a distribution of length in
 						// the adaptive version)
-#define LEN2 (10000)	// 2nd read length
+#define LEN2 (10000)		// 2nd read length
 #define MAT	( 1)		// match score
 #define MIS	(-1)		// mismatch score
 #define GAP	(-1)		// gap score
-#define XDROP (LEN1)	// so high so it won't be triggered in SeqAn
+#define XDROP (LEN2)	// so high so it won't be triggered in SeqAn
 
 void 
 readSimulator (std::string& readh, std::string& readv)
@@ -46,14 +46,15 @@ readSimulator (std::string& readh, std::string& readv)
 	// read horizontal
 	for (int i = 0; i < LEN1; i++)
 	{
-		int test = rand();
-		readh = readh + bases[test % 4];
-		readv = readv + bases[test % 4];
+		readh = readh + bases[rand() % 4];
+		//readv = readv + bases[test % 4];
 	}
 
 	// read vertical
-	//for (int i = 0; i < LEN2; i++)
-	//	readv = readv + bases[test % 4];
+	for (int i = 0; i < LEN2; i++)
+	{
+		readv = readv + bases[rand() % 4];
+	}
 }
 
 //======================================================================================

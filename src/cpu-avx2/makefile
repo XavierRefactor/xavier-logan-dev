@@ -6,7 +6,7 @@ SEQINCLUDE=	-I../utils/seqan
 
 test: simulator.cpp
 
-	$(COMPILER) -std=c++14 $(INCLUDE) -O3 -march=native $(SEQINCLUDE) -o test simulator.cpp
+	$(COMPILER) -std=c++14 $(INCLUDE) -O3 -march=native  $(SEQINCLUDE) -o test simulator.cpp
 
 clean:
 	rm -f *.o
