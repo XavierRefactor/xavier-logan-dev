@@ -39,8 +39,8 @@
 #define set1_func   _mm_set1_epi16  // set1 operation
 #define blendv_func _mm_blendv_epi8 // blending operation
 #define cmpeq_func  _mm_cmpeq_epi16 // compare equality operation
-//#define slli_func _mm_slli_epi16 // left shift
-//#define srli_func _mm_srli_epi16 // right shift
+#define slli_func _mm_slli_epi16 // left shift
+#define srli_func _mm_srli_epi16 // right shift
 //#elif __AVX512F__ 	// Compile flag: -march=skylake-avx512
 //#define VECTORWIDTH  (32)
 //#define LOGICALWIDTH (VECTORWIDTH - 1)
@@ -118,13 +118,17 @@ print_vector_d(vector_t a) {
 inline vector_union_t
 leftShift (const vector_union_t& a) {
 
-	vector_union_t b; 
+	vector_union_t b;
+	// https://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avxhttps://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avx
+	b.simd = _mm256_alignr_epi8(_mm256_permute2x128_si256(a.simd, a.simd, _MM_SHUFFLE(2, 0, 0, 1)), a.simd, 2);
 
-	for(short i = 0; i < (VECTORWIDTH - 1); i++)	// data are saved in reversed order
-		b.elem[i] = a.elem[i + 1];
-
+	//for(short i = 0; i < (VECTORWIDTH - 1); i++)	// data are saved in reversed order
+	//	b.elem[i] = a.elem[i + 1];
 	// replicating last element
 	b.elem[VECTORWIDTH - 1] = NINF;
+	//print_vector_d(a.simd);
+	//print_vector_d(b.simd);
+	//printf("\n");
 	return b;
 }
 
@@ -132,13 +136,17 @@ leftShift (const vector_union_t& a) {
 inline vector_union_t
 rightShift (const vector_union_t& a) {
 
-	vector_union_t b; 
+	vector_union_t b;
+	// https://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avx
+	b.simd = _mm256_alignr_epi8(a.simd, _mm256_permute2x128_si256(a.simd, a.simd, _MM_SHUFFLE(0, 0, 2, 0)), 16 - 2);
 
-	for(short i = 0; i < (VECTORWIDTH - 1); i++)	// data are saved in reversed order
-		b.elem[i + 1] = a.elem[i];
-
+	//for(short i = 0; i < (VECTORWIDTH - 1); i++)	// data are saved in reversed order
+	//	b.elem[i + 1] = a.elem[i];
 	// replicating last element
 	b.elem[0] = NINF;
+	//print_vector_d(a.simd);
+	//print_vector_d(b.simd);
+	//printf("\n");
 	return b;
 }
 
