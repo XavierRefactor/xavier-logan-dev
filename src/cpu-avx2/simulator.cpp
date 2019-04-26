@@ -39,19 +39,23 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
+
 //======================================================================================
-// READ SIMULATOR
+// GLOBAL VARIABLE DECLARATION
 //======================================================================================
 
 // Logan AVVX2 can achieve at most a score of 32,767
 // Future work: remove this limitation
-#define LEN1 (10000)	// read length (this is going to be a distribution of length in
+#define LEN1 (8000)		// read length (this is going to be a distribution of length in
 						// the adaptive version)
-#define LEN2 (10000)	// 2nd read length
+#define LEN2 (12000)	// 2nd read length
 #define MAT	( 1)		// match score
 #define MIS	(-1)		// mismatch score
 #define GAP	(-1)		// gap score
 #define XDROP (LEN1)	// so high so it won't be triggered in SeqAn
+#define PMIS (0.04)	// substitution probability
+#define PGAP (0.13)	// insertion/deletion probability
+#define BW (16)		// bandwidth (the alignment path of the input sequence and the result does not go out of the band)
 #define LOGAN
 #define KSW2
 //a#define GABA
@@ -61,31 +65,62 @@ extern "C" {
 //#define PARASAIL2
 #define EDLIB
 
-void 
-mutate (std::string& read)
+//======================================================================================
+// READ SIMULATOR
+//======================================================================================
+
+// Functions to generate sequences from https://github.com/ocxtal/libgaba
+char random_base(void)
 {
+	char const table[4] = {'A', 'C', 'G', 'T'};
+	return(table[rand() % 4]);
 }
 
-void 
-readSimulator (std::string& readh, std::string& readv)
+void generate_random_sequence(std::string& seq)
 {
-	char bases[4] = {'A', 'T', 'C', 'G'}; 
+	for(int i = 0; i < LEN1; i++)
+		seq.append(1, random_base());
+}
 
-	// read horizontal
-	for (int i = 0; i < LEN1; i++)
+std::string generate_mutated_sequence(std::string& seq)
+{
+	int i, j, wave = 0;	// wave is q-coordinate of the alignment path
+	std::string mutated;
+
+	for(i = 0, j = 0; i < LEN2; i++)
 	{
-		readh = readh + bases[rand() % 4];
-		//readv = readv + bases[rand() % 4];
+		if(((double)rand()/(double)RAND_MAX) < PMIS)
+		{
+			mutated.append(1, random_base());
+			j++; // mismatch
+		}
+		else if(((double)rand()/(double)RAND_MAX) < PGAP)
+		{
+			if(rand() & 0x01 && wave > (-BW + 1))
+			{
+				char tmp = (j < LEN2) ? seq[j++] : random_base();
+				mutated.append(1, tmp);
+				j++; wave--; // deletion
+			}
+			else if(wave < (BW-2))
+			{
+				mutated.append(1, random_base());
+				wave++; // insertion
+			}
+			else
+			{
+				char tmp = (j < LEN2) ? seq[j++] : random_base();
+				mutated.append(1, tmp);
+			}
+		}
+		else
+		{
+			char tmp = (j < LEN2) ? seq[j++] : random_base();
+			mutated.append(1, tmp);
+		}
 	}
 
-	readv = readh;
-	//mutate(readv);
-
-	// read vertical
-	//for (int i = 0; i < LEN2; i++)
-	//{
-	//	readv = readv + bases[rand() % 4];
-	//}
+	return mutated;
 }
 
 //======================================================================================
@@ -94,10 +129,10 @@ readSimulator (std::string& readh, std::string& readv)
 
 int main(int argc, char const *argv[])
 {
+	// simulate pair of read
 	std::string targetSeg, querySeg;
-
-	// Simulate pair of read
-	readSimulator(targetSeg, querySeg);
+	generate_random_sequence(targetSeg);
+	querySeg = generate_mutated_sequence(targetSeg);
 
 	//======================================================================================
 	// LOGAN (vectorized SSE2 and AVX2, banded, (not yet) x-drop)
