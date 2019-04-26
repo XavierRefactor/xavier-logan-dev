@@ -83,7 +83,7 @@
 // UTILS
 //======================================================================================
 
-typedef int16_t element_t;
+typedef short element_t;
 
 typedef union {
 	vector_t  simd;
@@ -116,7 +116,7 @@ print_vector_d(vector_t a) {
 
 // TODO: optimize with intrinsics
 inline vector_union_t
-leftShift (const vector_union_t& a) {
+leftShift (const vector_union_t& a) { // this work for avx2
 
 	vector_union_t b;
 	// https://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avxhttps://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avx
@@ -134,7 +134,7 @@ leftShift (const vector_union_t& a) {
 
 // TODO: optimize with intrinsics
 inline vector_union_t
-rightShift (const vector_union_t& a) {
+rightShift (const vector_union_t& a) { // this work for avx2
 
 	vector_union_t b;
 	// https://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avx
@@ -179,25 +179,17 @@ moveDown (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
 }
 
 //======================================================================================
-// X-DROP (not yet) ADAPTIVE (not yet) BANDED ALIGNMENT
+// X-DROP ADAPTIVE BANDED ALIGNMENT
 //======================================================================================
 
-//int
-//LoganAVX2(
-//		SeedL & seed,
-//		std::string const & querySeg,
-//		std::string const & databaseSeg,
-//		ExtensionDirectionL const & direction,
-//		ScoringSchemeL &scoringScheme,
-//		short const &scoreDropOff)
-//{
-
 // 1st prototype
-void
+std::pair<short, short>
 LoganAVX2(
+		SeedL & seed,
 		std::string const& targetSeg,
 		std::string const& querySeg,
-		ScoringSchemeL& scoringScheme)
+		ScoringSchemeL& scoringScheme,
+		unsigned short const &scoreDropOff)
 {
 	// TODO: check scoring scheme correctness/input parameters
 	// TODO: chop sequences in left and right extension
@@ -206,7 +198,10 @@ LoganAVX2(
 	unsigned int vlength = querySeg.length()  + 1;
 
 	if (hlength <= 1 || vlength <= 1)
-		return;
+	{
+		printf("Error: read length == 0\n");
+		exit(1);
+	}
 
 	// Convert from string to int array
 	// This is the entire sequences 	
@@ -376,9 +371,11 @@ LoganAVX2(
 	#endif
 
 		// TODO: x-drop termination
-
-		// TODO: update best
 		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
+		if(antiDiagBest < best - scoreDropOff)
+			break;
+
+		// update best
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 
 		// antiDiag swap, offset updates, and new base load
@@ -471,10 +468,12 @@ LoganAVX2(
 		print_vector_d(antiDiag3.simd);
 	#endif
 
-		// TODO: x-drop termination
-
-		// TODO: update best
+		// x-drop termination
 		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
+		if(antiDiagBest < best - scoreDropOff)
+			break;
+
+		// update best
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 
 		// antiDiag swap, offset updates, and new base load
@@ -549,11 +548,13 @@ LoganAVX2(
 		print_vector_d(antiDiag3.simd);
 	#endif
 
-		// TODO: update best
+		// x-drop termination
 		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
-		best = (best > antiDiagBest) ? best : antiDiagBest;
+		if(antiDiagBest < best - scoreDropOff)
+			break;
 
-		// TODO: x-drop termination
+		// update best
+		best = (best > antiDiagBest) ? best : antiDiagBest;
 
 		// antiDiag swap, offset updates, and new base load
 		short nextDir = dir ^ 1;
@@ -576,11 +577,19 @@ LoganAVX2(
 		dir = nextDir;
 	}
 
-	printf("Logan's best (banded, vectorized) %d", best);
+	// find positions of longest extension and update seed
+	setBeginPositionH(seed, 0);
+	setBeginPositionV(seed, 0);
+	// this is wrong
+	setEndPositionH(seed, hoffset);
+	setEndPositionV(seed, voffset);
 
 	delete [] queryh;
 	delete [] queryv;
-	// TODO: find positions of longest extension
-	// TODO: update seed
-	// return 0;
+
+	return std::make_pair(best, antiDiagBest);
 }
+
+
+
+

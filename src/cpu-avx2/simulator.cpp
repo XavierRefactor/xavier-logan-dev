@@ -9,6 +9,7 @@
 #include <string.h>
 #include <omp.h>
 #include <algorithm>
+#include <chrono>
 #include <stdlib.h>
 #include <inttypes.h>
 #include <assert.h>
@@ -39,17 +40,22 @@ extern "C" {
 
 // Logan AVVX2 can achieve at most a score of 32,767
 // Future work: remove this limitation
-#define LEN1 (10000)		// read length (this is going to be a distribution of length in
+#define LEN1 (10000)	// read length (this is going to be a distribution of length in
 						// the adaptive version)
-#define LEN2 (8000)	// 2nd read length
+#define LEN2 (10000)	// 2nd read length
 #define MAT	( 1)		// match score
 #define MIS	(-1)		// mismatch score
 #define GAP	(-1)		// gap score
-#define XDROP (LEN1)	// so high so it won't be triggered in SeqAn
-#define PMIS (0.005)	// substitution probability
-#define PGAP (0.001)	// insertion/deletion probability
-#define BW (32)		// bandwidth (the alignment path of the input sequence and the result does not go out of the band)
+#define XDROP (100)	// so high so it won't be triggered in SeqAn
+#define PMIS (0.03)	// substitution probability
+#define PGAP (0.12)	// insertion/deletion probability
+#define BW (16)		// bandwidth (the alignment path of the input sequence and the result does not go out of the band)
 #define LOGAN
+
+#define BENCH
+
+#ifdef BENCH
+
 #define KSW2
 //#define GABA
 
@@ -83,6 +89,8 @@ extern "C" {
 #define PARASAIL1
 #define PARASAIL2
 #define EDLIB
+
+#endif
 
 //======================================================================================
 // READ SIMULATOR
@@ -159,14 +167,16 @@ int main(int argc, char const *argv[])
 
 #ifdef LOGAN
 	ScoringSchemeL scoringSchemeLogan(MAT, MIS, GAP);
+	SeedL seed(0,0,0);
 	// 1st prototype without seed and x-drop termination
 	std::chrono::duration<double> diff1;
 	auto start1 = std::chrono::high_resolution_clock::now();
-	LoganAVX2(targetSeg, querySeg, scoringSchemeLogan);
+	std::pair<int16_t, int16_t> best = LoganAVX2(seed, targetSeg, querySeg, scoringSchemeLogan, XDROP);
 	auto end1 = std::chrono::high_resolution_clock::now();
 	diff1 = end1-start1;
 	// score off by factor of 5
-	std::cout << " in " << diff1.count() << " sec " << std::endl;
+	std::cout << "Logan's best " << best.first << " and Logan's exit " << best.second << " in " << diff1.count() << " sec " << std::endl;
+	std::cout << "targetSeg extension " << getEndPositionH(seed) << " querySeg extension " << getEndPositionV(seed) << std::endl;
 #endif
 
 	//======================================================================================
@@ -209,7 +219,7 @@ int main(int argc, char const *argv[])
 
 	free(ts); free(qs);
 
-	std::cout << "ksw2's best (no banded, vectorized) " << ez.score << " in " << diff2.count() << " sec " << std::endl;
+	std::cout << "ksw2's best (not banded, vectorized) " << ez.score << " in " << diff2.count() << " sec " << std::endl;
 #endif
 
 	//======================================================================================
@@ -289,7 +299,7 @@ int main(int argc, char const *argv[])
 	auto end4 = std::chrono::high_resolution_clock::now();
 	diff4 = end4-start4;
 
-	std::cout << "SeqAn's best (no banded, no vectorized) " << score << " in " << diff4.count() << " sec " << std::endl;
+	std::cout << "SeqAn's best (not banded, no vectorized) " << score << " in " << diff4.count() << " sec " << std::endl;
 #endif
 
 	//======================================================================================
@@ -317,7 +327,7 @@ int main(int argc, char const *argv[])
 	auto end9 = std::chrono::high_resolution_clock::now();
 	diff9 = end9-start9;
 
-	std::cout << "SeqAn's best (banded, vectorized) " << scores[0] << " in " << diff9.count() << " sec " << std::endl;
+	std::cout << "SeqAn's best (not banded, vectorized) " << scores[0] << " in " << diff9.count() << " sec " << std::endl;
 #endif
 
 	//======================================================================================
@@ -344,7 +354,7 @@ int main(int argc, char const *argv[])
 	diff5 = end5-start5;
 
 	// SeqAn is doing more computation
-	std::cout << "SSW's best (no banded, vectorized) " << alignment.sw_score << " in " << diff5.count() << " sec " << std::endl;
+	std::cout << "SSW's best (not banded, vectorized) " << alignment.sw_score << " in " << diff5.count() << " sec " << std::endl;
 #endif
 
 	//======================================================================================
@@ -360,7 +370,7 @@ int main(int argc, char const *argv[])
 	auto end7 = std::chrono::high_resolution_clock::now();
 	diff7 = end7-start7;
 
-	std::cout << "Edlib's edit distance (banded, no vectorized) " << edresult.editDistance << " in " << diff7.count() << " sec " << std::endl;
+	std::cout << "Edlib's edit distance (banded, not vectorized) " << edresult.editDistance << " in " << diff7.count() << " sec " << std::endl;
 	edlibFreeAlignResult(edresult);
 #endif
 
@@ -386,7 +396,7 @@ int main(int argc, char const *argv[])
 	diff6 = end6-start6;
 
 	// SeqAn is doing more computation
-	std::cout << "Parasail's best (banded, no vectorized) " << parasail_result_get_score(result) << " in " << diff6.count() << " sec " << std::endl;
+	std::cout << "Parasail's best (banded, not vectorized) " << parasail_result_get_score(result) << " in " << diff6.count() << " sec " << std::endl;
 #endif
 
 	//======================================================================================
@@ -406,7 +416,7 @@ int main(int argc, char const *argv[])
 	diff8 = end8-start8;
 
 	// SeqAn is doing more computation
-	std::cout << "Parasail's best (no banded, vectorized) " << parasail_result_get_score(result2) << " in " << diff8.count() << " sec " << std::endl;
+	std::cout << "Parasail's best (not banded, vectorized) " << parasail_result_get_score(result2) << " in " << diff8.count() << " sec " << std::endl;
 #endif
 
 	return 0;
