@@ -63,7 +63,7 @@ extern "C" {
 #define SSW
 //#define PARASAIL1
 //#define PARASAIL2
-#define EDLIB
+//#define EDLIB
 
 //======================================================================================
 // READ SIMULATOR
