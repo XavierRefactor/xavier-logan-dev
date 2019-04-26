@@ -1,10 +1,10 @@
 CC = gcc
 CXX = g++
 CFLAGS  = 	-I. -O3 -Wall -Wextra -pedantic -ansi -c -Wno-write-strings
-SEQANPATH=../utils/seqan
+SEQANPATH=seqan2.4/seqan/include
 SSWPATH=Complete-Striped-Smith-Waterman-Library/src
 KSW2PATH=ksw2
-INCLUDE =	-I../utils/seqan -Iparasail -I edlib/include#-Ilibgaba
+INCLUDE =	-I$(SEQANPATH) -Iparasail -Lparasail -lparasail -I edlib/include#-Ilibgaba
 LIBS= 	-ledlib#-Llibgaba -lgaba
 
 test: $(SSWPATH)/ssw_cpp.cpp $(SSWPATH)/ssw.c simulator.cpp ksw2 

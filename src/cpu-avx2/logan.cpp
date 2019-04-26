@@ -75,8 +75,8 @@
 
 //#define DEBUG
 #define NINF  	(std::numeric_limits<short>::min())
-#define RIGHT 	(0)
-#define DOWN  	(1)
+#define myRIGHT 	(0)
+#define myDOWN  	(1)
 #define MIDDLE 	(LOGICALWIDTH / 2)
 
 //======================================================================================
@@ -288,8 +288,8 @@ LoganAVX2(
 		antiDiag1.elem[i-1] = phase1_data[i][LOGICALWIDTH - i + 1];
 	antiDiag1.elem[LOGICALWIDTH] = NINF;
 
-	// load phase1_data into antiDiag2 vector going RIGHT (our arbitrary decision)
-	// the first antiDiag3 computation is going DOWN
+	// load phase1_data into antiDiag2 vector going myRIGHT (our arbitrary decision)
+	// the first antiDiag3 computation is going myDOWN
 	// shift to the right on updated vector 2 (This places the left-aligned vector 3 as a right-aligned vector 2)
 	for (int i = 1; i <= LOGICALWIDTH; ++i)
 		antiDiag2.elem[i] = phase1_data[i + 1][LOGICALWIDTH - i + 1];
@@ -387,21 +387,21 @@ LoganAVX2(
 		if(antiDiag3.elem[MIDDLE] < antiDiag3.elem[MIDDLE + 1])
 		{
 			#ifdef DEBUG
-			printf("RIGHT\n");
+			printf("myRIGHT\n");
 			#endif
 			moveRight (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
 		}
 		else
 		{
 			#ifdef DEBUG
-			printf("DOWN\n");
+			printf("myDOWN\n");
 			#endif
 			moveDown (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
 		}
 	}
 
 	// Phase III (we are on one edge)
-	int dir = hoffset >= hlength ? DOWN : RIGHT;
+	int dir = hoffset >= hlength ? myDOWN : myRIGHT;
 
 #ifdef DEBUG
 	printf("Phase III\n");
@@ -470,17 +470,17 @@ LoganAVX2(
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 
 		// antiDiag swap, offset updates, and new base load
-		if (dir == RIGHT)
+		if (dir == myRIGHT)
 		{
 		#ifdef DEBUG
-			printf("RIGHT\n");
+			printf("myRIGHT\n");
 		#endif
 			moveRight (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
 		}
 		else
 		{
 		#ifdef DEBUG
-			printf("DOWN\n");
+			printf("myDOWN\n");
 		#endif
 			moveDown (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
 		}
@@ -550,17 +550,17 @@ LoganAVX2(
 		// antiDiag swap, offset updates, and new base load
 		short nextDir = dir ^ 1;
 		// antiDiag swap, offset updates, and new base load
-		if (nextDir == RIGHT)
+		if (nextDir == myRIGHT)
 		{
 		#ifdef DEBUG
-			printf("RIGHT\n");
+			printf("myRIGHT\n");
 		#endif
 			moveRight (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
 		}
 		else
 		{
 		#ifdef DEBUG
-			printf("DOWN\n");
+			printf("myDOWN\n");
 		#endif
 			moveDown (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
 		}
@@ -568,7 +568,7 @@ LoganAVX2(
 		dir = nextDir;
 	}
 
-	printf("Logan's best %d", best);
+	printf("Logan's best (banded, vectorized) %d", best);
 
 	delete [] queryh;
 	delete [] queryv;

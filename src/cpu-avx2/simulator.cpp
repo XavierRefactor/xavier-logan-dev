@@ -14,13 +14,6 @@
 #include <assert.h>
 #include <iterator>
 #include <x86intrin.h>
-#include <seqan/sequence.h>
-#include <seqan/align.h>
-#include <seqan/seeds.h>
-#include <seqan/score.h>
-#include <seqan/modifier.h>
-#include <seqan/basic.h>
-#include <seqan/stream.h>
 #include "logan.cpp"
 #include "parasail/parasail.h"
 #include "parasail/parasail/io.h"
@@ -46,24 +39,50 @@ extern "C" {
 
 // Logan AVVX2 can achieve at most a score of 32,767
 // Future work: remove this limitation
-#define LEN1 (8000)		// read length (this is going to be a distribution of length in
+#define LEN1 (10000)		// read length (this is going to be a distribution of length in
 						// the adaptive version)
-#define LEN2 (12000)	// 2nd read length
+#define LEN2 (8000)	// 2nd read length
 #define MAT	( 1)		// match score
 #define MIS	(-1)		// mismatch score
 #define GAP	(-1)		// gap score
 #define XDROP (LEN1)	// so high so it won't be triggered in SeqAn
-#define PMIS (0.04)	// substitution probability
-#define PGAP (0.13)	// insertion/deletion probability
-#define BW (16)		// bandwidth (the alignment path of the input sequence and the result does not go out of the band)
+#define PMIS (0.005)	// substitution probability
+#define PGAP (0.001)	// insertion/deletion probability
+#define BW (32)		// bandwidth (the alignment path of the input sequence and the result does not go out of the band)
 #define LOGAN
 #define KSW2
-//a#define GABA
+//#define GABA
+
+#define SEQAN24
+#ifdef SEQAN24
+
+#include <seqan/align.h>
+#include <seqan/align_parallel.h>
+#include <seqan/sequence.h>
+#include <seqan/align.h>
+#include <seqan/seeds.h>
+#include <seqan/score.h>
+#include <seqan/modifier.h>
+#include <seqan/basic.h>
+#include <seqan/stream.h>
+
+#elif
+
 #define SEQAN
+#include <seqan/sequence.h>
+#include <seqan/align.h>
+#include <seqan/seeds.h>
+#include <seqan/score.h>
+#include <seqan/modifier.h>
+#include <seqan/basic.h>
+#include <seqan/stream.h>
+
+#endif
+
 #define SSW
-//#define PARASAIL1
-//#define PARASAIL2
-//#define EDLIB
+#define PARASAIL1
+#define PARASAIL2
+#define EDLIB
 
 //======================================================================================
 // READ SIMULATOR
@@ -190,7 +209,7 @@ int main(int argc, char const *argv[])
 
 	free(ts); free(qs);
 
-	std::cout << "ksw2's best " << ez.score << " in " << diff2.count() << " sec " << std::endl;
+	std::cout << "ksw2's best (no banded, vectorized) " << ez.score << " in " << diff2.count() << " sec " << std::endl;
 #endif
 
 	//======================================================================================
@@ -252,7 +271,7 @@ int main(int argc, char const *argv[])
 	gaba_dp_res_free(dp, r); gaba_dp_clean(dp);
 	gaba_clean(ctx);
 
-	std::cout << "Libgaba's best " << r->score << " in " << diff3.count() << " sec " << std::endl;
+	std::cout << "Libgaba's best (banded, vectorized) " << r->score << " in " << diff3.count() << " sec " << std::endl;
 #endif
 
 	//======================================================================================
@@ -261,7 +280,7 @@ int main(int argc, char const *argv[])
 
 #ifdef SEQAN
 	// SeqAn
-	seqan::Score<int, seqan::Simple> scoringSchemeSeqAn(MAT, MIS, GAP);
+	seqan::Score<int16_t, seqan::Simple> scoringSchemeSeqAn(MAT, MIS, GAP);
 	seqan::Seed<seqan::Simple> seed(0, 0, 0);
 	std::chrono::duration<double> diff4;
 	auto start4 = std::chrono::high_resolution_clock::now();
@@ -270,8 +289,35 @@ int main(int argc, char const *argv[])
 	auto end4 = std::chrono::high_resolution_clock::now();
 	diff4 = end4-start4;
 
-	// SeqAn is doing more computation
-	std::cout << "SeqAn's best " << score << " in " << diff4.count() << " sec " << std::endl;
+	std::cout << "SeqAn's best (no banded, no vectorized) " << score << " in " << diff4.count() << " sec " << std::endl;
+#endif
+
+	//======================================================================================
+	// SEQAN BANDED GLOBAL (vectorized, banded)
+	//======================================================================================
+
+#ifdef SEQAN24
+	seqan::Score<int16_t, seqan::Simple> scoringSchemeSeqAn(MAT, MIS, GAP);
+	using TSequence    = seqan::String<seqan::Dna>;
+	using TThreadModel = seqan::WavefrontAlignment<seqan::BlockOffsetOptimization>;
+	using TVectorSpec  = seqan::Vectorial;
+	using TExecPolicy  = seqan::ExecutionPolicy<TThreadModel, TVectorSpec>;
+
+	seqan::StringSet<TSequence> seqs1;
+	seqan::StringSet<TSequence> seqs2;
+
+	appendValue(seqs1, TSequence{targetSeg.c_str()});
+	appendValue(seqs2, TSequence{querySeg.c_str()});
+
+	TExecPolicy execPolicy;
+	setNumThreads(execPolicy, 1);
+	std::chrono::duration<double> diff9;
+	auto start9 = std::chrono::high_resolution_clock::now();
+	seqan::String<int16_t> scores = seqan::globalAlignmentScore(execPolicy, seqs1, seqs2, scoringSchemeSeqAn);
+	auto end9 = std::chrono::high_resolution_clock::now();
+	diff9 = end9-start9;
+
+	std::cout << "SeqAn's best (banded, vectorized) " << scores[0] << " in " << diff9.count() << " sec " << std::endl;
 #endif
 
 	//======================================================================================
@@ -298,19 +344,37 @@ int main(int argc, char const *argv[])
 	diff5 = end5-start5;
 
 	// SeqAn is doing more computation
-	std::cout << "SSW's best " << alignment.sw_score << " in " << diff5.count() << " sec " << std::endl;
+	std::cout << "SSW's best (no banded, vectorized) " << alignment.sw_score << " in " << diff5.count() << " sec " << std::endl;
 #endif
 
 	//======================================================================================
-	// PARASAIL GLOBAL ALIGNMENT (banded, not vectorized)
+	// EDLIB GLOBAL ALIGNMENT
+	//======================================================================================
+
+#ifdef EDLIB
+	std::chrono::duration<double> diff7;
+	auto start7 = std::chrono::high_resolution_clock::now();
+
+	EdlibAlignResult edresult = edlibAlign(targetSeg.c_str(), targetSeg.size(), querySeg.c_str(), querySeg.size(), 
+		edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0));
+	auto end7 = std::chrono::high_resolution_clock::now();
+	diff7 = end7-start7;
+
+	std::cout << "Edlib's edit distance (banded, no vectorized) " << edresult.editDistance << " in " << diff7.count() << " sec " << std::endl;
+	edlibFreeAlignResult(edresult);
+#endif
+
+	//======================================================================================
+	// PARASAIL GLOBAL ALIGNMENT (banded, not vectorized, SegFault)
 	//======================================================================================
 
 #ifdef PARASAIL1
-
 	int s1Len = (int)strlen(targetSeg.c_str());
 	int s2Len = (int)strlen(querySeg.c_str());
 	parasail_result_t *result = NULL;
-	const parasail_matrix_t *matrix = NULL;
+
+	const char alphabet[4] = {'A','T','C', 'G'};
+	const parasail_matrix_t *matrix = parasail_matrix_create(alphabet, MAT, MIS);
 
 	std::chrono::duration<double> diff6;
 	auto start6 = std::chrono::high_resolution_clock::now();
@@ -322,7 +386,7 @@ int main(int argc, char const *argv[])
 	diff6 = end6-start6;
 
 	// SeqAn is doing more computation
-	std::cout << "SSW's best " << parasail_result_get_score(result) << " in " << diff6.count() << " sec " << std::endl;
+	std::cout << "Parasail's best (banded, no vectorized) " << parasail_result_get_score(result) << " in " << diff6.count() << " sec " << std::endl;
 #endif
 
 	//======================================================================================
@@ -330,43 +394,19 @@ int main(int argc, char const *argv[])
 	//======================================================================================
 
 #ifdef PARASAIL2
-	int32_t maskLen = strlen(querySeg.c_str())/2;
-	maskLen = maskLen < 15 ? 15 : maskLen;
+	parasail_result_t *result2 = NULL;
 
-	StripedSmithWaterman::Aligner aligner(MAT, MIS, 0, GAP);
-	StripedSmithWaterman::Alignment alignment;
+	std::chrono::duration<double> diff8;
+	auto start8 = std::chrono::high_resolution_clock::now();
 
-	StripedSmithWaterman::Filter filter;
-	filter.report_begin_position = false;
-	filter.report_cigar = false;
+	result2 = parasail_nw(targetSeg.c_str(), s1Len, querySeg.c_str(), s2Len, 0, 1, matrix); // check if properly triggered intrinsics
+	parasail_result_free(result2);
 
-	std::chrono::duration<double> diff5;
-	auto start5 = std::chrono::high_resolution_clock::now();
-
-	aligner.Align(querySeg.c_str(), targetSeg.c_str(), targetSeg.size(), filter, &alignment, maskLen);
-
-	auto end5 = std::chrono::high_resolution_clock::now();
-	diff5 = end5-start5;
+	auto end8 = std::chrono::high_resolution_clock::now();
+	diff8 = end8-start8;
 
 	// SeqAn is doing more computation
-	std::cout << "SSW's best " << alignment.sw_score << " in " << diff5.count() << " sec " << std::endl;
-#endif
-
-	//======================================================================================
-	// EDLIB GLOBAL ALIGNMENT
-	//======================================================================================
-
-#ifdef EDLIB
-	std::chrono::duration<double> diff7;
-	auto start7 = std::chrono::high_resolution_clock::now();
-
-	EdlibAlignResult result = edlibAlign(targetSeg.c_str(), targetSeg.size(), querySeg.c_str(), querySeg.size(), 
-		edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0));
-	auto end7 = std::chrono::high_resolution_clock::now();
-	diff7 = end7-start7;
-
-	edlibFreeAlignResult(result);
-	std::cout << "Edlib's edit distance " << result.editDistance << " in " << diff7.count() << " sec " << std::endl;
+	std::cout << "Parasail's best (no banded, vectorized) " << parasail_result_get_score(result2) << " in " << diff8.count() << " sec " << std::endl;
 #endif
 
 	return 0;
