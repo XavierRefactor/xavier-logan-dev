@@ -6,7 +6,7 @@
 
 #include <vector>
 #include <iostream>
-#include <string>
+#include <string.h>
 #include <omp.h>
 #include <algorithm>
 #include <stdlib.h>
@@ -19,9 +19,17 @@
 #include <seqan/seeds.h>
 #include <seqan/score.h>
 #include <seqan/modifier.h>
+#include <seqan/basic.h>
+#include <seqan/stream.h>
 #include "logan.cpp"
+#include "parasail/parasail.h"
+#include "parasail/parasail/io.h"
+#include "parasail/parasail/memory.h"
+#include "parasail/parasail/stats.h"
+#include "Complete-Striped-Smith-Waterman-Library/src/ssw_cpp.h"
 #include "ksw2/ksw2.h"
 #include "ksw2/ksw2_extz2_sse.c" // global and extension with SSE intrinsics; Suzuki'
+#include <edlib.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -46,8 +54,17 @@ extern "C" {
 #define XDROP (LEN1)	// so high so it won't be triggered in SeqAn
 #define LOGAN
 #define KSW2
-//#define LIBGABA
+//a#define GABA
 #define SEQAN
+#define SSW
+//#define PARASAIL1
+//#define PARASAIL2
+#define EDLIB
+
+void 
+mutate (std::string& read)
+{
+}
 
 void 
 readSimulator (std::string& readh, std::string& readv)
@@ -57,16 +74,18 @@ readSimulator (std::string& readh, std::string& readv)
 	// read horizontal
 	for (int i = 0; i < LEN1; i++)
 	{
-		int test = rand();
-		readh = readh + bases[test % 4];
-		//readv = readv + bases[test % 4];
+		readh = readh + bases[rand() % 4];
+		//readv = readv + bases[rand() % 4];
 	}
 
+	readv = readh;
+	//mutate(readv);
+
 	// read vertical
-	for (int i = 0; i < LEN2; i++)
-	{
-		readv = readv + bases[rand() % 4];
-	}
+	//for (int i = 0; i < LEN2; i++)
+	//{
+	//	readv = readv + bases[rand() % 4];
+	//}
 }
 
 //======================================================================================
@@ -79,11 +98,9 @@ int main(int argc, char const *argv[])
 
 	// Simulate pair of read
 	readSimulator(targetSeg, querySeg);
-	//std::cout << targetSeg << "\n" << std::endl;
-	//std::cout << querySeg << "\n" << std::endl;
 
 	//======================================================================================
-	// LOGAN
+	// LOGAN (vectorized SSE2 and AVX2, banded, (not yet) x-drop)
 	//======================================================================================
 
 #ifdef LOGAN
@@ -99,7 +116,7 @@ int main(int argc, char const *argv[])
 #endif
 
 	//======================================================================================
-	// KSW2 GLOBAL AND EXTENSION, SSE4.1
+	// KSW2 GLOBAL AND EXTENSION (vectorized SSE4.1 and x-drop, not banded)
 	//======================================================================================
 
 #ifdef KSW2
@@ -142,16 +159,16 @@ int main(int argc, char const *argv[])
 #endif
 
 	//======================================================================================
-	// LIBGABA (SegFault)
+	// LIBGABA SEMI-GLOBAL ALIGNMENT (SegFault, vetorized SSE2 and AVX2, x-drop, banded)
 	//======================================================================================
 
 #ifdef GABA
 	gaba_t *ctx = gaba_init(GABA_PARAMS(
 		// match award, mismatch penalty, gap open penalty (G_i), and gap extension penalty (G_e)
-		GABA_SCORE_SIMPLE(2, 2, -GAP, -GAP),
+		GABA_SCORE_SIMPLE(2, 3, 5, 1),
 		gfa : 0,
 		gfb : 0,
-		xdrop : 100,
+		xdrop : 10,
 		filter_thresh : 0,
 	));
 
@@ -204,7 +221,7 @@ int main(int argc, char const *argv[])
 #endif
 
 	//======================================================================================
-	// SEQAN
+	// SEQAN SEED EXTENSION (not vectorized, not banded, x-drop)
 	//======================================================================================
 
 #ifdef SEQAN
@@ -220,6 +237,101 @@ int main(int argc, char const *argv[])
 
 	// SeqAn is doing more computation
 	std::cout << "SeqAn's best " << score << " in " << diff4.count() << " sec " << std::endl;
+#endif
+
+	//======================================================================================
+	// SSW LOCAL ALIGNMENT (SSE2 vectorized, not banded)
+	//======================================================================================
+
+#ifdef SSW
+	int32_t maskLen = strlen(querySeg.c_str())/2;
+	maskLen = maskLen < 15 ? 15 : maskLen;
+
+	StripedSmithWaterman::Aligner aligner(MAT, MIS, 0, GAP);
+	StripedSmithWaterman::Alignment alignment;
+
+	StripedSmithWaterman::Filter filter;
+	filter.report_begin_position = false;
+	filter.report_cigar = false;
+
+	std::chrono::duration<double> diff5;
+	auto start5 = std::chrono::high_resolution_clock::now();
+
+	aligner.Align(querySeg.c_str(), targetSeg.c_str(), targetSeg.size(), filter, &alignment, maskLen);
+
+	auto end5 = std::chrono::high_resolution_clock::now();
+	diff5 = end5-start5;
+
+	// SeqAn is doing more computation
+	std::cout << "SSW's best " << alignment.sw_score << " in " << diff5.count() << " sec " << std::endl;
+#endif
+
+	//======================================================================================
+	// PARASAIL GLOBAL ALIGNMENT (banded, not vectorized)
+	//======================================================================================
+
+#ifdef PARASAIL1
+
+	int s1Len = (int)strlen(targetSeg.c_str());
+	int s2Len = (int)strlen(querySeg.c_str());
+	parasail_result_t *result = NULL;
+	const parasail_matrix_t *matrix = NULL;
+
+	std::chrono::duration<double> diff6;
+	auto start6 = std::chrono::high_resolution_clock::now();
+
+	result = parasail_nw_banded(targetSeg.c_str(), s1Len, querySeg.c_str(), s2Len, 0, 1, 16, matrix);
+	parasail_result_free(result);
+
+	auto end6 = std::chrono::high_resolution_clock::now();
+	diff6 = end6-start6;
+
+	// SeqAn is doing more computation
+	std::cout << "SSW's best " << parasail_result_get_score(result) << " in " << diff6.count() << " sec " << std::endl;
+#endif
+
+	//======================================================================================
+	// PARASAIL GLOBAL ALIGNMENT (not banded, vectorized)
+	//======================================================================================
+
+#ifdef PARASAIL2
+	int32_t maskLen = strlen(querySeg.c_str())/2;
+	maskLen = maskLen < 15 ? 15 : maskLen;
+
+	StripedSmithWaterman::Aligner aligner(MAT, MIS, 0, GAP);
+	StripedSmithWaterman::Alignment alignment;
+
+	StripedSmithWaterman::Filter filter;
+	filter.report_begin_position = false;
+	filter.report_cigar = false;
+
+	std::chrono::duration<double> diff5;
+	auto start5 = std::chrono::high_resolution_clock::now();
+
+	aligner.Align(querySeg.c_str(), targetSeg.c_str(), targetSeg.size(), filter, &alignment, maskLen);
+
+	auto end5 = std::chrono::high_resolution_clock::now();
+	diff5 = end5-start5;
+
+	// SeqAn is doing more computation
+	std::cout << "SSW's best " << alignment.sw_score << " in " << diff5.count() << " sec " << std::endl;
+#endif
+
+	//======================================================================================
+	// EDLIB GLOBAL ALIGNMENT
+	//======================================================================================
+
+#ifdef EDLIB
+	std::chrono::duration<double> diff7;
+	auto start7 = std::chrono::high_resolution_clock::now();
+
+	EdlibAlignResult result = edlibAlign(targetSeg.c_str(), targetSeg.size(), querySeg.c_str(), querySeg.size(), 
+		edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0));
+	auto end7 = std::chrono::high_resolution_clock::now();
+	diff7 = end7-start7;
+
+	edlibFreeAlignResult(result);
+	std::cout << "Edlib's edit distance " << result.editDistance << " in " << diff7.count() << " sec " << std::endl;
 #endif
 
 	return 0;
