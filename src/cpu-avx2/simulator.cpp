@@ -24,6 +24,15 @@
 #include "ksw2/ksw2.h"
 #include "ksw2/ksw2_extz2_sse.c" // global and extension with SSE intrinsics; Suzuki'
 #include <edlib.h>
+#include <seqan/align.h>
+//#include <seqan/align_parallel.h>
+#include <seqan/sequence.h>
+#include <seqan/align.h>
+#include <seqan/seeds.h>
+#include <seqan/score.h>
+#include <seqan/modifier.h>
+#include <seqan/basic.h>
+#include <seqan/stream.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -40,55 +49,29 @@ extern "C" {
 
 // Logan AVVX2 can achieve at most a score of 32,767
 // Future work: remove this limitation
-#define LEN1 (10000)	// read length (this is going to be a distribution of length in
-						// the adaptive version)
-#define LEN2 (10000)	// 2nd read length
-#define MAT	( 1)		// match score
-#define MIS	(-1)		// mismatch score
-#define GAP	(-1)		// gap score
-#define XDROP (100)	// so high so it won't be triggered in SeqAn
-#define PMIS (0.03)	// substitution probability
-#define PGAP (0.12)	// insertion/deletion probability
-#define BW (16)		// bandwidth (the alignment path of the input sequence and the result does not go out of the band)
+#define LEN1 	(10000)		// read length (this is going to be a distribution of length in
+							// the adaptive version)
+#define LEN2 	(10050)		// 2nd read length
+#define MAT		( 1)		// match score
+#define MIS		(-1)		// mismatch score
+#define GAP		(-1)		// gap score
+#define XDROP 	(21)		// so high so it won't be triggered in SeqAn
+#define PMIS 	(0.03)		// substitution probability
+#define PGAP 	(0.12)		// insertion/deletion probability
+#define BW 		(32)		// bandwidth (the alignment path of the input sequence and the result does not go out of the band)
 #define LOGAN
 
 #define BENCH
 
 #ifdef BENCH
-
 #define KSW2
 //#define GABA
-
-#define SEQAN24
-#ifdef SEQAN24
-
-#include <seqan/align.h>
-#include <seqan/align_parallel.h>
-#include <seqan/sequence.h>
-#include <seqan/align.h>
-#include <seqan/seeds.h>
-#include <seqan/score.h>
-#include <seqan/modifier.h>
-#include <seqan/basic.h>
-#include <seqan/stream.h>
-
-#elif
-
-#define SEQAN
-#include <seqan/sequence.h>
-#include <seqan/align.h>
-#include <seqan/seeds.h>
-#include <seqan/score.h>
-#include <seqan/modifier.h>
-#include <seqan/basic.h>
-#include <seqan/stream.h>
-
-#endif
-
-#define SSW
-#define PARASAIL1
-#define PARASAIL2
-#define EDLIB
+#define NOSIMD
+//#define SEQAN
+//#define SSW
+//#define PARASAIL1
+//#define PARASAIL2
+//#define EDLIB
 
 #endif
 
@@ -159,6 +142,7 @@ int main(int argc, char const *argv[])
 	// simulate pair of read
 	std::string targetSeg, querySeg;
 	generate_random_sequence(targetSeg);
+	//querySeg = targetSeg;
 	querySeg = generate_mutated_sequence(targetSeg);
 
 	//======================================================================================
@@ -212,7 +196,7 @@ int main(int argc, char const *argv[])
 	std::chrono::duration<double> diff2;
 	auto start2 = std::chrono::high_resolution_clock::now();
 
-	ksw_extz2_sse(0, ql, qs, tl, ts, 5, mat, 0, -GAP, -1, -1, 0, KSW_EZ_SCORE_ONLY, &ez);
+	ksw_extz2_sse(0, ql, qs, tl, ts, 5, mat, 0, -GAP, XDROP, -1, 0, KSW_EZ_SCORE_ONLY, &ez);
 
 	auto end2 = std::chrono::high_resolution_clock::now();
 	diff2 = end2-start2;
@@ -232,7 +216,7 @@ int main(int argc, char const *argv[])
 		GABA_SCORE_SIMPLE(2, 3, 5, 1),
 		gfa : 0,
 		gfb : 0,
-		xdrop : 10,
+		xdrop : 127,
 		filter_thresh : 0,
 	));
 
@@ -288,25 +272,25 @@ int main(int argc, char const *argv[])
 	// SEQAN SEED EXTENSION (not vectorized, not banded, x-drop)
 	//======================================================================================
 
-#ifdef SEQAN
+#ifdef NOSIMD
 	// SeqAn
-	seqan::Score<int16_t, seqan::Simple> scoringSchemeSeqAn(MAT, MIS, GAP);
-	seqan::Seed<seqan::Simple> seed(0, 0, 0);
+	seqan::Score<int, seqan::Simple> scoringSchemeSeqAn(MAT, MIS, GAP);
+	seqan::Seed<seqan::Simple> seed1(0, 0, 0);
 	std::chrono::duration<double> diff4;
 	auto start4 = std::chrono::high_resolution_clock::now();
-	int score = seqan::extendSeed(seed, targetSeg, querySeg, seqan::EXTEND_RIGHT, 
+	int score = seqan::extendSeed(seed1, targetSeg, querySeg, seqan::EXTEND_RIGHT, 
 		scoringSchemeSeqAn, XDROP, seqan::GappedXDrop(), 0);
 	auto end4 = std::chrono::high_resolution_clock::now();
 	diff4 = end4-start4;
 
-	std::cout << "SeqAn's best (not banded, no vectorized) " << score << " in " << diff4.count() << " sec " << std::endl;
+	std::cout << "SeqAn's best (no banded, no vectorized) " << score << " in " << diff4.count() << " sec " << std::endl;
 #endif
 
 	//======================================================================================
 	// SEQAN BANDED GLOBAL (vectorized, banded)
 	//======================================================================================
 
-#ifdef SEQAN24
+#ifdef SEQAN
 	seqan::Score<int16_t, seqan::Simple> scoringSchemeSeqAn(MAT, MIS, GAP);
 	using TSequence    = seqan::String<seqan::Dna>;
 	using TThreadModel = seqan::WavefrontAlignment<seqan::BlockOffsetOptimization>;

@@ -229,7 +229,6 @@ LoganAVX2(
 #ifdef DEBUG
 	printf("Phase I\n");
 #endif
-	printf("VECTORWIDTH %d\n", VECTORWIDTH);
 	// we need one more space for the off-grid values and one more space for antiDiag2
 	short phase1_data[LOGICALWIDTH + 2][LOGICALWIDTH + 2];
 
@@ -373,23 +372,26 @@ LoganAVX2(
 		// TODO: x-drop termination
 		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
 		if(antiDiagBest < best - scoreDropOff)
-			break;
+		{
+			delete [] queryh;
+			delete [] queryv;
+			return std::make_pair(best, antiDiagBest);
+		}
 
 		// update best
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 
 		// antiDiag swap, offset updates, and new base load
-		// It's a mixture of our decison and heuristics
-		//int maxpos, max = 0;
-		//for(int i = 0; i < VECTORWIDTH; ++i)
-		//	if(antiDiag3.elem[i] > max)
-		//	{
-		//		maxpos = i;
-		//		max = antiDiag3.elem[i];
-		//	}
+		int maxpos, max = 0;
+		for(int i = 0; i < VECTORWIDTH; ++i)
+			if(antiDiag3.elem[i] > max)
+			{
+				maxpos = i;
+				max = antiDiag3.elem[i];
+			}
 
-		//if(maxpos > MIDDLE)
-		if(antiDiag3.elem[MIDDLE] < antiDiag3.elem[MIDDLE + 1])
+		if(maxpos > MIDDLE)
+		//if(antiDiag3.elem[MIDDLE] < antiDiag3.elem[MIDDLE + 1])
 		{
 			#ifdef DEBUG
 			printf("myRIGHT\n");
@@ -471,7 +473,11 @@ LoganAVX2(
 		// x-drop termination
 		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
 		if(antiDiagBest < best - scoreDropOff)
-			break;
+		{
+			delete [] queryh;
+			delete [] queryv;
+			return std::make_pair(best, antiDiagBest);
+		}
 
 		// update best
 		best = (best > antiDiagBest) ? best : antiDiagBest;
@@ -551,7 +557,11 @@ LoganAVX2(
 		// x-drop termination
 		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
 		if(antiDiagBest < best - scoreDropOff)
-			break;
+		{
+			delete [] queryh;
+			delete [] queryv;
+			return std::make_pair(best, antiDiagBest);
+		}
 
 		// update best
 		best = (best > antiDiagBest) ? best : antiDiagBest;
