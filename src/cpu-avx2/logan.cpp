@@ -151,8 +151,8 @@ rightShift (const vector_union_t& a) { // this work for avx2
 }
 
 static inline void
-moveRight (vector_union_t& antiDiag1, vector_union_t& antiDiag2, 
-	vector_union_t& antiDiag3, int& hoffset, int& voffset, vector_union_t& vqueryh, 
+moveRight (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
+	vector_union_t& antiDiag3, int& hoffset, int& voffset, vector_union_t& vqueryh,
 		vector_union_t& vqueryv, const short queryh[], const short queryv[])
 {
 	// (a) shift to the left on query horizontal
@@ -165,8 +165,8 @@ moveRight (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
 }
 
 static inline void
-moveDown (vector_union_t& antiDiag1, vector_union_t& antiDiag2, 
-	vector_union_t& antiDiag3, int& hoffset, int& voffset, vector_union_t& vqueryh, 
+moveDown (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
+	vector_union_t& antiDiag3, int& hoffset, int& voffset, vector_union_t& vqueryh,
 		vector_union_t& vqueryv, const short queryh[], const short queryv[])
 {
 	//(a) shift to the right on query vertical
@@ -182,18 +182,29 @@ moveDown (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
 // X-DROP ADAPTIVE BANDED ALIGNMENT
 //======================================================================================
 
-// 1st prototype
-std::pair<short, short>
-LoganAVX2(
-		SeedL & seed,
-		std::string const& targetSeg,
-		std::string const& querySeg,
-		ScoringSchemeL& scoringScheme,
-		unsigned short const &scoreDropOff)
+enum ExtensionDirectionLMC
 {
-	// TODO: check scoring scheme correctness/input parameters
-	// TODO: chop sequences in left and right extension
+    EXTEND_MC_NONE  = 0,
+    EXTEND_MC_LEFT  = 1,
+    EXTEND_MC_RIGHT = 2,
+    EXTEND_MC_BOTH  = 3
+};
 
+template <typename T,typename U>
+std::pair<T,U> operator+(const std::pair<T,U> & l,const std::pair<T,U> & r) {
+    return {l.first+r.first,l.second+r.second};
+}
+
+std::pair<short, short>
+LoganXDrop
+(
+	SeedL & seed,
+	std::string const& targetSeg,
+	std::string const& querySeg,
+	ScoringSchemeL& scoringScheme,
+	unsigned short const &scoreDropOff
+)
+{
 	unsigned int hlength = targetSeg.length() + 1;
 	unsigned int vlength = querySeg.length()  + 1;
 
@@ -204,11 +215,11 @@ LoganAVX2(
 	}
 
 	// Convert from string to int array
-	// This is the entire sequences 	
-	short* queryh = new short[hlength]; 
+	// This is the entire sequences
+	short* queryh = new short[hlength];
 	short* queryv = new short[vlength];
-	std::copy(targetSeg.begin(), targetSeg.end(), queryh); 	
-	std::copy(querySeg.begin(), querySeg.end(), queryv); 
+	std::copy(targetSeg.begin(), targetSeg.end(), queryh);
+	std::copy(querySeg.begin(), querySeg.end(), queryv);
 
 	//Redundant piece of code
 	//setScoreGap(scoringScheme, scoreGap(scoringScheme));
@@ -600,6 +611,58 @@ LoganAVX2(
 	return std::make_pair(best, antiDiagBest);
 }
 
+// 1st prototype
+std::pair<short, short>
+LoganAVX2
+(
+	SeedL& seed,
+	ExtensionDirectionLMC direction,
+	std::string const& target,
+	std::string const& query,
+	ScoringSchemeL& scoringScheme,
+	unsigned short const &scoreDropOff
+)
+{
+	// TODO: check scoring scheme correctness/input parameters
+	// Left extension
+    if (direction == EXTEND_MC_LEFT)
+    {
+    	// string substr (size_t pos = 0, size_t len = npos) const;
+		// returns a newly constructed string object with its value initialized to a copy of a substring of this object
+		std::string targetPrefix = target.substr(0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
+		std::string queryPrefix = query.substr(0, getBeginPositionV(seed));	// from read start til start seed (seed not included)
+		std::reverse( targetPrefix.begin(), targetPrefix.end() );
+		std::reverse( queryPrefix.begin(), queryPrefix.end() );
+		return LoganXDrop( seed, targetPrefix, queryPrefix, scoringScheme, scoreDropOff );
+    }
+
+    else if (direction == EXTEND_MC_RIGHT)
+    {
+    	// Do not extend to the right if we are already at the beginning of an
+		// infix or the sequence itself.
+		std::string targetSuffix = target.substr(getEndPositionH(seed), target.length()); 	// from end seed until the end (seed not included)
+		std::string querySuffix = query.substr(getEndPositionV(seed), query.length());		// from end seed until the end (seed not included)
+		return LoganXDrop( seed, targetSuffix, querySuffix, scoringScheme, scoreDropOff );
+	}
+
+	else
+	{
+		std::pair<short, short> left;
+		std::pair<short, short> right;
+
+		std::string targetPrefix = target.substr(0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
+		std::string queryPrefix = query.substr(0, getBeginPositionV(seed));	// from read start til start seed (seed not included)
+		std::reverse( targetPrefix.begin(), targetPrefix.end() );
+		std::reverse( queryPrefix.begin(), queryPrefix.end() );
+		left = LoganXDrop( seed, targetPrefix, queryPrefix, scoringScheme, scoreDropOff );
+
+		std::string targetSuffix = target.substr(getEndPositionH(seed), target.length()); 	// from end seed until the end (seed not included)
+		std::string querySuffix = query.substr(getEndPositionV(seed), query.length());		// from end seed until the end (seed not included)
+		right = LoganXDrop( seed, targetSuffix, querySuffix, scoringScheme, scoreDropOff );
+
+		return left + right;
+	}
+}
 
 
 

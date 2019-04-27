@@ -16,14 +16,14 @@
 #include <iterator>
 #include <x86intrin.h>
 #include "logan.cpp"
-#include "parasail/parasail.h"
-#include "parasail/parasail/io.h"
-#include "parasail/parasail/memory.h"
-#include "parasail/parasail/stats.h"
+// #include "parasail/parasail.h"
+// #include "parasail/parasail/io.h"
+// #include "parasail/parasail/memory.h"
+// #include "parasail/parasail/stats.h"
 #include "Complete-Striped-Smith-Waterman-Library/src/ssw_cpp.h"
 #include "ksw2/ksw2.h"
 #include "ksw2/ksw2_extz2_sse.c" // global and extension with SSE intrinsics; Suzuki'
-#include <edlib.h>
+// #include <edlib.h>
 #include <seqan/align.h>
 //#include <seqan/align_parallel.h>
 #include <seqan/sequence.h>
@@ -36,8 +36,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "libgaba/gaba.h" 		 // sometimes the forefront vector will not reach the end 
-								 // of the sequences. It is more likely to occur when the input 
+#include "libgaba/gaba.h" 		 // sometimes the forefront vector will not reach the end
+								 // of the sequences. It is more likely to occur when the input
 								 // sequence lengths greatly differ
 #ifdef __cplusplus
 }
@@ -278,7 +278,7 @@ int main(int argc, char const *argv[])
 	seqan::Seed<seqan::Simple> seed1(0, 0, 0);
 	std::chrono::duration<double> diff4;
 	auto start4 = std::chrono::high_resolution_clock::now();
-	int score = seqan::extendSeed(seed1, targetSeg, querySeg, seqan::EXTEND_RIGHT, 
+	int score = seqan::extendSeed(seed1, targetSeg, querySeg, seqan::EXTEND_RIGHT,
 		scoringSchemeSeqAn, XDROP, seqan::GappedXDrop(), 0);
 	auto end4 = std::chrono::high_resolution_clock::now();
 	diff4 = end4-start4;
@@ -349,7 +349,7 @@ int main(int argc, char const *argv[])
 	std::chrono::duration<double> diff7;
 	auto start7 = std::chrono::high_resolution_clock::now();
 
-	EdlibAlignResult edresult = edlibAlign(targetSeg.c_str(), targetSeg.size(), querySeg.c_str(), querySeg.size(), 
+	EdlibAlignResult edresult = edlibAlign(targetSeg.c_str(), targetSeg.size(), querySeg.c_str(), querySeg.size(),
 		edlibNewAlignConfig(-1, EDLIB_MODE_NW, EDLIB_TASK_DISTANCE, NULL, 0));
 	auto end7 = std::chrono::high_resolution_clock::now();
 	diff7 = end7-start7;
