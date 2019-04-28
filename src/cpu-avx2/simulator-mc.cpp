@@ -7,11 +7,18 @@
 #include <omp.h>
 #include <chrono>
 #include "logan.cpp"
+#include <seqan/align.h>
+#include <seqan/sequence.h>
+#include <seqan/align.h>
+#include <seqan/seeds.h>
+#include <seqan/score.h>
+#include <seqan/modifier.h>
+#include <seqan/basic.h>
+#include <seqan/stream.h>
 
 #define MAT		( 1)		// match score
 #define MIS		(-1)		// mismatch score
 #define GAP		(-1)		// gap score
-#define XDROP 	(10000)		// so high so it won't be triggered in SeqAn
 
 using namespace std;
 
@@ -68,12 +75,14 @@ read_data read_file (string filename)
 	return data;
 }
 
-int main ( void )
+int main(int argc, char const *argv[])
 {
 	read_data data = read_file( "input-logan-small.txt" );
 
 	std::chrono::duration<double> diff1;
 	auto start1 = std::chrono::high_resolution_clock::now();
+
+	int xdrop = stoi(argv[1]);
 
 #pragma omp parallel for
 	for (int i = 0; i < data.work_array.size(); ++i)
@@ -83,7 +92,7 @@ int main ( void )
 		SeedL seed( 0, 0, 0 );
 		ScoringSchemeL scoringSchemeLogan(MAT, MIS, GAP);
 
-		LoganAVX2(seed, EXTEND_MC_RIGHT, data.reads[ work.id1 ], data.reads[ work.id2 ], scoringSchemeLogan, XDROP);
+		LoganAVX2(seed, EXTEND_MC_RIGHT, data.reads[ work.id1 ], data.reads[ work.id2 ], scoringSchemeLogan, xdrop);
 	}
 	auto end1 = std::chrono::high_resolution_clock::now();
 	diff1 = end1-start1;
@@ -91,6 +100,29 @@ int main ( void )
 	cout << diff1.count() << "\tseconds"<< endl;
 	cout << data.work_array.size() << "\talignments"<< endl;
 	cout << (double)data.work_array.size() / diff1.count() << "\talignments/seconds"<< endl;
+
+	std::chrono::duration<double> diff2;
+	auto start2 = std::chrono::high_resolution_clock::now();
+
+#pragma omp parallel for
+	for (int i = 0; i < data.work_array.size(); ++i)
+	{
+		seed_pair work = data.work_array[i];
+		// SeqAn
+		seqan::Score<int, seqan::Simple> scoringSchemeSeqAn(MAT, MIS, GAP);
+		seqan::Seed<seqan::Simple> seed1(0, 0, 0);
+		std::chrono::duration<double> diff4;
+		auto start4 = std::chrono::high_resolution_clock::now();
+		int score = seqan::extendSeed(seed1, data.reads[ work.id1 ], data.reads[ work.id2 ], seqan::EXTEND_RIGHT,
+			scoringSchemeSeqAn, xdrop, seqan::GappedXDrop(), 0);
+	}
+
+	auto end2 = std::chrono::high_resolution_clock::now();
+	diff2 = end2-start2;
+
+	cout << diff2.count() << "\tseconds"<< endl;
+	cout << data.work_array.size() << "\talignments"<< endl;
+	cout << (double)data.work_array.size() / diff2.count() << "\talignments/seconds"<< endl;
 
 	return 0;
 }
