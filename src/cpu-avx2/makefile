@@ -10,6 +10,10 @@ INCLUDE =	-I$(SEQANPATH)
 test: $(SSWPATH)/ssw_cpp.cpp $(SSWPATH)/ssw.c simulator.cpp ksw2 
 	$(CXX) -march=native -std=c++14 $(INCLUDE) -O3 -fpermissive -o test $(SSWPATH)/ssw_cpp.cpp $(SSWPATH)/ssw.c simulator.cpp
 
+mc: $(SSWPATH)/ssw_cpp.cpp $(SSWPATH)/ssw.c simulator-mc.cpp ksw2 
+	$(CXX) -march=native -std=c++14 $(INCLUDE) -O3 -fopenmp -fpermissive -o mc $(SSWPATH)/ssw_cpp.cpp $(SSWPATH)/ssw.c simulator-mc.cpp
+
 clean:
 	rm -f *.o
 	rm -f test
+	rm -f mc

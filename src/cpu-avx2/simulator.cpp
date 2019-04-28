@@ -155,7 +155,7 @@ int main(int argc, char const *argv[])
 	// 1st prototype without seed and x-drop termination
 	std::chrono::duration<double> diff1;
 	auto start1 = std::chrono::high_resolution_clock::now();
-	std::pair<int16_t, int16_t> best = LoganAVX2(seed, targetSeg, querySeg, scoringSchemeLogan, XDROP);
+	std::pair<int16_t, int16_t> best = LoganAVX2(seed, EXTEND_MC_RIGHT, targetSeg, querySeg, scoringSchemeLogan, XDROP);
 	auto end1 = std::chrono::high_resolution_clock::now();
 	diff1 = end1-start1;
 	// score off by factor of 5

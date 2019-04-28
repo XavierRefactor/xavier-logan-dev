@@ -6,20 +6,12 @@
 #include <sstream>
 #include <omp.h>
 #include <chrono>
-
 #include "logan.cpp"
 
-#define LEN1 	(10000)		// read length (this is going to be a distribution of length in
-							// the adaptive version)
-#define LEN2 	(10050)		// 2nd read length
 #define MAT		( 1)		// match score
 #define MIS		(-1)		// mismatch score
 #define GAP		(-1)		// gap score
-#define XDROP 	(21)		// so high so it won't be triggered in SeqAn
-#define PMIS 	(0.03)		// substitution probability
-#define PGAP 	(0.12)		// insertion/deletion probability
-#define BW 		(32)		// bandwidth (the alignment path of the input sequence and the result does not go out of the band)
-#define LOGAN
+#define XDROP 	(10000)		// so high so it won't be triggered in SeqAn
 
 using namespace std;
 
@@ -40,17 +32,17 @@ struct read_data
 	vector<seed_pair> work_array;
 };
 
-read_data read_file ( string filename )
+read_data read_file (string filename)
 {
-	ifstream file( filename );
+	ifstream file(filename);
 	read_data data;
 
 	file >> data.num_reads;
 	file >> data.kmer_len;
 
-	data.reads.resize( data.num_reads );
+	data.reads.resize(data.num_reads);
 
-	for ( int i = 0; i < data.num_reads; ++i )
+	for (int i = 0; i < data.num_reads; ++i)
 	{
 		uint32_t id;
 		string   sequence;
@@ -61,7 +53,7 @@ read_data read_file ( string filename )
 		data.reads[ id ] = sequence;
 	}
 
-	while ( !file.eof() )
+	while (!file.eof())
 	{
 		seed_pair spair;
 
@@ -83,19 +75,22 @@ int main ( void )
 	std::chrono::duration<double> diff1;
 	auto start1 = std::chrono::high_resolution_clock::now();
 
-	#pragma omp parallel for
-	for ( int i = 0; i < data.work_array.size(); ++i )
+#pragma omp parallel for
+	for (int i = 0; i < data.work_array.size(); ++i)
 	{
 		seed_pair work = data.work_array[i];
 
 		SeedL seed( 0, 0, 0 );
-		ScoringSchemeL scoringSchemeLogan( MAT, MIS, GAP );
+		ScoringSchemeL scoringSchemeLogan(MAT, MIS, GAP);
 
-		LoganAVX2( seed, EXTEND_MC_RIGHT, data.reads[ work.id1 ], data.reads[ work.id2 ], scoringSchemeLogan, XDROP );
+		LoganAVX2(seed, EXTEND_MC_RIGHT, data.reads[ work.id1 ], data.reads[ work.id2 ], scoringSchemeLogan, XDROP);
 	}
 	auto end1 = std::chrono::high_resolution_clock::now();
 	diff1 = end1-start1;
 
-	cout << diff1.count() << "s" << endl;
+	cout << diff1.count() << "\tseconds"<< endl;
+	cout << data.work_array.size() << "\talignments"<< endl;
+	cout << (double)data.work_array.size() / diff1.count() << "\talignments/seconds"<< endl;
+
 	return 0;
 }
