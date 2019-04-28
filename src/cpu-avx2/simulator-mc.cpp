@@ -1,3 +1,9 @@
+//==================================================================
+// Title:  LOGAN: X-Drop Adaptive Banded Alignment
+// Author: G. Guidi, E. Younis
+// Date:   22 April 2019
+//==================================================================
+
 #include <iostream>
 #include <fstream>
 #include <string>
