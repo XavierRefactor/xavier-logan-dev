@@ -121,7 +121,7 @@ int main(int argc, char const *argv[])
 	// LOGAN (X-Drop Adaptive Banded Alignment)
 	//======================================================================================
 
-	result = LoganXDrop(seed, LOGAN_EXTEND_RIGHT, seq1, seq2, penalties, x);
+	result = LoganXDrop(seed, LOGAN_EXTEND_BOTH, seq1, seq2, penalties, x);
 	std::cout << "Best score : " << result.first << "\tExit score : " << result.second << std::endl;
 
 	//======================================================================================
