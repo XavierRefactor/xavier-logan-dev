@@ -1,13 +1,20 @@
-COMPILER = g++
-COMPILER_GPU = nvcc
 CC = gcc
-CFLAGS = -I. -O3 -Wall -Wextra -pedantic -ansi -c -Wno-write-strings
-SEQINCLUDE=	-I../utils/seqan
+CXX = g++
+CFLAGS  = 	-I. -O3 -Wall -Wextra -pedantic -ansi -c -Wno-write-strings
+#SEQANPATH=seqan2.4/seqan/include
+SEQANPATH=../utils/seqan
+SSWPATH=Complete-Striped-Smith-Waterman-Library/src
+KSW2PATH=ksw2
+INCLUDE =	-I$(SEQANPATH)
 
-test: simulator.cpp
+test: $(SSWPATH)/ssw_cpp.cpp $(SSWPATH)/ssw.c simulator.cpp ksw2 
+	$(CXX) -march=native -std=c++14 $(INCLUDE) -O3 -fpermissive -o test $(SSWPATH)/ssw_cpp.cpp $(SSWPATH)/ssw.c simulator.cpp
 
-	$(COMPILER) -std=c++14 $(INCLUDE) -O3 -march=native $(SEQINCLUDE) -o test simulator.cpp
+mc: $(SSWPATH)/ssw_cpp.cpp $(SSWPATH)/ssw.c simulator-mc.cpp ksw2 
+	$(CXX) -march=native -std=c++14 $(INCLUDE) -O3 -fopenmp -fpermissive -o mc $(SSWPATH)/ssw_cpp.cpp $(SSWPATH)/ssw.c simulator-mc.cpp
 
 clean:
 	rm -f *.o
 	rm -f test
+	rm -f mc
+
