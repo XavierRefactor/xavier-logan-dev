@@ -24,6 +24,11 @@ gpu_temp: test-performance-gpu-temp.cu
 
 	$(COMPILER_GPU) -std=c++11 $(INCLUDE) $(SEQINCLUDE) $(CUB) test-performance-gpu-temp.cu -o test
 
+gpu_temp_dfstream:  test-performance-gpu-temp.cu
+
+	$(COMPILER_GPU) --default-stream per-thread -std=c++11 $(INCLUDE) $(SEQINCLUDE) $(CUB) ./test-performance-gpu-temp.cu -o test
+ 
+
 clean:
 	rm -f *.o
 	rm -f test
