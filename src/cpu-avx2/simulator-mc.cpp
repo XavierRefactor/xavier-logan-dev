@@ -21,6 +21,8 @@
 #include <seqan/modifier.h>
 #include <seqan/basic.h>
 #include <seqan/stream.h>
+#include "ksw2/ksw2.h"
+#include "ksw2/ksw2_extz2_sse.c" // global and extension with SSE intrinsics; Suzuki'
 
 #define MAT		( 1)		// match score
 #define MIS		(-1)		// mismatch score
@@ -89,6 +91,8 @@ int main(int argc, char const *argv[])
 	auto start1 = std::chrono::high_resolution_clock::now();
 
 	int xdrop = stoi(argv[1]);
+	std::cout << omp_get_num_threads() << std::endl;
+	std::cout << "Logan" << std::endl;
 
 #pragma omp parallel for
 	for (int i = 0; i < data.work_array.size(); ++i)
@@ -105,8 +109,8 @@ int main(int argc, char const *argv[])
 
 	cout << diff1.count() << "\tseconds"<< endl;
 	cout << data.work_array.size() << "\talignments"<< endl;
-	cout << (double)data.work_array.size() / diff1.count() << "\talignments/seconds"<< endl;
-
+	cout << (double)data.work_array.size() / diff1.count() << "\talignments/seconds\n"<< endl;
+	std::cout << "SeqAn" << std::endl;
 	std::chrono::duration<double> diff2;
 	auto start2 = std::chrono::high_resolution_clock::now();
 
@@ -129,6 +133,51 @@ int main(int argc, char const *argv[])
 	cout << diff2.count() << "\tseconds"<< endl;
 	cout << data.work_array.size() << "\talignments"<< endl;
 	cout << (double)data.work_array.size() / diff2.count() << "\talignments/seconds"<< endl;
+
+	std::cout << "ksw2" << std::endl;
+	std::chrono::duration<double> diff3;
+	auto start3 = std::chrono::high_resolution_clock::now();
+#pragma omp parallel for
+	for (int i = 0; i < data.work_array.size(); ++i)
+	{
+		seed_pair work = data.work_array[i];
+		// SeqAn
+		int8_t a = MAT, b = MIS < 0? MIS : -MIS; // a>0 and b<0
+		int8_t mat[25] = { a,b,b,b,0, b,a,b,b,0, b,b,a,b,0, b,b,b,a,0, 0,0,0,0,0 };
+		int tl = strlen(data.reads[ work.id1 ].c_str()), ql = strlen(data.reads[ work.id2 ].c_str());
+		uint8_t *ts, *qs, c[256];
+		ksw_extz_t ez;
+	
+		memset(&ez, 0, sizeof(ksw_extz_t));
+		memset(c, 4, 256);
+	
+		// build the encoding table
+		c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
+		c['G'] = c['g'] = 2; c['T'] = c['t'] = 3;
+		ts = (uint8_t*)malloc(tl);
+		qs = (uint8_t*)malloc(ql);
+	
+		// encode to 0/1/2/3
+		for (int i = 0; i < tl; ++i)
+		{
+			ts[i] = c[(uint8_t)data.reads[ work.id1 ][i]];
+		}
+		for (int i = 0; i < ql; ++i)
+		{
+			qs[i] = c[(uint8_t)data.reads[ work.id2 ][i]];
+		}
+
+		ksw_extz2_sse(0, ql, qs, tl, ts, 5, mat, 0, -GAP, xdrop, -1, 0, KSW_EZ_SCORE_ONLY, &ez);
+
+		free(ts); free(qs);
+		}
+
+		auto end3 = std::chrono::high_resolution_clock::now();
+		diff3 = end3-start3;
+
+		cout << diff3.count() << "\tseconds"<< endl;
+		cout << data.work_array.size() << "\talignments"<< endl;
+		cout << (double)data.work_array.size() / diff3.count() << "\talignments/seconds"<< endl;
 
 	return 0;
 }

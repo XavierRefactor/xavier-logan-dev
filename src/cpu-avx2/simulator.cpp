@@ -148,7 +148,7 @@ int main(int argc, char const *argv[])
 	//======================================================================================
 	// LOGAN (vectorized SSE2 and AVX2, banded, (not yet) x-drop)
 	//======================================================================================
-
+	std::cout << xdrop << std::endl;
 #ifdef LOGAN
 	ScoringSchemeL scoringSchemeLogan(MAT, MIS, GAP);
 	SeedL seed(0,0,0);
@@ -159,8 +159,8 @@ int main(int argc, char const *argv[])
 	auto end1 = std::chrono::high_resolution_clock::now();
 	diff1 = end1-start1;
 	// score off by factor of 5
-	std::cout << "Logan's best " << best.first << " and Logan's exit " << best.second << " in " << diff1.count() << " sec " << std::endl;
-	std::cout << (double)LEN1 / diff1.count() << " bases aligned per second" << std::endl;
+	//std::cout << "Logan's best " << best.first << " and Logan's exit " << best.second << " in " << diff1.count() << " sec " << std::endl;
+	std::cout << diff1.count() << "\t" << (double)LEN1 / diff1.count() << "\tbases aligned per second" << std::endl;
 #endif
 
 	//======================================================================================
@@ -203,8 +203,8 @@ int main(int argc, char const *argv[])
 
 	free(ts); free(qs);
 
-	std::cout << "ksw2's best (not banded, vectorized) " << ez.score << " in " << diff2.count() << " sec " << std::endl;
-	std::cout << (double)LEN1 / diff2.count() << " bases aligned per second" << std::endl;
+	//std::cout << "ksw2's best (not banded, vectorized) " << ez.score << " in " << diff2.count() << " sec " << std::endl;
+	std::cout << diff2.count() << "\t" << (double)LEN1 / diff2.count() << "\tbases aligned per second" << std::endl;
 #endif
 
 	//======================================================================================
@@ -284,10 +284,9 @@ int main(int argc, char const *argv[])
 	auto end4 = std::chrono::high_resolution_clock::now();
 	diff4 = end4-start4;
 
-	std::cout << "SeqAn's best (no banded, no vectorized) " << score << " in " << diff4.count() << " sec " << std::endl;
-	std::cout << (double)LEN1 / diff4.count() << " bases aligned per second" << std::endl;
+	std::cout << diff4.count() << "\t" << (double)LEN1 / diff4.count() << "\tbases aligned per second" << std::endl;
 #endif
-
+	std::cout << std::endl;
 	//======================================================================================
 	// SEQAN BANDED GLOBAL (vectorized, banded)
 	//======================================================================================
