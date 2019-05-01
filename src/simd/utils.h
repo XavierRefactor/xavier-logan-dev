@@ -1,11 +1,18 @@
 //==================================================================
 // Title:  C++ x-drop seed-and-extend alignment algorithm
 // Author: G. Guidi, A. Zeni
-// Date:   6 March 2019
+// Date:   6 April 2019
 //==================================================================
+
+#ifndef UTILS_H
+#define UTILS_H
 
 #include<algorithm> 
 #include<cassert>
+
+//======================================================================================
+// UTILS
+//======================================================================================
 
 struct SeedL
 {
@@ -59,29 +66,7 @@ struct SeedL
 	{
 		assert(upperDiagonal >= lowerDiagonal);
 	}
-
 };
-
-struct Result
-{
-	SeedL myseed;
-	int score; 			// alignment score
-	int length;			// overlap length / max extension
-
-	Result() : score(0), length(0)//check
-	{
-		//myseed=SeedL();
-	}
-
-	Result(int kmerLen) : score(0), length(kmerLen)
-	{
-		//myseed=SeedL();
-	}
-
-};
-
-// GGGG we can think about this later
-// AAAA add setter also
 
 inline int
 getAlignScore(SeedL const &myseed){
@@ -182,3 +167,5 @@ inline void
 setEndDiagonal(SeedL &myseed,int const value){
 	myseed.endDiagonal = value;
 }
+
+#endif

@@ -14,7 +14,8 @@
 #include <assert.h>
 #include <iterator>
 #include <x86intrin.h>
-#include "logan.h"
+#include "logan_xa.h"
+#include "logan_ga.h"
 
 //======================================================================================
 // SEQUENCE GENERATION (source: https://github.com/ocxtal/libgaba)
@@ -115,24 +116,22 @@ int main(int argc, char const *argv[])
 	SeedL seed(0, 0, k);
 
 	/* result.first = best score, result.second = exit score when (if) x-drop termination is satified */
-	std::pair<int16_t, int16_t> result; 
+	std::pair<short, short> result_x; 
 
 	//======================================================================================
 	// LOGAN (X-Drop Adaptive Banded Alignment)
 	//======================================================================================
 
-	result = LoganXDrop(seed, LOGAN_EXTEND_BOTH, seq1, seq2, penalties, x);
-	std::cout << "Best score : " << result.first << "\tExit score : " << result.second << std::endl;
+	result_x = LoganXDrop(seed, LOGAN_EXTEND_BOTH, seq1, seq2, penalties, x);
+	std::cout << "Best score : " << result_x.first << "\tExit score : " << result_x.second << std::endl;
 
 	//======================================================================================
 	// LOGAN (Global Adaptive Banded Alignment)
 	//======================================================================================
 
-	// TODO
-
-	// int16_t gresult;
-	// result = LoganGlobal(seq1, seq2, penalties);
-	// std::cout << "Global alignment score : " << gresult << std::endl;
+	std::pair<short, short> result_g; 
+	result_g = LoganGlobal(seq1, seq2, penalties);
+	std::cout << "Best score : " << result_g.first << "\tGlobal score : " << result_g.second << std::endl;
 
 	return 0;
 }

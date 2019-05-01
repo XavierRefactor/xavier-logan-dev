@@ -4,6 +4,9 @@
 // Date:   8 March 2019
 //==================================================================
 
+#ifndef SCORE_H
+#define SCORE_H
+
 struct ScoringSchemeL
 {
 		short match_score;      // match
@@ -96,3 +99,5 @@ score(ScoringSchemeL const & me, char valH, char valV) {
     else
         return scoreMismatch(me);
 }
+
+#endif
