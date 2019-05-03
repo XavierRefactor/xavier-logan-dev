@@ -183,10 +183,7 @@ LoganOneDirection
 	unsigned int vlength = querySeg.length()  + 1;
 
 	if (hlength <= 1 || vlength <= 1)
-	{
-		printf("Error: read length == 0\n");
-		exit(1);
-	}
+		return std::make_pair(0, 0);
 
 	// Convert from string to int array
 	// This is the entire sequences
@@ -629,6 +626,3 @@ LoganXDrop
 		return extLeft + extRight;
 	}
 }
-
-
-
