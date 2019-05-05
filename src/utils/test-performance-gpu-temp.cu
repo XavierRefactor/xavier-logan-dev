@@ -31,6 +31,8 @@
 #include <set>
 #include <memory>
 #include <typeinfo>
+#include <pthread.h>
+#include <vector>
 // #include <seqan/sequence.h>
 // #include <seqan/align.h>
 // #include <seqan/seeds.h>
@@ -40,6 +42,8 @@
 #include "../gpu/v1_matrix/logan-functions.h"
 using namespace std;
 //using namespace seqan;
+
+#define NOW std::chrono::high_resolution_clock::now()
 
 //=======================================================================
 // 
@@ -111,28 +115,57 @@ vector<std::string> split (const std::string &s, char delim)
 // }
 
 // typedef std::tuple< int, int, int, int, double > myinfo;	// score, start seed, end seed, runtime
-myinfo loganXdrop(std::string& readV, std::string& readH, int posV, int posH, int mat, int mis, int gap, int kmerLen, int xdrop)
+void loganXdrop(std::vector< std::vector<std::string> > &v, int mat, int mis, int gap, int kmerLen, int xdrop)
 {
-
-	ScoringSchemeL penalties(mat, mis, -1, gap);
+	
+	
 	//Result result(kmerLen);
-	int result;
-	myinfo loganresult;
+	int n_align = v.size();
+	//int result;
+	//myinfo loganresult;
+	vector<ScoringSchemeL> penalties(n_align);
+	vector<int> posV(n_align);
+	vector<int> posH(n_align);
+	vector<string> seqV(n_align);
+	vector<string> seqH(n_align);
+	vector<SeedL> seeds(n_align);
+	for(int i = 0; i < v.size(); i++){
+		ScoringSchemeL tmp_sscheme(mat, mis, -1, gap);
+		penalties[i]=tmp_sscheme;
+		posV[i]=stoi(v[i][1]); 
+		posH[i]=stoi(v[i][3]);		
+		seqV[i]=v[i][0];		
+		seqH[i]=v[i][2];
+		std::string strand = v[i][4];
+
+		if(strand == "c"){
+			std::transform(
+					std::begin(seqH[i]),
+					std::end(seqH[i]),
+					std::begin(seqH[i]),
+					dummycomplement);
+			posH[i] = seqH[i].length()-posH[i]-kmerLen;
+		}
+		SeedL tmp_seed(posH[i], posV[i], kmerLen);
+		seeds[i] = tmp_seed;
+	}
+		
 
 	std::chrono::duration<double>  diff_l;
-	SeedL seed(posH, posV, kmerLen);
+	
 
-	// perform match extension	
-	auto start_l = std::chrono::high_resolution_clock::now();
-	// GGGG: double check call function
-	result = extendSeedL(seed, EXTEND_BOTHL, readH, readV, penalties, xdrop, kmerLen);
-	auto end_l = std::chrono::high_resolution_clock::now();
+		// perform match extension	
+	auto start_l = NOW;
+		// GGGG: double check call function
+	extendSeedL(seeds, EXTEND_BOTHL, seqH, seqV, penalties, xdrop, kmerLen);
+	auto end_l = NOW;
 	diff_l = end_l-start_l;
 
-	std::cout << "logan score:\t" << result << "\tlogan time:\t" <<  diff_l.count() <<std::endl;
-	//double time_l = diff_l.count();
-	loganresult = std::make_tuple(result, getBeginPositionV(seed), getEndPositionV(seed), getBeginPositionH(seed), getEndPositionH(seed), diff_l.count());
-	return loganresult;
+	cout << "logan time:\t" <<  diff_l.count() <<endl;
+	
+	
+	//loganresult = std::make_tuple(result, getBeginPositionV(seed), getEndPositionV(seed), getBeginPositionH(seed), getEndPositionH(seed), diff_l.count());
+	//return loganresult;
 }
 
 //=======================================================================
@@ -177,16 +210,18 @@ int main(int argc, char **argv)
 			entries.push_back(line);
 		}
 	input.close();
-
 	// compute pairwise alignments
 //#pragma omp parallel for
+	vector< vector<string> > v(numpair);
 	for(uint64_t i = 0; i < numpair; i++) 
 	{
-		int ithread = i;//omp_get_thread_num();
+		
+		//int ithread = i;//omp_get_thread_num();
+		vector<string> temp = split(entries[i], '\t');
 		// format: seqV, posV, seqH, posH, strand -- GGGG: generate this input with BELLA
-		std::vector<std::string> v = split (entries[i], '\t');
-
-		int posV = stoi(v[1]); 
+		v[i]=temp;
+	}
+/*		int posV = stoi(v[1]); 
 		int posH = stoi(v[3]);		
 		std::string seqV = v[0];		
 		std::string seqH = v[2];
@@ -204,12 +239,12 @@ int main(int argc, char **argv)
 			//AAAA change here if using 4 bases and to new type 
 			//Dna5String seqHLogan(seqH), seqVLogan(seqV);
 
-			myinfo seqanresult;
-			myinfo loganresult;
+			//myinfo seqanresult;
+			//myinfo loganresult;
 
 			
 			//cout << "seqan ok" << endl;
-			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
+			loganXdrop(v, mat, mis, gap, kmerLen, xdrop);
 			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			
 			//cout << "logan ok" << endl;
@@ -225,25 +260,26 @@ int main(int argc, char **argv)
 			//AAAA change here if using 4 bases and to new type 
 			//Dna5String seqHLogan(seqH), seqVLogan(seqV);
 
-			myinfo seqanresult;
-			myinfo loganresult;
+			//myinfo seqanresult;
+			//myinfo loganresult;
 
 			
 			//cout << "seqan ok" << endl;
-			loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
+*/
+			loganXdrop(v, mat, mis, gap, kmerLen, xdrop);
 			//loganresult = loganXdrop(seqV, seqH, posV, posH, mat, mis, gap, kmerLen, xdrop);
 			
 			//cout << "logan ok" << endl;
 			// GGGG: use a custom data struct instead of tuples 	
-			local[ithread] << i << "\t" << get<0>(seqanresult) << "\t" << get<1>(seqanresult) << "\t" 
+			/*local[ithread] << i << "\t" << get<0>(seqanresult) << "\t" << get<1>(seqanresult) << "\t" 
 				<< get<2>(seqanresult) << "\t" << get<3>(seqanresult) << "\t" << get<4>(seqanresult)
 					<< "\t" << get<5>(seqanresult) << "\t" << get<0>(loganresult) << "\t" << get<1>(loganresult) << "\t" << 
 						get<2>(loganresult) << "\t" << get<3>(loganresult) << "\t" << get<4>(loganresult) 
-							<< "\t" << get<5>(loganresult) << endl;
-		}
+							<< "\t" << get<5>(loganresult) << endl;*/
+//		}
 
 	
-	}
+//	}
 	// write to a new file 	
 	int64_t* bytes = new int64_t[maxt];
 	for(int i = 0; i < maxt; ++i)
