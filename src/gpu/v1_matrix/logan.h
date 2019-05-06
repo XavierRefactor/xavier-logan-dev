@@ -23,7 +23,7 @@ Tx_  min(const Tx_& _Left, const Ty_& Right_)
 }
 template<typename Ty_>
 Ty_ const &
-__device__ __host__ max(const Ty_& _Left, const Ty_& Right_)
+__device__ __host__ max_logan(const Ty_& _Left, const Ty_& Right_)
 {   // return larger of _Left and Right_
     if (_Left < Right_)
         return Right_;
@@ -33,7 +33,7 @@ __device__ __host__ max(const Ty_& _Left, const Ty_& Right_)
 
 template<typename Tx_, typename Ty_>
 Tx_
-__device__ __host__ max(const Tx_& _Left, const Ty_& Right_)
+__device__ __host__ max_logan(const Tx_& _Left, const Ty_& Right_)
 {   // return smaller of _Left and Right_
     return (Right_ < _Left ? _Left : Right_);
 }

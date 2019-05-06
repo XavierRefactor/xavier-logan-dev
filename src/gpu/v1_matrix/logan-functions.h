@@ -25,7 +25,7 @@
 using namespace cub;
 
 #define N_THREADS 1024
-#define MIN -2147483648
+#define MIN -32768
 #define BYTES_INT 4
 #define N_STREAMS 60
 //trying to see if the scoring scheme is a bottleneck in some way
@@ -33,7 +33,7 @@ using namespace cub;
 #define MISMATCH -1
 #define GAP_EXT  -1
 #define GAP_OPEN -1
-#define UNDEF -2147483647
+#define UNDEF -32767
 #define NOW std::chrono::high_resolution_clock::now()
 
 #define cudaErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -55,21 +55,21 @@ enum ExtensionDirectionL
     EXTEND_BOTHL  = 3
 };
 
-__device__ inline int array_max(int *array,
+__device__ inline int array_max(short *array,
 				int dim,
 				int minCol,
 				int ant_offset)
 {
 	//printf("%d\n", dim1);
-	__shared__ int localArray[N_THREADS/2];
+	__shared__ short localArray[N_THREADS/2];
 	unsigned int tid = threadIdx.x;
 	int half = dim>>1;
 	if(tid < half){
-		localArray[tid] = max(array[tid+minCol-ant_offset],array[tid+minCol-ant_offset+half]);
+		localArray[tid] = max_logan(array[tid+minCol-ant_offset],array[tid+minCol-ant_offset+half]);
 	}
 		
 	for(int offset = dim/4; offset > 0; offset>>=1){
-		if(tid < offset) localArray[tid] = max(localArray[tid],localArray[tid+offset]);
+		if(tid < offset) localArray[tid] = max_logan(localArray[tid],localArray[tid+offset]);
 	}
 	__syncthreads();
 	return localArray[0];
@@ -85,11 +85,11 @@ __device__ inline int array_max_old(int *array,
 	__shared__ int localArray[N_THREADS/2];
 	unsigned int tid = threadIdx.x;
 	if(tid < dim/2){
-		localArray[tid] = max(array[tid],array[tid+dim/2]);
+		localArray[tid] = max_logan(array[tid],array[tid+dim/2]);
 	}
 		
 	for(int offset = dim/4; offset > 0; offset>>=1){
-		if(tid < offset) localArray[tid] = max(localArray[tid],localArray[tid+offset]);
+		if(tid < offset) localArray[tid] = max_logan(localArray[tid],localArray[tid+offset]);
 	}
 	return localArray[0];
 	
@@ -223,9 +223,9 @@ __device__ inline void computeAntidiagRight(int *antiDiag1,
 	//}
 }
 
-__device__ inline void computeRight(int *antiDiag1,
-									int *antiDiag2,
-									int *antiDiag3,
+__device__ inline void computeRight(short *antiDiag1,
+									short *antiDiag2,
+									short *antiDiag3,
 									char* querySeg,
 									char* databaseSeg,
 									int best,
@@ -246,10 +246,10 @@ __device__ inline void computeRight(int *antiDiag1,
 	
 	if(col < maxCol){
 		//printf("%d\n",antiDiagNo);
-		int tmp = max(antiDiag2[col-offset2],antiDiag2[col-offset2-1]) + GAP_EXT;
+		int tmp = max_logan(antiDiag2[col-offset2],antiDiag2[col-offset2-1]) + GAP_EXT;
 		//printf("%d\n",tid);
 		int score = (querySeg[queryPos] == databaseSeg[dbPos]) ? MATCH : MISMATCH;
-		tmp = max(antiDiag1[col-offset1-1]+score,tmp);
+		tmp = max_logan(antiDiag1[col-offset1-1]+score,tmp);
 		if(tmp < best - scoreDropOff)
 			antiDiag3[tid+1]=UNDEF;	
 		else
@@ -258,9 +258,9 @@ __device__ inline void computeRight(int *antiDiag1,
 	
 }
 
-__device__ inline void computeLeft(int *antiDiag1,
-									int *antiDiag2,
-									int *antiDiag3,
+__device__ inline void computeLeft(short *antiDiag1,
+									short *antiDiag2,
+									short *antiDiag3,
 									char* querySeg,
 									char* databaseSeg,
 									int best,
@@ -281,10 +281,10 @@ __device__ inline void computeLeft(int *antiDiag1,
 	
 	if(col < maxCol){
 		//printf("%d\n",antiDiagNo);
-		int tmp = max(antiDiag2[col-offset2],antiDiag2[col-offset2-1]) + GAP_EXT;
+		int tmp = max_logan(antiDiag2[col-offset2],antiDiag2[col-offset2-1]) + GAP_EXT;
 		//printf("%d\n",tid);
 		int score = (querySeg[queryPos] == databaseSeg[dbPos]) ? MATCH : MISMATCH;
-		tmp = max(antiDiag1[col-offset1-1]+score,tmp);
+		tmp = max_logan(antiDiag1[col-offset1-1]+score,tmp);
 		antiDiag3[tid+1] = (tmp < best - scoreDropOff) ? UNDEF : tmp;
 	}
 }
@@ -334,9 +334,9 @@ __device__ inline void computeAntidiagLeft(int *antiDiag1,
 		
 		
 		// Calculate matrix entry (-> antiDiag3[col])
-		int tmp = max(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
+		int tmp = max_logan(antiDiag2[i2-1], antiDiag2[i2]) + gapCost;
 		int score = (querySeg[queryPos] == databaseSeg[dbPos]) ? scoringScheme.match_score  : scoringScheme.mismatch_score;
-		tmp = max(tmp, antiDiag1[i1 - 1] + score);
+		tmp = max_logan(tmp, antiDiag1[i1 - 1] + score);
 		
 		if (tmp < best - scoreDropOff)
 		{
@@ -401,7 +401,7 @@ __device__ inline void swapAntiDiags(int *antiDiag1,
 	antiDiag3 = tmp;
 }
 
-__device__ inline void initAntiDiag3(int *antiDiag3,
+__device__ inline void initAntiDiag3(short *antiDiag3,
 							int *a3size,
 			   				int const offset,
 			   				int const maxCol,
@@ -426,9 +426,9 @@ __device__ inline void initAntiDiag3(int *antiDiag3,
 }
 
 __device__ inline void initAntiDiags(
-			   int *antiDiag1,
-			   int *antiDiag2,
-			   int *antiDiag3,
+			   short *antiDiag1,
+			   short *antiDiag2,
+			   short *antiDiag3,
 			   int *a2size,
 			   int *a3size,
 			   int const dropOff,
@@ -484,12 +484,12 @@ __global__ void extendSeedLGappedXDropOneDirectionLeft(
 {
 	//typedef typename Size<TQuerySegment>::Type int;
 	//typedef typename SeedL<Simple,TConfig>::int int;
-	__shared__ int antiDiag1p[N_THREADS];
-	__shared__ int antiDiag2p[N_THREADS];
-	__shared__ int antiDiag3p[N_THREADS];
-	int* antiDiag1 = (int*) antiDiag1p;
-	int* antiDiag2 = (int*) antiDiag2p;
-	int* antiDiag3 = (int*) antiDiag3p;
+	__shared__ short antiDiag1p[N_THREADS];
+	__shared__ short antiDiag2p[N_THREADS];
+	__shared__ short antiDiag3p[N_THREADS];
+	short* antiDiag1 = (short*) antiDiag1p;
+	short* antiDiag2 = (short*) antiDiag2p;
+	short* antiDiag3 = (short*) antiDiag3p;
 	//dimension of the antidiagonals
 	int a1size = 0, a2size = 0, a3size = 0;
 	
@@ -525,7 +525,7 @@ __global__ void extendSeedLGappedXDropOneDirectionLeft(
  		//antiDiag2 -> antiDiag1
 		//antiDiag3 -> antiDiag2
 		//antiDiag1 -> antiDiag3
-		int *t = antiDiag1;
+		short *t = antiDiag1;
 		antiDiag1 = antiDiag2;
 		antiDiag2 = antiDiag3;
 		antiDiag3 = t;
@@ -572,7 +572,7 @@ __global__ void extendSeedLGappedXDropOneDirectionLeft(
 		calcExtendedUpperDiag(&upperDiag, maxCol - 1, antiDiagNo);
 
 		// end of databaseSeg reached?
-		minCol = max(minCol,(antiDiagNo + 2 - rows));
+		minCol = max_logan(minCol,(antiDiagNo + 2 - rows));
 		// end of querySeg reached?
 		maxCol = min(maxCol, cols);
 		//}
@@ -644,12 +644,12 @@ __global__ void extendSeedLGappedXDropOneDirectionRight(
 {
 	//typedef typename Size<TQuerySegment>::Type int;
 	//typedef typename SeedL<Simple,TConfig>::int int;
-	__shared__ int antiDiag1p[N_THREADS];
-	__shared__ int antiDiag2p[N_THREADS];
-	__shared__ int antiDiag3p[N_THREADS];
-	int* antiDiag1 = (int*) antiDiag1p;
-	int* antiDiag2 = (int*) antiDiag2p;
-	int* antiDiag3 = (int*) antiDiag3p;
+	__shared__ short antiDiag1p[N_THREADS];
+	__shared__ short antiDiag2p[N_THREADS];
+	__shared__ short antiDiag3p[N_THREADS];
+	short* antiDiag1 = (short*) antiDiag1p;
+	short* antiDiag2 = (short*) antiDiag2p;
+	short* antiDiag3 = (short*) antiDiag3p;
 	//dimension of the antidiagonals
 	int a1size = 0, a2size = 0, a3size = 0;
 	
@@ -685,7 +685,7 @@ __global__ void extendSeedLGappedXDropOneDirectionRight(
  		//antiDiag2 -> antiDiag1
 		//antiDiag3 -> antiDiag2
 		//antiDiag1 -> antiDiag3
-		int *t = antiDiag1;
+		short *t = antiDiag1;
 		antiDiag1 = antiDiag2;
 		antiDiag2 = antiDiag3;
 		antiDiag3 = t;
@@ -732,16 +732,16 @@ __global__ void extendSeedLGappedXDropOneDirectionRight(
 		calcExtendedUpperDiag(&upperDiag, maxCol - 1, antiDiagNo);
 
 		// end of databaseSeg reached?
-		minCol = max(minCol,(antiDiagNo + 2 - rows));
+		minCol = max_logan(minCol,(antiDiagNo + 2 - rows));
 		// end of querySeg reached?
 		maxCol = min(maxCol, cols);
 		//}
 	
 	}
 
-	int longestExtensionCol = a3size + offset3 - 2;
-	int longestExtensionRow = antiDiagNo - longestExtensionCol;
-	int longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
+	short longestExtensionCol = a3size + offset3 - 2;
+	short longestExtensionRow = antiDiagNo - longestExtensionCol;
+	short longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
 	
 	if (longestExtensionScore == undefined)
 	{
@@ -867,10 +867,10 @@ inline void extendSeedL(vector<SeedL> &seeds,
 		
 		
 		
-		len[i] = max(query[i].length(),target[i].length())*2;
+		len[i] = max_logan(query[i].length(),target[i].length())*2;
 		int minErrScore = UNDEF/len[i];
-		setScoreGap(penalties[i], max(scoreGap(penalties[i]), minErrScore));
-		setScoreMismatch(penalties[i], max(scoreMismatch(penalties[i]), minErrScore));
+		setScoreGap(penalties[i], max_logan(scoreGap(penalties[i]), minErrScore));
+		setScoreMismatch(penalties[i], max_logan(scoreMismatch(penalties[i]), minErrScore));
 		//if (direction == EXTEND_LEFTL || direction == EXTEND_BOTHL){
 
 		//allocate memory on host and copy string
