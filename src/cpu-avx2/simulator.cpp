@@ -3,7 +3,19 @@
 // Author: G. Guidi, E. Younis
 // Date:   23 April 2019
 //==================================================================
-
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <cstdlib>
+#include <ctype.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <dirent.h>
+#include <stdio.h>
+#include <math.h>
+#include <stdlib.h>
+#include <stdint.h>
 #include <vector>
 #include <iostream>
 #include <string.h>
@@ -15,7 +27,7 @@
 #include <assert.h>
 #include <iterator>
 #include <x86intrin.h>
-#include "logan.cpp"
+#include "logan.h"
 // #include "parasail/parasail.h"
 // #include "parasail/parasail/io.h"
 // #include "parasail/parasail/memory.h"
@@ -56,16 +68,16 @@ extern "C" {
 #define MIS		(-1)		// mismatch score
 #define GAP		(-1)		// gap score
 //#define xdrop 	(21)		// so high so it won't be triggered in SeqAn
-#define PMIS 	(0.03)		// substitution probability
-#define PGAP 	(0.12)		// insertion/deletion probability
-#define BW 		(32)		// bandwidth (the alignment path of the input sequence and the result does not go out of the band)
+#define PMIS 	(0.23)		// substitution probability
+#define PGAP 	(0.22)		// insertion/deletion probability
+#define BW 		(128)		// bandwidth (the alignment path of the input sequence and the result does not go out of the band)
 #define LOGAN
 
 #define BENCH
 
 #ifdef BENCH
 #define KSW2
-//#define GABA
+#define GABA
 #define NOSIMD
 //#define SEQAN
 //#define SSW
@@ -148,19 +160,18 @@ int main(int argc, char const *argv[])
 	//======================================================================================
 	// LOGAN (vectorized SSE2 and AVX2, banded, (not yet) x-drop)
 	//======================================================================================
-	std::cout << xdrop << std::endl;
 #ifdef LOGAN
 	ScoringSchemeL scoringSchemeLogan(MAT, MIS, GAP);
 	SeedL seed(0,0,0);
 	// 1st prototype without seed and x-drop termination
 	std::chrono::duration<double> diff1;
 	auto start1 = std::chrono::high_resolution_clock::now();
-	std::pair<int16_t, int16_t> best = LoganAVX2(seed, EXTEND_MC_RIGHT, targetSeg, querySeg, scoringSchemeLogan, xdrop);
+	std::pair<int16_t, int16_t> best = LoganXDrop(seed, LOGAN_EXTEND_RIGHT, targetSeg, querySeg, scoringSchemeLogan, xdrop);
 	auto end1 = std::chrono::high_resolution_clock::now();
 	diff1 = end1-start1;
 	// score off by factor of 5
-	//std::cout << "Logan's best " << best.first << " and Logan's exit " << best.second << " in " << diff1.count() << " sec " << std::endl;
-	std::cout << diff1.count() << "\t" << (double)LEN1 / diff1.count() << "\tbases aligned per second" << std::endl;
+	//std::cout << best.first << "\t" << best.second << std::endl;
+	std::cout << xdrop << "\t" << best.second << "\t" << diff1.count() << "\t" << (double)LEN1 / diff1.count() << "\tbases aligned per second" << std::endl;
 #endif
 
 	//======================================================================================
@@ -196,15 +207,13 @@ int main(int argc, char const *argv[])
 	std::chrono::duration<double> diff2;
 	auto start2 = std::chrono::high_resolution_clock::now();
 
-	ksw_extz2_sse(0, ql, qs, tl, ts, 5, mat, 0, -GAP, xdrop, -1, 0, KSW_EZ_SCORE_ONLY, &ez);
+	ksw_extz2_sse(0, ql, qs, tl, ts, 5, mat, 0, -GAP, 64, xdrop, 0, KSW_EZ_SCORE_ONLY, &ez);
 
 	auto end2 = std::chrono::high_resolution_clock::now();
 	diff2 = end2-start2;
 
 	free(ts); free(qs);
-
-	//std::cout << "ksw2's best (not banded, vectorized) " << ez.score << " in " << diff2.count() << " sec " << std::endl;
-	std::cout << diff2.count() << "\t" << (double)LEN1 / diff2.count() << "\tbases aligned per second" << std::endl;
+	std::cout << xdrop << "\t" << ez.score << "\t" << diff2.count() << "\t" << (double)LEN1 / diff2.count() << "\tbases aligned per second" << std::endl;
 #endif
 
 	//======================================================================================
@@ -214,10 +223,10 @@ int main(int argc, char const *argv[])
 #ifdef GABA
 	gaba_t *ctx = gaba_init(GABA_PARAMS(
 		// match award, mismatch penalty, gap open penalty (G_i), and gap extension penalty (G_e)
-		GABA_SCORE_SIMPLE(2, 3, 5, 1),
+		GABA_SCORE_SIMPLE(1, 1, 0, 1),
 		gfa : 0,
 		gfb : 0,
-		xdrop : 127,
+		xdrop : (int8_t)xdrop,
 		filter_thresh : 0,
 	));
 
@@ -244,6 +253,7 @@ int main(int argc, char const *argv[])
 	// x-drop has to be within [-127, 127] in libagaba
 	gaba_fill_t const *m = f;
 	// track max
+
 	while((f->status & GABA_TERM) == 0) {
 		// substitute the pointer by the tail section's if it reached the end
 		if(f->status & GABA_UPDATE_A) { ap = &tail; }
@@ -262,11 +272,12 @@ int main(int argc, char const *argv[])
 	auto end3 = std::chrono::high_resolution_clock::now();
 	diff3 = end3-start3;
 
+	std::cout << xdrop << "\t" << r->score << "\t" << diff3.count() << "\t" << (double)LEN1 / diff3.count() << "\tbases aligned per second" << std::endl;
+
 	// clean up
 	gaba_dp_res_free(dp, r); gaba_dp_clean(dp);
 	gaba_clean(ctx);
 
-	std::cout << "Libgaba's best (banded, vectorized) " << r->score << " in " << diff3.count() << " sec " << std::endl;
 #endif
 
 	//======================================================================================
@@ -284,7 +295,7 @@ int main(int argc, char const *argv[])
 	auto end4 = std::chrono::high_resolution_clock::now();
 	diff4 = end4-start4;
 
-	std::cout << diff4.count() << "\t" << (double)LEN1 / diff4.count() << "\tbases aligned per second" << std::endl;
+	std::cout << xdrop << "\t" << score << "\t" << diff4.count() << "\t" << (double)LEN1 / diff4.count() << "\tbases aligned per second" << std::endl;
 #endif
 	std::cout << std::endl;
 	//======================================================================================
