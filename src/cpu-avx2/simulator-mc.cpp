@@ -102,7 +102,7 @@ int main(int argc, char const *argv[])
 	int xdrop = stoi(argv[1]);
 	//std::cout << "Logan" << std::endl;
 
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic)
 	for (int i = 0; i < data.work_array.size(); ++i)
 	{
 		seed_pair work = data.work_array[i];
@@ -122,7 +122,7 @@ int main(int argc, char const *argv[])
 //	std::chrono::duration<double> diff2;
 //	auto start2 = std::chrono::high_resolution_clock::now();
 
-//#pragma omp parallel for
+//#pragma omp parallel for schedule(dynamic)
 //	for (int i = 0; i < data.work_array.size(); ++i)
 //	{
 //		seed_pair work = data.work_array[i];
@@ -146,7 +146,7 @@ int main(int argc, char const *argv[])
 	std::chrono::duration<double> diff3;
 	auto start3 = std::chrono::high_resolution_clock::now();
 
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic)
 	for (int i = 0; i < data.work_array.size(); ++i)
 	{
 		seed_pair work = data.work_array[i];
@@ -156,16 +156,16 @@ int main(int argc, char const *argv[])
 		int tl = strlen(data.reads[ work.id1 ].c_str()), ql = strlen(data.reads[ work.id2 ].c_str());
 		uint8_t *ts, *qs, c[256];
 		ksw_extz_t ez;
-	
+
 		memset(&ez, 0, sizeof(ksw_extz_t));
 		memset(c, 4, 256);
-	
+
 		// build the encoding table
 		c['A'] = c['a'] = 0; c['C'] = c['c'] = 1;
 		c['G'] = c['g'] = 2; c['T'] = c['t'] = 3;
 		ts = (uint8_t*)malloc(tl);
 		qs = (uint8_t*)malloc(ql);
-	
+
 		// encode to 0/1/2/3
 		for (int i = 0; i < tl; ++i)
 		{
@@ -191,7 +191,7 @@ int main(int argc, char const *argv[])
 		std::chrono::duration<double> diff4;
 		auto start4 = std::chrono::high_resolution_clock::now();
 
-#pragma omp parallel for
+#pragma omp parallel for schedule(dynamic)
 	for (int i = 0; i < data.work_array.size(); ++i)
 	{
 		seed_pair work = data.work_array[i];
@@ -209,10 +209,10 @@ int main(int argc, char const *argv[])
 		gaba_section_t asec = gaba_build_section(0, (uint8_t const *)data.reads[ work.id1 ].c_str(), (uint32_t)data.reads[ work.id1 ].size());
 		gaba_section_t bsec = gaba_build_section(2, (uint8_t const *)data.reads[ work.id2 ].c_str(), (uint32_t)data.reads[ work.id2 ].size());
 		gaba_section_t tail = gaba_build_section(4, t, 64);
-	
+
 		// create thread-local object
 		gaba_dp_t *dp = gaba_dp_init(ctx);	// dp[0] holds a 64-cell-wide context
-	
+
 		// init section pointers
 		gaba_section_t const *ap = &asec, *bp = &bsec;
 		gaba_fill_t const *f = gaba_dp_fill_root(dp, // dp -> &dp[_dp_ctx_index(band_width)] makes the band width selectable
@@ -243,7 +243,7 @@ int main(int argc, char const *argv[])
 
 		if(r == NULL)
 		{
-			std::cout << "Libgaba seg fault with the following pair of sequences:" << std::endl; 
+			std::cout << "Libgaba seg fault with the following pair of sequences:" << std::endl;
 			std::cout << data.reads[ work.id1 ] << std::endl;
 			std::cout << data.reads[ work.id2 ] << std::endl;
 		}
