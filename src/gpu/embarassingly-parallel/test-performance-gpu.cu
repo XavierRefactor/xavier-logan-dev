@@ -120,7 +120,7 @@ void loganXdrop(std::vector< std::vector<std::string> > &v, int mat, int mis, in
 	
 	
 	//Result result(kmerLen);
-	int n_align = v.size();
+	int n_align = v.size()*10000;
 	//int result;
 	//myinfo loganresult;
 	vector<ScoringSchemeL> penalties(n_align);
@@ -129,25 +129,27 @@ void loganXdrop(std::vector< std::vector<std::string> > &v, int mat, int mis, in
 	vector<string> seqV(n_align);
 	vector<string> seqH(n_align);
 	vector<SeedL> seeds(n_align);
-	for(int i = 0; i < v.size(); i++){
-		ScoringSchemeL tmp_sscheme(mat, mis, -1, gap);
-		penalties[i]=tmp_sscheme;
-		posV[i]=stoi(v[i][1]); 
-		posH[i]=stoi(v[i][3]);		
-		seqV[i]=v[i][0];		
-		seqH[i]=v[i][2];
-		std::string strand = v[i][4];
+	for(int j = 0; j < 10000; j++){	
+		for(int i = 0; i < v.size(); i++){
+			ScoringSchemeL tmp_sscheme(mat, mis, -1, gap);
+			penalties[i+j*v.size()]=tmp_sscheme;
+			posV[i+j*v.size()]=stoi(v[i][1]); 
+			posH[i+j*v.size()]=stoi(v[i][3]);		
+			seqV[i+j*v.size()]=v[i][0];		
+			seqH[i+j*v.size()]=v[i][2];
+			std::string strand = v[i][4];
 
-		if(strand == "c"){
-			std::transform(
-					std::begin(seqH[i]),
-					std::end(seqH[i]),
-					std::begin(seqH[i]),
-					dummycomplement);
-			posH[i] = seqH[i].length()-posH[i]-kmerLen;
+			if(strand == "c"){
+				std::transform(
+						std::begin(seqH[i+j*v.size()]),
+						std::end(seqH[i+j*v.size()]),
+						std::begin(seqH[i+j*v.size()]),
+						dummycomplement);
+				posH[i+j*v.size()] = seqH[i+j*v.size()].length()-posH[i+j*v.size()]-kmerLen;
+			}
+			SeedL tmp_seed(posH[i+j*v.size()], posV[i+j*v.size()], kmerLen);
+			seeds[i+j*v.size()] = tmp_seed;
 		}
-		SeedL tmp_seed(posH[i], posV[i], kmerLen);
-		seeds[i] = tmp_seed;
 	}
 		
 
@@ -320,3 +322,4 @@ int main(int argc, char **argv)
 	delete [] bytes;
 	return 0;
 }
+

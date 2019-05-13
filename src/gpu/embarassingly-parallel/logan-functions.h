@@ -14,6 +14,7 @@
 
 #include<vector>
 #include<iostream>
+#include<chrono>
 //#include <cub/block/block_load.cuh>
 //#include <cub/block/block_store.cuh>
 //#include <cub/block/block_reduce.cuh>
@@ -25,7 +26,7 @@
 // using namespace cub;
 
 #define N_THREADS 1024
-#define N_BLOCKS 29
+#define N_BLOCKS 29000
 #define MIN -32768
 #define BYTES_INT 4
 #define XDROP 21
@@ -72,13 +73,14 @@ __device__ inline int array_max(short *array,
 	unsigned int tid = threadIdx.x;
 	int half = dim>>1;
 	if(tid < half){
-		localArray[tid] = max_logan(array[tid+minCol-ant_offset],array[tid+minCol-ant_offset+half]);
+		localArray[tid] = max_logan(array[tid+minCol-ant_offset],array[tid+minCol+half-ant_offset]);
 	}
-		
+	//__syncthreads();		
 	for(int offset = dim/4; offset > 0; offset>>=1){
 		if(tid < offset) localArray[tid] = max_logan(localArray[tid],localArray[tid+offset]);
+	//	__syncthreads();
 	}
-	__syncthreads();
+	//__syncthreads();
 	return localArray[0];
 	
 }
@@ -210,7 +212,7 @@ __device__ inline void initAntiDiag3(short *antiDiag3,
 			   				int const gapCost,
 			   				int const undefined)
 {
-	//antiDiag3.resize(maxCol + 1 - offset);
+	
 	*a3size = maxCol + 1 - offset;
 	antiDiag3[0] = undefined;
 	antiDiag3[maxCol - offset] = undefined;
@@ -237,7 +239,13 @@ __device__ inline void initAntiDiags(
 {
 	// antiDiagonals will be swaped in while loop BEFORE computation of antiDiag3 entries
 	//  -> no initialization of antiDiag1 necessary
-	
+	//int tid = threadIdx.x;
+	//if(tid<N_THREADS){
+	//	antiDiag1[tid]=undefined;
+	//	antiDiag2[tid]=undefined;	
+        //        antiDiag3[tid]=undefined;
+	//}
+        //__syncthreads();
 	//antiDiag2.resize(1);
 	*a2size = 1;
 
@@ -350,9 +358,11 @@ __global__ void extendSeedLGappedXDropOneDirection(
 
 		//computeAntidiagLeft(antiDiag1,antiDiag2,antiDiag3,offset1,offset2,offset3,antiDiagNo,GAP_EXT,scoringScheme,querySeg,databaseSeg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
 		computeAntidiag(antiDiag1, antiDiag2, antiDiag3, querySeg, databaseSeg, best, scoreDropOff, cols, rows, minCol, maxCol, antiDiagNo, offset1, offset2, direction);	 	
-		
-		int antiDiagBest = simple_max(antiDiag3, a3size, offset3);
-		
+		__syncthreads();	
+		//int antiDiagBest = simple_max(antiDiag3, a3size, offset3);
+	
+		int antiDiagBest = array_max(antiDiag3, a3size, minCol, offset3);
+	
 		//original min and max col update
 		best = (best > antiDiagBest) ? best : antiDiagBest;
 		
@@ -636,8 +646,8 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	cudaErrchk(cudaMemcpy(scoreLeft, scoreLeft_d, nSequences*sizeof(int), cudaMemcpyDeviceToHost));
 
 	//maybe these 2 memcpys can be avoided
-	cudaErrchk(cudaMemcpy(&seeds[0], seed_d_l, nSequences*sizeof(ScoringSchemeL), cudaMemcpyHostToDevice));	
-	cudaErrchk(cudaMemcpy(seed_d_l, &seeds[0], nSequences*sizeof(SeedL), cudaMemcpyHostToDevice));	
+	//cudaErrchk(cudaMemcpy(&seeds[0], seed_d_l, nSequences*sizeof(ScoringSchemeL), cudaMemcpyDeviceToHost));	
+	//cudaErrchk(cudaMemcpy(seed_d_l, &seeds[0], nSequences*sizeof(SeedL), cudaMemcpyHostToDevice));	
 
 	extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS/*, MAX_SIZE_ANTIDIAG*3*sizeof(int)*nSequences*/>>> (seed_d_l, suffQ_d, suffT_d, EXTEND_RIGHTL, penalties_r, XDROP, scoreRight_d, lenRightQ_d, lenRightT_d, offsetRightQ_d, offsetRightT_d);
 	
@@ -646,7 +656,7 @@ inline void extendSeedL(vector<SeedL> &seeds,
     auto start_t2 = NOW;
 	
     cudaErrchk(cudaMemcpy(scoreRight, scoreRight_d, nSequences*sizeof(int), cudaMemcpyDeviceToHost));
-	cudaErrchk(cudaMemcpy(&seeds[0], seed_d_l, nSequences*sizeof(ScoringSchemeL), cudaMemcpyDeviceToHost));
+	//cudaErrchk(cudaMemcpy(&seeds[0], seed_d_l, nSequences*sizeof(ScoringSchemeL), cudaMemcpyDeviceToHost));
 	
 	auto end_t2 = NOW;
 	cudaErrchk(cudaPeekAtLastError());
@@ -657,15 +667,33 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	
 	auto start_f = NOW;
 	
+	cudaErrchk(cudaFree(prefQ_d));
+	cudaErrchk(cudaFree(prefT_d));
+	cudaErrchk(cudaFree(suffQ_d));
+	cudaErrchk(cudaFree(suffT_d));
+	cudaErrchk(cudaFree(lenLeftQ_d));
+	cudaErrchk(cudaFree(lenLeftT_d));
+	cudaErrchk(cudaFree(lenRightQ_d));
+	cudaErrchk(cudaFree(lenRightT_d));
+	cudaErrchk(cudaFree(offsetLeftQ_d));
+	cudaErrchk(cudaFree(offsetLeftT_d));
+	cudaErrchk(cudaFree(offsetRightQ_d));
+	cudaErrchk(cudaFree(offsetRightT_d));
+	cudaErrchk(cudaFree(seed_d_l));
+	cudaErrchk(cudaFree(penalties_r));
+	cudaErrchk(cudaFree(scoreLeft_d));
+	cudaErrchk(cudaFree(scoreRight_d));
 
 	auto end_f = NOW;
 	tfree = end_f - start_f;
-	std::cout << "\nTransfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  <<" Free time: "<< tfree.count() << std::endl;	
+	//std::cout << "\nTransfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  <<" Free time: "<< tfree.count() << std::endl;	
 
 	//FIGURE OUT A WAY TO PRINT RESULTS
-	for(int i = 0; i < N_BLOCKS; i++)
-		cout<< scoreLeft[i]+scoreRight[i]+kmer_length<<endl;	
+//	for(int i = 0; i < N_BLOCKS; i++)
+//		cout<< scoreLeft[i]+scoreRight[i]+kmer_length<<endl;	
 
 
 }
+
+
 
