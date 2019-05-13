@@ -14,23 +14,23 @@
 
 #include<vector>
 #include<iostream>
-#include <cub/block/block_load.cuh>
-#include <cub/block/block_store.cuh>
-#include <cub/block/block_reduce.cuh>
+//#include <cub/block/block_load.cuh>
+//#include <cub/block/block_store.cuh>
+//#include <cub/block/block_reduce.cuh>
 //#include <cub/cub.cuh>
 //#include<boost/array.hpp>
 #include"logan.h"
 #include"score.h"
 
-using namespace cub;
+// using namespace cub;
 
 #define N_THREADS 1024
-#define N_BLOCKS 1000
+#define N_BLOCKS 29
 #define MIN -32768
 #define BYTES_INT 4
 #define XDROP 21
 // #define N_STREAMS 60
-
+#define MAX_SIZE_ANTIDIAG 1024
 
 //trying to see if the scoring scheme is a bottleneck in some way
 #define MATCH     1
@@ -39,6 +39,9 @@ using namespace cub;
 #define GAP_OPEN -1
 #define UNDEF -32767
 #define NOW std::chrono::high_resolution_clock::now()
+
+using namespace std;
+using namespace chrono;
 
 #define cudaErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
 inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort = true){
@@ -80,7 +83,7 @@ __device__ inline int array_max(short *array,
 	
 }
 
-__device__ int simple_max(int *antidiag,
+__device__ int simple_max(short *antidiag,
 			  int dim,
 			  int offset){
 	int max = antidiag[0];
@@ -234,7 +237,6 @@ __device__ inline void initAntiDiags(
 {
 	// antiDiagonals will be swaped in while loop BEFORE computation of antiDiag3 entries
 	//  -> no initialization of antiDiag1 necessary
-	int tid = threadIdx.x;
 	
 	//antiDiag2.resize(1);
 	*a2size = 1;
@@ -259,31 +261,48 @@ __device__ inline void initAntiDiags(
 
 __global__ void extendSeedLGappedXDropOneDirection(
 		SeedL* seed,
-		char *querySeg,
-		char *databaseSeg,
+		char *querySegArray,
+		char *databaseSegArray,
 		ExtensionDirectionL direction,
-		ScoringSchemeL scoringScheme,
+		ScoringSchemeL *scoringScheme,
 		int scoreDropOff,
 		int *res,
 		// int *antiDiag1,
 		// int *antiDiag2,
 		// int *antiDiag3,
-		int qL,
-		int dbL)
+		int* qL,
+		int* dbL,
+		int* offsetQuery,
+		int* offsetTarget)
 {
 	//typedef typename Size<TQuerySegment>::Type int;
 	//typedef typename SeedL<Simple,TConfig>::int int;
+	int myId = blockIdx.x;
+	//int myTId = threadIdx.x;
+	char *querySeg;
+	char *databaseSeg;
+
+	if(myId==0){
+		querySeg = querySegArray;
+		databaseSeg = databaseSegArray;
+	}
+	else{
+		querySeg = querySegArray + offsetQuery[myId-1];
+		databaseSeg = databaseSegArray + offsetTarget[myId-1];
+	}
+
 	__shared__ short antiDiag1p[N_THREADS];
 	__shared__ short antiDiag2p[N_THREADS];
 	__shared__ short antiDiag3p[N_THREADS];
 	short* antiDiag1 = (short*) antiDiag1p;
 	short* antiDiag2 = (short*) antiDiag2p;
 	short* antiDiag3 = (short*) antiDiag3p;
+	
 	//dimension of the antidiagonals
 	int a1size = 0, a2size = 0, a3size = 0;
 	
-	int cols = qL+1;//querySeg.length()+1;//should be enough even if we allocate just one time the string
-	int rows = dbL+1;//databaseSeg.length()+1;//
+	int cols = qL[myId]+1;//querySeg.length()+1;//should be enough even if we allocate just one time the string
+	int rows = dbL[myId]+1;//databaseSeg.length()+1;//
 	if (rows == 1 || cols == 1)
 		return;
 
@@ -330,7 +349,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		initAntiDiag3(antiDiag3, &a3size, offset3, maxCol, antiDiagNo, best - scoreDropOff, GAP_EXT, undefined);
 
 		//computeAntidiagLeft(antiDiag1,antiDiag2,antiDiag3,offset1,offset2,offset3,antiDiagNo,GAP_EXT,scoringScheme,querySeg,databaseSeg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
-		computeAntidiag(antiDiag1, antiDiag2, antiDiag3, querySeg, databaseSeg, best, scoreDropOff, cols, rows, minCol, maxCol, antiDiagNo, offset1, offset2);	 	
+		computeAntidiag(antiDiag1, antiDiag2, antiDiag3, querySeg, databaseSeg, best, scoreDropOff, cols, rows, minCol, maxCol, antiDiagNo, offset1, offset2, direction);	 	
 		
 		int antiDiagBest = simple_max(antiDiag3, a3size, offset3);
 		
@@ -404,10 +423,10 @@ __global__ void extendSeedLGappedXDropOneDirection(
 	}
 	// update seed
 	if (longestExtensionScore != undefined)
-		updateExtendedSeedL(*seed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
+		updateExtendedSeedL(seed[myId], direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
 	//if(threadIdx.x == 0)		
 		//printf("%d\n", longestExtensionScore);
-	*res = longestExtensionScore;
+	res[myId] = longestExtensionScore;
 	
 }
 
@@ -432,26 +451,33 @@ inline void extendSeedL(vector<SeedL> &seeds,
 		exit(-1);
 	}
 	
+	auto start_t1 = NOW;
 	//declare streams
-	cudaStream_t streams[2];	
-	cudaStreamCreate(&streams[0]);
-	cudaStreamCreate(&streams[1]);
+	//cudaStream_t streams[2];	
+	//cudaStreamCreate(&streams[0]);
+	//cudaStreamCreate(&streams[1]);
 
 	// NB N_BLOCKS should be double or close as possible to target.size()=queryu.size()
 	// change here for future implementations
 	int nSequences = N_BLOCKS;
 
 	//declare score for left extension
-	int *scoreLeft = (int *)malloc(N_BLOCKS * sizeof(int));
+	int *scoreLeft = (int *)malloc(nSequences * sizeof(int));
 	
 	//declare score for right extension
-	int *scoreRight = (int *)malloc(N_BLOCKS * sizeof(int));
+	int *scoreRight = (int *)malloc(nSequences * sizeof(int));
 
-	ScoringSchemeL *penalties = (ScoringSchemeL*)malloc(N_BLOCKS*sizeof(ScoringSchemeL))
-	int *offsetLeftQ = (int*)malloc(N_BLOCKS*sizeof(int));
-	int *offsetLeftT = (int*)malloc(N_BLOCKS*sizeof(int));
-  	int *offsetRightQ = (int*)malloc(N_BLOCKS*sizeof(int));
-  	int *offsetRightT = (int*)malloc(N_BLOCKS*sizeof(int));
+	//SeedL *seed_ptr = (SeedL *)malloc(nSequences*sizeof(SeedL));
+
+	int *lenLeftQ = (int*)malloc(nSequences*sizeof(int));
+	int *lenLeftT = (int*)malloc(nSequences*sizeof(int));
+  	int *lenRightQ = (int*)malloc(nSequences*sizeof(int));
+  	int *lenRightT = (int*)malloc(nSequences*sizeof(int));
+	int *offsetLeftQ = (int*)malloc(nSequences*sizeof(int));
+	int *offsetLeftT = (int*)malloc(nSequences*sizeof(int));
+  	int *offsetRightQ = (int*)malloc(nSequences*sizeof(int));
+  	int *offsetRightT = (int*)malloc(nSequences*sizeof(int));
+
 
 	vector<string> queryPrefix(nSequences);
 	vector<string> targetPrefix(nSequences);
@@ -461,7 +487,8 @@ inline void extendSeedL(vector<SeedL> &seeds,
 //divide strings and allocate seed_pointers
 	for(int i = 0; i<nSequences;i++){
 		
-		seed_ptr[i] = &seeds[i];	
+		//penalties[i] = scoringScheme;
+		//seed_ptr[i] = seeds[i];	
 		queryPrefix[i] = query[i].substr(0, getBeginPositionV(seeds[i]));					// from read start til start seed (seed not included)
 		targetPrefix[i] = target[i].substr(0, getBeginPositionH(seeds[i]));					// from read start til start seed (seed not included)
 		querySuffix[i] = query[i].substr(getEndPositionV(seeds[i]), query[i].length());		// from end seed until the end (seed not included)
@@ -470,34 +497,39 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	}
 
 	//offset Left Query
-	offsetLeftQ[0]=queryPrefix[0].size();
+	lenLeftQ[0]=offsetLeftQ[0]=queryPrefix[0].size();
   	for(int i = 1; i < nSequences; i++){
+  		lenLeftQ[i]=queryPrefix[i].size();
   		offsetLeftQ[i]=offsetLeftQ[i-1]+queryPrefix[i].size();
   	}
 
   	//offset Left Target
+  	lenLeftT[0]=offsetLeftT[0]=targetPrefix[0].size();
   	offsetLeftT[0]=targetPrefix[0].size();
   	for(int i = 1; i < nSequences; i++){
+  		lenLeftT[i]=targetPrefix[i].size();
   		offsetLeftT[i]=offsetLeftT[i-1]+targetPrefix[i].size();
   	}
 
   	//offset Right Query
-  	offsetRightQ[0]=querySuffix[0].size();
+  	lenRightQ[0]=offsetRightQ[0]=querySuffix[0].size();
   	for(int i = 1; i < nSequences; i++){
+  		lenRightQ[i]=querySuffix[i].size();
   		offsetRightQ[i]=offsetRightQ[i-1]+querySuffix[i].size();
   	}
 
   	//offset Right Target
-  	offsetRightT[0]=targetSuffix[0].size();
+  	lenRightT[0]=offsetRightT[0]=targetSuffix[0].size();
   	for(int i = 1; i < nSequences; i++){
+  		lenRightT[i]=targetSuffix[i].size();
   		offsetRightT[i]=offsetRightT[i-1]+targetSuffix[i].size();
   	}
 
   	//total length of query/target prefix/suffix
-  	int totalLengthQPref = offsetLeftQ[nSeq-1];
-  	int totalLengthTPref = offsetLeftT[nSeq-1];
-  	int totalLengthQSuff = offsetRightQ[nSeq-1];
-  	int totalLengthTSuff = offsetRightT[nSeq-1];
+  	int totalLengthQPref = offsetLeftQ[nSequences-1];
+  	int totalLengthTPref = offsetLeftT[nSequences-1];
+  	int totalLengthQSuff = offsetRightQ[nSequences-1];
+  	int totalLengthTSuff = offsetRightT[nSequences-1];
 
   	//declare prefixes
 	char *prefQ, *prefT;
@@ -529,28 +561,96 @@ inline void extendSeedL(vector<SeedL> &seeds,
   	 	memcpy(seqptr, targetSuffix[i].c_str(), targetSuffix[i].size());
   	}
 
-  	//declare GPU variables
+  	//declare and allocate GPU strings
   	char *prefQ_d, *prefT_d;
   	char *suffQ_d, *suffT_d;
-
   	cudaErrchk(cudaMalloc(&prefQ_d, totalLengthQPref*sizeof(char)));
   	cudaErrchk(cudaMalloc(&prefT_d, totalLengthTPref*sizeof(char)));
   	cudaErrchk(cudaMalloc(&suffQ_d, totalLengthQSuff*sizeof(char)));
   	cudaErrchk(cudaMalloc(&suffT_d, totalLengthTSuff*sizeof(char)));
 
+  	//declare and allocate GPU lengths
+  	int *lenLeftQ_d, *lenLeftT_d;
+  	int *lenRightQ_d, *lenRightT_d;
+  	cudaErrchk(cudaMalloc(&lenLeftQ_d, nSequences*sizeof(int)));
+  	cudaErrchk(cudaMalloc(&lenLeftT_d, nSequences*sizeof(int)));
+  	cudaErrchk(cudaMalloc(&lenRightQ_d, nSequences*sizeof(int)));
+  	cudaErrchk(cudaMalloc(&lenRightT_d, nSequences*sizeof(int)));
+
+  	//declare and allocate GPU offsets
+  	int *offsetLeftQ_d, *offsetLeftT_d;
+  	int *offsetRightQ_d, *offsetRightT_d;
+  	cudaErrchk(cudaMalloc(&offsetLeftQ_d, nSequences*sizeof(int)));
+  	cudaErrchk(cudaMalloc(&offsetLeftT_d, nSequences*sizeof(int)));
+  	cudaErrchk(cudaMalloc(&offsetRightQ_d, nSequences*sizeof(int)));
+  	cudaErrchk(cudaMalloc(&offsetRightT_d, nSequences*sizeof(int)));
+
+  	//declare and allocate GPU seeds
+  	SeedL *seed_d_l;//, *seed_d_r;
+  	cudaErrchk(cudaMalloc(&seed_d_l, nSequences*sizeof(SeedL)));
+  	//cudaErrchk(cudaMalloc(&seed_d_r, nSequences*sizeof(SeedL)));
+
+  	//declare and allocate GPU scoring
+  	ScoringSchemeL *penalties_r;//, *penalties_l;
+  	cudaErrchk(cudaMalloc(&penalties_r, nSequences*sizeof(ScoringSchemeL)));
+  	//cudaErrchk(cudaMalloc(&penalties_l, nSequences*sizeof(SeedL)));
+
+  	//declare result variables
+  	int *scoreLeft_d, *scoreRight_d;
+  	cudaErrchk(cudaMalloc(&scoreLeft_d, nSequences*sizeof(int)));
+  	cudaErrchk(cudaMalloc(&scoreRight_d, nSequences*sizeof(int)));
+
+
+  	//copy data to the GPU
+
+  	//sequences
+  	cudaErrchk(cudaMemcpy(prefQ_d, prefQ, totalLengthQPref*sizeof(char), cudaMemcpyHostToDevice));	
+  	cudaErrchk(cudaMemcpy(prefT_d, prefT, totalLengthTPref*sizeof(char), cudaMemcpyHostToDevice));	
+  	cudaErrchk(cudaMemcpy(suffQ_d, suffQ, totalLengthQSuff*sizeof(char), cudaMemcpyHostToDevice));	
+  	cudaErrchk(cudaMemcpy(suffT_d, suffT, totalLengthTSuff*sizeof(char), cudaMemcpyHostToDevice));	
+  	
+  	//lengths
+  	cudaErrchk(cudaMemcpy(lenLeftQ_d, lenLeftQ, nSequences*sizeof(int), cudaMemcpyHostToDevice));	
+  	cudaErrchk(cudaMemcpy(lenLeftT_d, lenLeftT, nSequences*sizeof(int), cudaMemcpyHostToDevice));	
+  	cudaErrchk(cudaMemcpy(lenRightQ_d, lenRightQ, nSequences*sizeof(int), cudaMemcpyHostToDevice));	
+  	cudaErrchk(cudaMemcpy(lenRightT_d, lenRightT, nSequences*sizeof(int), cudaMemcpyHostToDevice));	
+  	
+  	//offsets
+  	cudaErrchk(cudaMemcpy(offsetLeftQ_d, offsetLeftQ, nSequences*sizeof(int), cudaMemcpyHostToDevice));	
+  	cudaErrchk(cudaMemcpy(offsetLeftT_d, offsetLeftT, nSequences*sizeof(int), cudaMemcpyHostToDevice));	
+  	cudaErrchk(cudaMemcpy(offsetRightQ_d, offsetRightQ, nSequences*sizeof(int), cudaMemcpyHostToDevice));	
+  	cudaErrchk(cudaMemcpy(offsetRightT_d, offsetRightT, nSequences*sizeof(int), cudaMemcpyHostToDevice));	
+  	
+  	//seeds
+  	cudaErrchk(cudaMemcpy(seed_d_l, &seeds[0], nSequences*sizeof(SeedL), cudaMemcpyHostToDevice));	
+
+  	//scoring scheme
+  	cudaErrchk(cudaMemcpy(penalties_r, &penalties[0], nSequences*sizeof(ScoringSchemeL), cudaMemcpyHostToDevice));	
+
+
 	auto end_t1 = NOW;
 	auto start_c = NOW;
 	
 	
-	extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS, 0, streams[0]>>> (seed_d_l[i], q_l_d[i], db_l_d[i], EXTEND_LEFTL, penalties, XDROP, scoreLeft_d, queryPrefix, targetPrefix);
-	extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS, 0, streams[1]>>> (seed_d_r[i], q_r_d[i], db_r_d[i], EXTEND_RIGHTL, penalties, XDROP, scoreRight_d, querySuffix,targetSuffix);
+	extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS/*, MAX_SIZE_ANTIDIAG*3*sizeof(int)*nSequences*/>>> (seed_d_l, prefQ_d, prefT_d, EXTEND_LEFTL, penalties_r, XDROP, scoreLeft_d, lenLeftQ_d, lenLeftT_d, offsetLeftQ_d, offsetLeftT_d);
+	cudaErrchk(cudaMemcpy(scoreLeft, scoreLeft_d, nSequences*sizeof(int), cudaMemcpyDeviceToHost));
+
+	//maybe these 2 memcpys can be avoided
+	cudaErrchk(cudaMemcpy(&seeds[0], seed_d_l, nSequences*sizeof(ScoringSchemeL), cudaMemcpyHostToDevice));	
+	cudaErrchk(cudaMemcpy(seed_d_l, &seeds[0], nSequences*sizeof(SeedL), cudaMemcpyHostToDevice));	
+
+	extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS/*, MAX_SIZE_ANTIDIAG*3*sizeof(int)*nSequences*/>>> (seed_d_l, suffQ_d, suffT_d, EXTEND_RIGHTL, penalties_r, XDROP, scoreRight_d, lenRightQ_d, lenRightT_d, offsetRightQ_d, offsetRightT_d);
+	
 	
 	auto end_c = NOW;
     auto start_t2 = NOW;
 	
+    cudaErrchk(cudaMemcpy(scoreRight, scoreRight_d, nSequences*sizeof(int), cudaMemcpyDeviceToHost));
+	cudaErrchk(cudaMemcpy(&seeds[0], seed_d_l, nSequences*sizeof(ScoringSchemeL), cudaMemcpyDeviceToHost));
 	
 	auto end_t2 = NOW;
 	cudaErrchk(cudaPeekAtLastError());
+	duration<double> transfer1, transfer2, compute, tfree;
 	transfer1=end_t1-start_t1;
 	transfer2=end_t2-start_t2;
 	compute=end_c-start_c;
@@ -563,8 +663,8 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	std::cout << "\nTransfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  <<" Free time: "<< tfree.count() << std::endl;	
 
 	//FIGURE OUT A WAY TO PRINT RESULTS
-	for(int i = 0; i < N_STREAMS/2-1; i++)
-		cout<< *scoreLeft[i]+*scoreRight[i]+kmer_length<<endl;	
+	for(int i = 0; i < N_BLOCKS; i++)
+		cout<< scoreLeft[i]+scoreRight[i]+kmer_length<<endl;	
 
 
 }

@@ -18,11 +18,11 @@ gpu_c: test-performance-gpu-temp_cpp.cpp
 
 gpu: test-performance-gpu.cu
 
-	$(COMPILER_GPU) -std=c++11 $(INCLUDE) $(SEQINCLUDE) $(CUB) test-performance-gpu-temp.cu -o test
+	$(COMPILER_GPU) -std=c++11 $(INCLUDE) $(SEQINCLUDE) $(CUB)  test-performance-gpu.cu -o test
 
 gpu_cori: test-performance-gpu.cu
 
-	$(COMPILER_GPU) -arch=sm_70 -std=c++11 $(INCLUDE) $(SEQINCLUDE) $(CUB) test-performance-gpu-temp.cu -o test
+	$(COMPILER_GPU) -arch=sm_70 -std=c++11 $(INCLUDE) $(SEQINCLUDE) $(CUB)  test-performance-gpu.cu -o test
 
 clean:
 	rm -f *.o
