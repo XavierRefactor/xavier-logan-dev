@@ -14,6 +14,7 @@
 
 #include<vector>
 #include<iostream>
+#include<chrono>
 //#include <cub/block/block_load.cuh>
 //#include <cub/block/block_store.cuh>
 //#include <cub/block/block_reduce.cuh>
@@ -636,7 +637,7 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	cudaErrchk(cudaMemcpy(scoreLeft, scoreLeft_d, nSequences*sizeof(int), cudaMemcpyDeviceToHost));
 
 	//maybe these 2 memcpys can be avoided
-	cudaErrchk(cudaMemcpy(&seeds[0], seed_d_l, nSequences*sizeof(ScoringSchemeL), cudaMemcpyHostToDevice));	
+	//cudaErrchk(cudaMemcpy(&seeds[0], seed_d_l, nSequences*sizeof(ScoringSchemeL), cudaMemcpyDeviceToHost));	
 	cudaErrchk(cudaMemcpy(seed_d_l, &seeds[0], nSequences*sizeof(SeedL), cudaMemcpyHostToDevice));	
 
 	extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS/*, MAX_SIZE_ANTIDIAG*3*sizeof(int)*nSequences*/>>> (seed_d_l, suffQ_d, suffT_d, EXTEND_RIGHTL, penalties_r, XDROP, scoreRight_d, lenRightQ_d, lenRightT_d, offsetRightQ_d, offsetRightT_d);
@@ -646,7 +647,7 @@ inline void extendSeedL(vector<SeedL> &seeds,
     auto start_t2 = NOW;
 	
     cudaErrchk(cudaMemcpy(scoreRight, scoreRight_d, nSequences*sizeof(int), cudaMemcpyDeviceToHost));
-	cudaErrchk(cudaMemcpy(&seeds[0], seed_d_l, nSequences*sizeof(ScoringSchemeL), cudaMemcpyDeviceToHost));
+	//cudaErrchk(cudaMemcpy(&seeds[0], seed_d_l, nSequences*sizeof(ScoringSchemeL), cudaMemcpyDeviceToHost));
 	
 	auto end_t2 = NOW;
 	cudaErrchk(cudaPeekAtLastError());
@@ -657,6 +658,22 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	
 	auto start_f = NOW;
 	
+	cudaErrchk(cudaFree(prefQ_d));
+	cudaErrchk(cudaFree(prefT_d));
+	cudaErrchk(cudaFree(suffQ_d));
+	cudaErrchk(cudaFree(suffT_d));
+	cudaErrchk(cudaFree(lenLeftQ_d));
+	cudaErrchk(cudaFree(lenLeftT_d));
+	cudaErrchk(cudaFree(lenRightQ_d));
+	cudaErrchk(cudaFree(lenRightT_d));
+	cudaErrchk(cudaFree(offsetLeftQ_d));
+	cudaErrchk(cudaFree(offsetLeftT_d));
+	cudaErrchk(cudaFree(offsetRightQ_d));
+	cudaErrchk(cudaFree(offsetRightT_d));
+	cudaErrchk(cudaFree(seed_d_l));
+	cudaErrchk(cudaFree(penalties_r));
+	cudaErrchk(cudaFree(scoreLeft_d));
+	cudaErrchk(cudaFree(scoreRight_d));
 
 	auto end_f = NOW;
 	tfree = end_f - start_f;
