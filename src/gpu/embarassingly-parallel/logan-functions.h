@@ -22,8 +22,11 @@
 //#include<boost/array.hpp>
 #include"logan.h"
 #include"score.h"
-
+#include <thrust/reduce.h>
+#include <thrust/functional.h>
+#include <thrust/execution_policy.h>
 // using namespace cub;
+
 
 #define N_THREADS 1024
 #define N_BLOCKS 29000
@@ -63,7 +66,7 @@ enum ExtensionDirectionL
     EXTEND_BOTHL  = 3
 };
 
-__device__ inline int array_max(short *array,
+__inline__ __device__ int array_max(short *array,
 				int &dim,
 				int &minCol,
 				int &ant_offset)
@@ -86,11 +89,11 @@ __device__ inline int array_max(short *array,
 }
 
 
-__device__ int simple_max(short *antidiag,
+__inline__ __device__ int simple_max(short *antidiag,
 			  int &dim,
 			  int &offset){
 	int max = antidiag[0];
-	for(int i = 1; i < dim; i++){
+	for(int i = 1; i < dim+offset; i++){
 		if(antidiag[i]>max)
 			max=antidiag[i];
 	}
@@ -98,8 +101,29 @@ __device__ int simple_max(short *antidiag,
 
 }
 
+__inline__ __device__ int another_max(short *antidiag,
+			   int &dim){
+	
+
+	int myId = blockIdx.x*blockDim.x + threadIdx.x;
+	int myTId = threadIdx.x;
+	__shared__ int input[N_THREADS];
+	input[myTId]=antidiag[myId];
+	__syncthreads();	
+	//reduction
+
+	for(int i = 1; i < blockDim.x; i<<=1){
+		if(myTId%(2*i)==0){
+			input[myTId] = (input[myTId]>input[myTId+i]) ? input[myTId]:input[myTId+i];
+		}
+		__syncthreads();
+	}
+	if(myTId==0)
+		return input[0];
+}
+
 //template<typename TSeedL, typename int, typename int>
-__device__ inline void updateExtendedSeedL(SeedL& seed,
+__inline__ __device__ void updateExtendedSeedL(SeedL& seed,
 					ExtensionDirectionL direction, //as there are only 4 directions we may consider even smaller data types
 					int &cols,
 					int &rows,
@@ -134,7 +158,7 @@ __device__ inline void updateExtendedSeedL(SeedL& seed,
 	}
 }
 
-__device__ inline void computeAntidiag(short *antiDiag1,
+__inline__ __device__ void computeAntidiag(short *antiDiag1,
 									short *antiDiag2,
 									short *antiDiag3,
 									char* querySeg,
@@ -172,7 +196,7 @@ __device__ inline void computeAntidiag(short *antiDiag1,
 	}
 }
 
-__device__ inline void calcExtendedLowerDiag(int *lowerDiag,
+__inline__ __device__ void calcExtendedLowerDiag(int *lowerDiag,
 		      int const &minCol,
 		      int const &antiDiagNo)
 {
@@ -181,7 +205,7 @@ __device__ inline void calcExtendedLowerDiag(int *lowerDiag,
 		*lowerDiag = minCol - minRow;
 }
 
-__device__ inline void calcExtendedUpperDiag(int *upperDiag,
+__inline__ __device__ void calcExtendedUpperDiag(int *upperDiag,
 			  int const &maxCol,
 			  int const &antiDiagNo)
 {
@@ -190,7 +214,7 @@ __device__ inline void calcExtendedUpperDiag(int *upperDiag,
 		*upperDiag = maxCol - 1 - maxRow;
 }
 
-__device__ inline void swapAntiDiags(short *antiDiag1,
+__inline__ __device__ void swapAntiDiags(short *antiDiag1,
 	   				short *antiDiag2,
 	   				short *antiDiag3,
 	   				int *a1size,
@@ -217,7 +241,7 @@ __device__ inline void swapAntiDiags(short *antiDiag1,
 
 }
 
-__device__ inline void initAntiDiag3(short *antiDiag3,
+__inline__ __device__ void initAntiDiag3(short *antiDiag3,
 							int *a3size,
 			   				int const &offset,
 			   				int const &maxCol,
@@ -226,8 +250,8 @@ __device__ inline void initAntiDiag3(short *antiDiag3,
 			   				int const &gapCost,
 			   				int const &undefined)
 {
-	
 	*a3size = maxCol + 1 - offset;
+	//memset(antiDiag3,UNDEF,*a3size);
 	antiDiag3[0] = undefined;
 	antiDiag3[maxCol - offset] = undefined;
 
@@ -241,7 +265,7 @@ __device__ inline void initAntiDiag3(short *antiDiag3,
 	//return offset;
 }
 
-__device__ inline void initAntiDiags(
+__inline__ __device__ void initAntiDiags(
 			   short *antiDiag1,
 			   short *antiDiag2,
 			   short *antiDiag3,
@@ -263,7 +287,9 @@ __device__ inline void initAntiDiags(
 
 	//}
 	//__syncthreads();	
-	
+	memset(antiDiag1,UNDEF,N_THREADS);
+	memset(antiDiag2,UNDEF,N_THREADS);
+	memset(antiDiag3,UNDEF,N_THREADS);	
 	//antiDiag2.resize(1);
 	*a2size = 1;
 
@@ -327,8 +353,8 @@ __global__ void extendSeedLGappedXDropOneDirection(
 	//dimension of the antidiagonals
 	int a1size = 0, a2size = 0, a3size = 0;
 	
-	int cols = qL[myId]+1;//querySeg.length()+1;//should be enough even if we allocate just one time the string
-	int rows = dbL[myId]+1;//databaseSeg.length()+1;//
+	int cols = qL[myId]+1;
+	int rows = dbL[myId]+1;
 	if (rows == 1 || cols == 1)
 		return;
 
@@ -379,25 +405,24 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		computeAntidiag(antiDiag1, antiDiag2, antiDiag3, querySeg, databaseSeg, best, scoreDropOff, cols, rows, minCol, maxCol, antiDiagNo, offset1, offset2, direction);	 	
 		__syncthreads();	
 		//int antiDiagBest = simple_max(antiDiag3, a3size, offset3);
-	
-		int antiDiagBest = array_max(antiDiag3, a3size, minCol, offset3);
-	
+		//int antiDiagBest = array_max(antiDiag3, a3size, minCol, offset3);
+		int antiDiagBest = another_max(antiDiag3, a3size);
+		//int antiDiagBest = thrust::reduce(thrust::device,antiDiag3,antiDiag3+1023,0,thrust::maximum<short>());
+
 		//original min and max col update
 		best = (best > antiDiagBest) ? best : antiDiagBest;
-		
-		while (minCol - offset3 < a3size && antiDiag3[minCol - offset3] == undefined &&
-			   minCol - offset2 - 1 < a2size && antiDiag2[minCol - offset2 - 1] == undefined)
+
+		while (minCol - offset3 < a3size && antiDiag3[minCol - offset3] == undefined && minCol - offset2 - 1 < a2size && antiDiag2[minCol - offset2 - 1] == undefined)
 		{
 			++minCol;
-		}
-		
-		while (maxCol - offset3 > 0 && (antiDiag3[maxCol - offset3 - 1] == undefined) &&
-									   (antiDiag2[maxCol - offset2 - 1] == undefined))
-	 	{
+		}	
+	
+		while (maxCol - offset3 > 0 && (antiDiag3[maxCol - offset3 - 1] == undefined) && (antiDiag2[maxCol - offset2 - 1] == undefined))
+ 		{
 			--maxCol;
 		}
 		++maxCol;
-		
+	
 		// Calculate new lowerDiag and upperDiag of extended seed
 		calcExtendedLowerDiag(&lowerDiag, minCol, antiDiagNo);
 		calcExtendedUpperDiag(&upperDiag, maxCol - 1, antiDiagNo);
@@ -406,7 +431,6 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		minCol = max_logan(minCol,(antiDiagNo + 2 - rows));
 		// end of querySeg reached?
 		maxCol = min(maxCol, cols);
-		
 	
 	}
 
@@ -704,8 +728,8 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	//std::cout << "\nTransfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  <<" Free time: "<< tfree.count() << std::endl;	
 
 	//FIGURE OUT A WAY TO PRINT RESULTS
-	//for(int i = 0; i < N_BLOCKS; i++)
-	//	cout<< scoreLeft[i]+scoreRight[i]+kmer_length<<endl;	
+	for(int i = 0; i < N_BLOCKS; i++)
+		cout<< scoreLeft[i]+scoreRight[i]+kmer_length<<endl;	
 
 
 }
