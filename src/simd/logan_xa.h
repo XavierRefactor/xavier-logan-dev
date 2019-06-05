@@ -16,18 +16,20 @@
 #include"simd_utils.h"
 #include"score.h"
 
+// #define DEBUG
+
 //======================================================================================
 // X-DROP ADAPTIVE BANDED ALIGNMENT
 //======================================================================================
 
-std::pair<short, short>
+std::pair<int64_t, int64_t>
 LoganOneDirection
 (
 	SeedL & seed,
 	std::string const& targetSeg,
 	std::string const& querySeg,
 	ScoringSchemeL& scoringScheme,
-	unsigned short const &scoreDropOff
+	int64_t const &scoreDropOff
 )
 {
 	unsigned int hlength = targetSeg.length() + 1;
@@ -38,15 +40,17 @@ LoganOneDirection
 
 	// Convert from string to int array
 	// This is the entire sequences
-	short* queryh = new short[hlength];
-	short* queryv = new short[vlength];
+	int8_t* queryh = new int8_t[hlength];
+	int8_t* queryv = new int8_t[vlength];
 	std::copy(targetSeg.begin(), targetSeg.end(), queryh);
 	std::copy(querySeg.begin(), querySeg.end(), queryv);
 
-	short matchCost    = scoreMatch(scoringScheme   );
-	short mismatchCost = scoreMismatch(scoringScheme);
-	short gapCost      = scoreGap(scoringScheme     );
-	short gapOpening   = -1; // scoreGapOpening()
+	int8_t matchCost    = scoreMatch(scoringScheme   );
+	int8_t mismatchCost = scoreMismatch(scoringScheme);
+	int8_t gapCost      = scoreGap(scoringScheme     );
+	int8_t gapOpening   = 0; // scoreGapOpening()
+
+	int64_t offset     = 0;
 
 	vector_t vmatchCost    = set1_func (matchCost   );
 	vector_t vmismatchCost = set1_func (mismatchCost);
@@ -62,9 +66,10 @@ LoganOneDirection
 	printf("Phase I\n");
 #endif
 	// we need one more space for the off-grid values and one more space for antiDiag2
-	short phase1_data[LOGICALWIDTH + 2][LOGICALWIDTH + 2];
-	short phase1_gaphistup[ LOGICALWIDTH + 2 ][ LOGICALWIDTH + 2 ];
-	short phase1_gaphistleft[ LOGICALWIDTH + 2 ][ LOGICALWIDTH + 2 ];
+	// TODO: worry about overflow in phase 1 with int8_t
+	int8_t phase1_data[LOGICALWIDTH + 2][LOGICALWIDTH + 2];
+	int8_t phase1_gaphistup[ LOGICALWIDTH + 2 ][ LOGICALWIDTH + 2 ];
+	int8_t phase1_gaphistleft[ LOGICALWIDTH + 2 ][ LOGICALWIDTH + 2 ];
 
 	// phase1_data initialization
 	phase1_data[0][0] = 0;
@@ -91,15 +96,15 @@ LoganOneDirection
 	{
 		for(int j = 1; j < LOGICALWIDTH + 2; j++)
 		{
-			short onef = phase1_data[i-1][j-1];
+			int8_t onef = phase1_data[i-1][j-1];
 			if(queryh[i-1] == queryv[j-1])
 				onef += matchCost;
 			else
 				onef += mismatchCost;
 
-			short twou = phase1_data[i-1][j] + gapCost + phase1_gaphistup[i-1][j];
-			short twol = phase1_data[i][j-1] + gapCost + phase1_gaphistleft[i][j-1];
-			short twof = std::max( twou, twol );
+			int8_t twou = phase1_data[i-1][j] + gapCost + phase1_gaphistup[i-1][j];
+			int8_t twol = phase1_data[i][j-1] + gapCost + phase1_gaphistleft[i][j-1];
+			int8_t twof = std::max( twou, twol );
 
 			phase1_data[i][j] = std::max(onef, twof);
 
@@ -183,9 +188,10 @@ LoganOneDirection
 	// PHASE II (core vectorized computation)
 	//======================================================================================
 
-	short antiDiagNo = 1;
-	short antiDiagBest = antiDiagNo * gapCost;
-	short best = 0;
+	int64_t antiDiagNo = 1;
+	int8_t antiDiagBest = antiDiagNo * gapCost;
+	int64_t best = 0;
+
 
 #ifdef DEBUG
 	printf("Phase II\n");
@@ -266,15 +272,26 @@ LoganOneDirection
 		// TODO: x-drop termination
 		// Note: Don't need to check x drop every time
 		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
-		if(antiDiagBest < best - scoreDropOff)
+		if(antiDiagBest + offset < best - scoreDropOff)
 		{
 			delete [] queryh;
 			delete [] queryv;
-			return std::make_pair(best, antiDiagBest);
+			return std::make_pair(best, antiDiagBest + offset);
+		}
+
+		if ( antiDiagBest > RED_THRESHOLD )
+		{
+			int8_t min = *std::min_element(antiDiag3.elem, antiDiag3.elem + LOGICALWIDTH);
+			antiDiag2.simd = sub_func( antiDiag2.simd, set1_func(min) );
+			antiDiag3.simd = sub_func( antiDiag3.simd, set1_func(min) );
+			offset += min;
+			// print_vector_d( antiDiag3.simd );
+			// printf("min: %d\n", min);
+			// printf("offset: %d\n", offset);
 		}
 
 		// update best
-		best = (best > antiDiagBest) ? best : antiDiagBest;
+		best = (best > antiDiagBest + offset ) ? best : antiDiagBest + offset ;
 
 		// antiDiag swap, offset updates, and new base load
 		// TODO : optimize this
@@ -387,15 +404,23 @@ LoganOneDirection
 
 		// x-drop termination
 		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
-		if(antiDiagBest < best - scoreDropOff)
+		if(antiDiagBest + offset < best - scoreDropOff)
 		{
 			delete [] queryh;
 			delete [] queryv;
-			return std::make_pair(best, antiDiagBest);
+			return std::make_pair(best, antiDiagBest + offset);
+		}
+
+		if ( antiDiagBest > RED_THRESHOLD )
+		{
+			int8_t min = *std::min_element(antiDiag3.elem, antiDiag3.elem + LOGICALWIDTH);
+			antiDiag2.simd = sub_func( antiDiag2.simd, set1_func(min) );
+			antiDiag3.simd = sub_func( antiDiag3.simd, set1_func(min) );
+			offset += min;
 		}
 
 		// update best
-		best = (best > antiDiagBest) ? best : antiDiagBest;
+		best = (best > antiDiagBest + offset ) ? best : antiDiagBest + offset ;
 
 		// antiDiag swap, offset updates, and new base load
 		if (dir == myRIGHT)
@@ -495,15 +520,24 @@ LoganOneDirection
 
 		// x-drop termination
 		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
-		if(antiDiagBest < best - scoreDropOff)
+		if(antiDiagBest + offset  < best - scoreDropOff)
 		{
 			delete [] queryh;
 			delete [] queryv;
-			return std::make_pair(best, antiDiagBest);
+			return std::make_pair(best, antiDiagBest + offset );
+		}
+
+		if ( antiDiagBest > RED_THRESHOLD )
+		{
+			int8_t min = *std::min_element(antiDiag3.elem, antiDiag3.elem + LOGICALWIDTH);
+			antiDiag2.simd = sub_func( antiDiag2.simd, set1_func(min) );
+			antiDiag3.simd = sub_func( antiDiag3.simd, set1_func(min) );
+			offset += min;
+			printf("%d\n", offset);
 		}
 
 		// update best
-		best = (best > antiDiagBest) ? best : antiDiagBest;
+		best = (best > antiDiagBest + offset ) ? best : antiDiagBest + offset ;
 
 		// antiDiag swap, offset updates, and new base load
 		short nextDir = dir ^ 1;
@@ -536,10 +570,10 @@ LoganOneDirection
 	delete [] queryh;
 	delete [] queryv;
 
-	return std::make_pair(best, antiDiagBest);
+	return std::make_pair(best, antiDiagBest + offset );
 }
 
-std::pair<short, short>
+std::pair<int64_t, int64_t>
 LoganXDrop
 (
 	SeedL& seed,
@@ -547,7 +581,7 @@ LoganXDrop
 	std::string const& target,
 	std::string const& query,
 	ScoringSchemeL& scoringScheme,
-	unsigned short const &scoreDropOff
+	int64_t const &scoreDropOff
 )
 {
 	// TODO: check scoring scheme correctness/input parameters
@@ -567,8 +601,8 @@ LoganXDrop
 	}
 	else
 	{
-		std::pair<short, short> extLeft;
-		std::pair<short, short> extRight;
+		std::pair<int64_t, int64_t> extLeft;
+		std::pair<int64_t, int64_t> extRight;
 
 		std::string targetPrefix = target.substr (0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
 		std::string queryPrefix = query.substr (0, getBeginPositionV(seed));	// from read start til start seed (seed not included)

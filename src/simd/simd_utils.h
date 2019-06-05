@@ -4,6 +4,8 @@
 // Date:   30 April 2019
 //==================================================================
 
+#include <cstdint>
+
 #ifndef SIMD_UTILS_H
 #define SIMD_UTILS_H
 
@@ -12,14 +14,15 @@
 //======================================================================================
 
 #ifdef __AVX2__ 	// Compile flag: -mavx2
-#define VECTORWIDTH  (16)
+#define VECTORWIDTH  (32)
 #define LOGICALWIDTH (VECTORWIDTH - 1)
 #define vector_t    __m256i
-#define add_func    _mm256_adds_epi16  // saturated arithmetic
-#define max_func    _mm256_max_epi16   // max
-#define set1_func   _mm256_set1_epi16  // set1 operation
+#define add_func    _mm256_adds_epi8  // saturated arithmetic
+#define sub_func    _mm256_subs_epi8  // saturated arithmetic
+#define max_func    _mm256_max_epi8   // max
+#define set1_func   _mm256_set1_epi8  // set1 operation
 #define blendv_func _mm256_blendv_epi8 // blending operation
-#define cmpeq_func  _mm256_cmpeq_epi16 // compare equality operation
+#define cmpeq_func  _mm256_cmpeq_epi8 // compare equality operation
 #elif __SSE4_2__ 	// Compile flag: -msse4.2
 #define VECTORWIDTH  (8)
 #define LOGICALWIDTH (VECTORWIDTH - 1)
@@ -35,16 +38,18 @@
 // GLOBAL VARIABLE DEFINITION
 //======================================================================================
 
-#define NINF  	(std::numeric_limits<short>::min())
+#define NINF  	(std::numeric_limits<int8_t>::min())
 #define myRIGHT (0)
 #define myDOWN  (1)
 #define MIDDLE 	(LOGICALWIDTH / 2)
+
+#define RED_THRESHOLD	(std::numeric_limits<int8_t>::max() - 25)
 
 //======================================================================================
 // SIMD UTILS
 //======================================================================================
 
-typedef short element_t;
+typedef int8_t element_t;
 
 typedef union {
 	vector_t  simd;
@@ -88,13 +93,14 @@ std::pair<T,U> operator+(const std::pair<T,U> & l,const std::pair<T,U> & r) {
 	return {l.first+r.first,l.second+r.second};
 }
 
+// TODO: REWRITE leftShift/RightShift for int8_t
 #ifdef __AVX2__
 inline vector_union_t
 leftShift (const vector_union_t& a) { // this work for avx2
 
 	vector_union_t b;
 	// https://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avxhttps://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avx
-	b.simd = _mm256_alignr_epi8(_mm256_permute2x128_si256(a.simd, a.simd, _MM_SHUFFLE(2, 0, 0, 1)), a.simd, 2);
+	b.simd = _mm256_alignr_epi8(_mm256_permute2x128_si256(a.simd, a.simd, _MM_SHUFFLE(2, 0, 0, 1)), a.simd, 1);
 	b.elem[VECTORWIDTH - 1] = NINF;
 	return b;
 }
@@ -103,7 +109,7 @@ rightShift (const vector_union_t& a) { // this work for avx2
 
 	vector_union_t b;
 	// https://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avx
-	b.simd = _mm256_alignr_epi8(a.simd, _mm256_permute2x128_si256(a.simd, a.simd, _MM_SHUFFLE(0, 0, 2, 0)), 16 - 2);
+	b.simd = _mm256_alignr_epi8(a.simd, _mm256_permute2x128_si256(a.simd, a.simd, _MM_SHUFFLE(0, 0, 2, 0)), 16 - 1);
 	b.elem[0] = NINF;
 	return b;
 }
@@ -131,7 +137,7 @@ rightShift (const vector_union_t& a) { // this work for avx2
 static inline void
 moveRight (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
 	vector_union_t& antiDiag3, int& hoffset, int& voffset, vector_union_t& vqueryh,
-		vector_union_t& vqueryv, const short queryh[], const short queryv[])
+		vector_union_t& vqueryv, const int8_t queryh[], const int8_t queryv[])
 {
 	// (a) shift to the left on query horizontal
 	vqueryh = leftShift (vqueryh);
@@ -145,7 +151,7 @@ moveRight (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
 static inline void
 moveDown (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
 	vector_union_t& antiDiag3, int& hoffset, int& voffset, vector_union_t& vqueryh,
-		vector_union_t& vqueryv, const short queryh[], const short queryv[])
+		vector_union_t& vqueryv, const int8_t queryh[], const int8_t queryv[])
 {
 	//(a) shift to the right on query vertical
 	vqueryv = rightShift (vqueryv);
