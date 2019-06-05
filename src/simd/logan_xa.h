@@ -220,7 +220,7 @@ LoganOneDirection
 		// antiDiag2U (Up)
 		vector_union_t antiDiag2U = leftShift (antiDiag2);
 		antiDiag2U.simd = add_func (antiDiag2U.simd, vgapCost);
-		antiDiag2U.simd = add_func (antiDiag2U.simd, gaphist_up);
+		antiDiag2U.simd = add_func (antiDiag2U.simd, gaphist_up.simd);
 	#ifdef DEBUG
 		printf("antiDiag2U: ");
 		print_vector_d(antiDiag2U.simd);
@@ -230,7 +230,7 @@ LoganOneDirection
 		vector_union_t antiDiag2L = antiDiag2;
 		antiDiag2L.elem[VECTORWIDTH - 1] = NINF;
 		antiDiag2L.simd = add_func (antiDiag2L.simd, vgapCost);
-		antiDiag2L.simd = add_func (antiDiag2L.simd, gaphist_left);
+		antiDiag2L.simd = add_func (antiDiag2L.simd, gaphist_left.simd);
 	#ifdef DEBUG
 		printf("antiDiag2L: ");
 		print_vector_d(antiDiag2L.simd);
@@ -256,12 +256,12 @@ LoganOneDirection
 	#endif
 
 		// Gap History Computation
-		vector_t 2gap = cmpeq_func (antiDiag2M, antiDiag2U.simd);
-		gaphist_up.simd = blendv_func (vzeros, vgapopening, 2gap); // TODO: Check values
-		gaphist_left.simd = blendv_func (vgapopening, vzeros, 2gap); // TODO: Check values
-		vector_t 3gap = cmpeq_func (antiDiag3.simd, antiDiag1F);
-		gaphist_up.simd = blendv_func (vgapopening, gaphist_up.simd, 3gap); // TODO: Check values
-		gaphist_left.simd = blendv_func (vgapopening, gaphist_left.simd, 3gap); // TODO: Check values
+		vector_t twogap = cmpeq_func (antiDiag2M, antiDiag2U.simd);
+		gaphist_up.simd = blendv_func (vzeros, vgapopening, twogap); // TODO: Check values
+		gaphist_left.simd = blendv_func (vgapopening, vzeros, twogap); // TODO: Check values
+		vector_t threegap = cmpeq_func (antiDiag3.simd, antiDiag1F);
+		gaphist_up.simd = blendv_func (vgapopening, gaphist_up.simd, threegap); // TODO: Check values
+		gaphist_left.simd = blendv_func (vgapopening, gaphist_left.simd, threegap); // TODO: Check values
 
 		// TODO: x-drop termination
 		// Note: Don't need to check x drop every time
@@ -342,7 +342,7 @@ LoganOneDirection
 		// antiDiag2U (Up)
 		vector_union_t antiDiag2U = leftShift (antiDiag2);
 		antiDiag2U.simd = add_func (antiDiag2U.simd, vgapCost);
-		antiDiag2U.simd = add_func (antiDiag2U.simd, gaphist_up);
+		antiDiag2U.simd = add_func (antiDiag2U.simd, gaphist_up.simd);
 	#ifdef DEBUG
 		printf("antiDiag2U: ");
 		print_vector_d(antiDiag2U.simd);
@@ -352,7 +352,7 @@ LoganOneDirection
 		vector_union_t antiDiag2L = antiDiag2;
 		antiDiag2L.elem[VECTORWIDTH - 1] = NINF;
 		antiDiag2L.simd = add_func (antiDiag2L.simd, vgapCost);
-		antiDiag2L.simd = add_func (antiDiag2L.simd, gaphist_left);
+		antiDiag2L.simd = add_func (antiDiag2L.simd, gaphist_left.simd);
 	#ifdef DEBUG
 		printf("antiDiag2L: ");
 		print_vector_d(antiDiag2L.simd);
@@ -378,12 +378,12 @@ LoganOneDirection
 	#endif
 
 		// Gap History Computation
-		vector_t 2gap = cmpeq_func (antiDiag2M, antiDiag2U.simd);
-		gaphist_up.simd = blendv_func (vzeros, vgapopening, 2gap); // TODO: Check values
-		gaphist_left.simd = blendv_func (vgapopening, vzeros, 2gap); // TODO: Check values
-		vector_t 3gap = cmpeq_func (antiDiag3.simd, antiDiag1F);
-		gaphist_up.simd = blendv_func (vgapopening, gaphist_up.simd, 3gap); // TODO: Check values
-		gaphist_left.simd = blendv_func (vgapopening, gaphist_left.simd, 3gap); // TODO: Check values
+		vector_t twogap = cmpeq_func (antiDiag2M, antiDiag2U.simd);
+		gaphist_up.simd = blendv_func (vzeros, vgapopening, twogap); // TODO: Check values
+		gaphist_left.simd = blendv_func (vgapopening, vzeros, twogap); // TODO: Check values
+		vector_t threegap = cmpeq_func (antiDiag3.simd, antiDiag1F);
+		gaphist_up.simd = blendv_func (vgapopening, gaphist_up.simd, threegap); // TODO: Check values
+		gaphist_left.simd = blendv_func (vgapopening, gaphist_left.simd, threegap); // TODO: Check values
 
 		// x-drop termination
 		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
@@ -450,7 +450,7 @@ LoganOneDirection
 		// antiDiag2U (Up)
 		vector_union_t antiDiag2U = leftShift (antiDiag2);
 		antiDiag2U.simd = add_func (antiDiag2U.simd, vgapCost);
-		antiDiag2U.simd = add_func (antiDiag2U.simd, gaphist_up);
+		antiDiag2U.simd = add_func (antiDiag2U.simd, gaphist_up.simd);
 	#ifdef DEBUG
 		printf("antiDiag2U: ");
 		print_vector_d(antiDiag2U.simd);
@@ -460,7 +460,7 @@ LoganOneDirection
 		vector_union_t antiDiag2L = antiDiag2;
 		antiDiag2L.elem[VECTORWIDTH - 1] = NINF;
 		antiDiag2L.simd = add_func (antiDiag2L.simd, vgapCost);
-		antiDiag2L.simd = add_func (antiDiag2L.simd, gaphist_left);
+		antiDiag2L.simd = add_func (antiDiag2L.simd, gaphist_left.simd);
 	#ifdef DEBUG
 		printf("antiDiag2L: ");
 		print_vector_d(antiDiag2L.simd);
@@ -486,12 +486,12 @@ LoganOneDirection
 	#endif
 
 		// Gap History Computation
-		vector_t 2gap = cmpeq_func (antiDiag2M, antiDiag2U.simd);
-		gaphist_up.simd = blendv_func (vzeros, vgapopening, 2gap); // TODO: Check values
-		gaphist_left.simd = blendv_func (vgapopening, vzeros, 2gap); // TODO: Check values
-		vector_t 3gap = cmpeq_func (antiDiag3.simd, antiDiag1F);
-		gaphist_up.simd = blendv_func (vgapopening, gaphist_up.simd, 3gap); // TODO: Check values
-		gaphist_left.simd = blendv_func (vgapopening, gaphist_left.simd, 3gap); // TODO: Check values
+		vector_t twogap = cmpeq_func (antiDiag2M, antiDiag2U.simd);
+		gaphist_up.simd = blendv_func (vzeros, vgapopening, twogap); // TODO: Check values
+		gaphist_left.simd = blendv_func (vgapopening, vzeros, twogap); // TODO: Check values
+		vector_t threegap = cmpeq_func (antiDiag3.simd, antiDiag1F);
+		gaphist_up.simd = blendv_func (vgapopening, gaphist_up.simd, threegap); // TODO: Check values
+		gaphist_left.simd = blendv_func (vgapopening, gaphist_left.simd, threegap); // TODO: Check values
 
 		// x-drop termination
 		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
