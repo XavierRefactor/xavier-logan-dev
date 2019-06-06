@@ -154,7 +154,7 @@ void loganXdrop(std::vector< std::vector<std::string> > &v, int mat, int mis, in
 		
 
 	std::chrono::duration<double>  diff_l;
-	
+	std::cout << "STARTING GPU" << std::endl;
 
 		// perform match extension	
 	auto start_l = NOW;

@@ -29,12 +29,15 @@
 
 
 #define N_THREADS 1024
-#define N_BLOCKS 29000
+#define N_BLOCKS 29
 #define MIN -32768
 #define BYTES_INT 4
 #define XDROP 21
 // #define N_STREAMS 60
 #define MAX_SIZE_ANTIDIAG 1024
+#define warpsize 32
+#define FULL_MASK 0xffffffff
+#define N_WARPS N_THREADS/warpsize
 
 //trying to see if the scoring scheme is a bottleneck in some way
 #define MATCH     1
@@ -66,34 +69,12 @@ enum ExtensionDirectionL
     EXTEND_BOTHL  = 3
 };
 
-__inline__ __device__ int array_max(short *array,
-				int &dim,
-				int &minCol,
-				int &ant_offset)
-{
-	//printf("%d\n", dim1);
-	__shared__ short localArray[N_THREADS/2];
-	unsigned int tid = threadIdx.x;
-	int half = dim>>1;
-	if(tid < half){
-		localArray[tid] = max_logan(array[tid+minCol-ant_offset],array[tid+minCol+half-ant_offset]);
-	}
-	//__syncthreads();		
-	for(int offset = dim/4; offset > 0; offset>>=1){
-		if(tid < offset) localArray[tid] = max_logan(localArray[tid],localArray[tid+offset]);
-	//	__syncthreads();
-	}
-	//__syncthreads();
-	return localArray[0];
-	
-}
 
-
-__inline__ __device__ int simple_max(short *antidiag,
+__inline__ __device__ short simple_max(int *antidiag,
 			  int &dim,
 			  int &offset){
 	int max = antidiag[0];
-	for(int i = 1; i < dim+offset; i++){
+	for(int i = 1; i < dim; i++){
 		if(antidiag[i]>max)
 			max=antidiag[i];
 	}
@@ -101,28 +82,68 @@ __inline__ __device__ int simple_max(short *antidiag,
 
 }
 
-__inline__ __device__ int another_max(short *antidiag,
-			   int &dim){
+__inline__ __device__ void warpReduce(volatile int *input,
+				      int myTId){
+	input[myTId] = (input[myTId] > input[myTId + 32]) ? input[myTId] : input[myTId + 32];
+	input[myTId] = (input[myTId] > input[myTId + 16]) ? input[myTId] : input[myTId + 16];
+	input[myTId] = (input[myTId] > input[myTId + 8]) ? input[myTId] : input[myTId + 8];
+	input[myTId] = (input[myTId] > input[myTId + 4]) ? input[myTId] : input[myTId + 4];
+	input[myTId] = (input[myTId] > input[myTId + 2]) ? input[myTId] : input[myTId + 2];
+	input[myTId] = (input[myTId] > input[myTId + 1]) ? input[myTId] : input[myTId + 1];
+}
+
+__inline__ __device__
+short warpReduceMax(short val) {
+	for (int mask = warpSize/2; mask > 0; mask /= 2){ 
+		short v = __shfl_xor_sync(FULL_MASK,val, mask);
+		val = (v>val)?v:val;
+	}
+	return val;
+}
+
+__inline__ __device__
+short blockReduceMax(short val) {
+
+	static __shared__ short shared[N_WARPS]; // Shared mem for 32 partial sums
+	int lane = threadIdx.x % warpSize;
+	int wid = threadIdx.x / warpSize;
+
+	val = warpReduceMax(val);  
+
+	if (lane==0) shared[wid]=val; 
+
+	__syncthreads();             
+
+	//read from shared memory only if that warp existed
+	val = (threadIdx.x < blockDim.x / warpSize) ? shared[lane] : UNDEF;
+
+	if (wid==0) val = warpReduceMax(val);
 	
+	return val;
 
-	int myId = blockIdx.x*blockDim.x + threadIdx.x;
+}
+
+
+__inline__ __device__ int reduce_max(int *antidiag){
+
 	int myTId = threadIdx.x;
-	__shared__ int input[N_THREADS];
-	input[myTId]=antidiag[myId];
+	__shared__ int input[N_THREADS/2];
+	if(myTId<N_THREADS/2)
+	input[myTId] = (antidiag[myTId]>antidiag[myTId+N_THREADS/2]) ? antidiag[myTId]:antidiag[myTId+N_THREADS/2];
 	__syncthreads();	
-	//reduction
-
-	for(int i = 1; i < blockDim.x; i<<=1){
-		if(myTId%(2*i)==0){
-			input[myTId] = (input[myTId]>input[myTId+i]) ? input[myTId]:input[myTId+i];
+	for(int i = N_THREADS/4; i >32; i>>=1){
+		if(myTId < i){
+			        input[myTId] = (input[myTId] > input[myTId + i]) ? input[myTId] : input[myTId + i];
 		}
 		__syncthreads();
 	}
+	if(myTId<32)
+		warpReduce(input, myTId);
+	__syncthreads();
 	if(myTId==0)
 		return input[0];
 }
 
-//template<typename TSeedL, typename int, typename int>
 __inline__ __device__ void updateExtendedSeedL(SeedL& seed,
 					ExtensionDirectionL direction, //as there are only 4 directions we may consider even smaller data types
 					int &cols,
@@ -158,9 +179,9 @@ __inline__ __device__ void updateExtendedSeedL(SeedL& seed,
 	}
 }
 
-__inline__ __device__ void computeAntidiag(short *antiDiag1,
-									short *antiDiag2,
-									short *antiDiag3,
+__inline__ __device__ void computeAntidiag(int *antiDiag1,
+									int *antiDiag2,
+									int *antiDiag3,
 									char* querySeg,
 									char* databaseSeg,
 									int &best,
@@ -214,46 +235,23 @@ __inline__ __device__ void calcExtendedUpperDiag(int *upperDiag,
 		*upperDiag = maxCol - 1 - maxRow;
 }
 
-__inline__ __device__ void swapAntiDiags(short *antiDiag1,
-	   				short *antiDiag2,
-	   				short *antiDiag3,
-	   				int *a1size,
-	   				int *a2size,
-	   				int *a3size,
-	   				int *offset1,
-	   				int *offset2,
-	   				int *offset3,
-	   				int *minCol)
-{
-	
-	
-	short *t = antiDiag1;
-	antiDiag1 = antiDiag2;
-	antiDiag2 = antiDiag3;
-	antiDiag3 = t;
-	int t_l = *a1size;
-	*a1size = *a2size;
-	*a2size = *a3size;
-	*a3size = t_l;
-	*offset1 = *offset2;
-	*offset2 = *offset3;
-	*offset3 = *minCol-1;
-
-}
-
-__inline__ __device__ void initAntiDiag3(short *antiDiag3,
-							int *a3size,
-			   				int const &offset,
-			   				int const &maxCol,
-			   				int const &antiDiagNo,
-			   				int const &minScore,
-			   				int const &gapCost,
-			   				int const &undefined)
+__inline__ __device__ void initAntiDiag3(int *antiDiag3,
+					       int *a3size,
+			   		       int const &offset,
+			   		       int const &maxCol,
+			   		       int const &antiDiagNo,
+			   		       int const &minScore,
+			   		       int const &gapCost,
+			   		       int const &undefined)
 {
 	*a3size = maxCol + 1 - offset;
-	//memset(antiDiag3,UNDEF,*a3size);
-	antiDiag3[0] = undefined;
-	antiDiag3[maxCol - offset] = undefined;
+	short tid = threadIdx.x;
+	if(tid<N_THREADS)
+		antiDiag3[tid]=UNDEF;
+	__syncthreads();
+	//memset(antiDiag3,0,N_THREADS);
+	//antiDiag3[0] = undefined;
+	//antiDiag3[maxCol - offset] = undefinett
 
 	if (antiDiagNo * gapCost > minScore)
 	{
@@ -266,30 +264,15 @@ __inline__ __device__ void initAntiDiag3(short *antiDiag3,
 }
 
 __inline__ __device__ void initAntiDiags(
-			   short *antiDiag1,
-			   short *antiDiag2,
-			   short *antiDiag3,
+			   int *antiDiag1,
+			   int *antiDiag2,
+			   int *antiDiag3,
 			   int *a2size,
 			   int *a3size,
 			   int const &dropOff,
 			   int const &gapCost,
 			   int const &undefined)
 {
-	// antiDiagonals will be swaped in while loop BEFORE computation of antiDiag3 entries
-	//  -> no initialization of antiDiag1 necessary
-	//int tid = threadIdx.x;
-	//if(tid<N_THREADS){
-	
-	//	antiDiag1[tid]=UNDEF;			
-	//	antiDiag2[tid]=UNDEF;
-	//	antiDiag3[tid]=UNDEF;
-		
-
-	//}
-	//__syncthreads();	
-	memset(antiDiag1,UNDEF,N_THREADS);
-	memset(antiDiag2,UNDEF,N_THREADS);
-	memset(antiDiag3,UNDEF,N_THREADS);	
 	//antiDiag2.resize(1);
 	*a2size = 1;
 
@@ -316,7 +299,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		char *querySegArray,
 		char *databaseSegArray,
 		ExtensionDirectionL direction,
-		ScoringSchemeL *scoringScheme,
+		//ScoringSchemeL *scoringScheme,
 		int scoreDropOff,
 		int *res,
 		// int *antiDiag1,
@@ -343,12 +326,12 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		databaseSeg = databaseSegArray + offsetTarget[myId-1];
 	}
 
-	__shared__ short antiDiag1p[N_THREADS];
-	__shared__ short antiDiag2p[N_THREADS];
-	__shared__ short antiDiag3p[N_THREADS];
-	short* antiDiag1 = (short*) antiDiag1p;
-	short* antiDiag2 = (short*) antiDiag2p;
-	short* antiDiag3 = (short*) antiDiag3p;
+	__shared__ int antiDiag1p[N_THREADS];
+	__shared__ int antiDiag2p[N_THREADS];
+	__shared__ int antiDiag3p[N_THREADS];
+	int* antiDiag1 = (int*) antiDiag1p;
+	int* antiDiag2 = (int*) antiDiag2p;
+	int* antiDiag3 = (int*) antiDiag3p;
 	
 	//dimension of the antidiagonals
 	int a1size = 0, a2size = 0, a3size = 0;
@@ -386,7 +369,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
  		//antiDiag2 -> antiDiag1
 		//antiDiag3 -> antiDiag2
 		//antiDiag1 -> antiDiag3
-		short *t = antiDiag1;
+		int *t = antiDiag1;
 		antiDiag1 = antiDiag2;
 		antiDiag2 = antiDiag3;
 		antiDiag3 = t;
@@ -404,83 +387,76 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		//computeAntidiagLeft(antiDiag1,antiDiag2,antiDiag3,offset1,offset2,offset3,antiDiagNo,GAP_EXT,scoringScheme,querySeg,databaseSeg,undefined,best,scoreDropOff,cols,rows,maxCol,minCol);
 		computeAntidiag(antiDiag1, antiDiag2, antiDiag3, querySeg, databaseSeg, best, scoreDropOff, cols, rows, minCol, maxCol, antiDiagNo, offset1, offset2, direction);	 	
 		__syncthreads();	
-		//int antiDiagBest = simple_max(antiDiag3, a3size, offset3);
-		//int antiDiagBest = array_max(antiDiag3, a3size, minCol, offset3);
-		int antiDiagBest = another_max(antiDiag3, a3size);
-		//int antiDiagBest = thrust::reduce(thrust::device,antiDiag3,antiDiag3+1023,0,thrust::maximum<short>());
+		int antiDiagBest = reduce_max(antiDiag3);
+		//int antiDiagBest = blockReduceMax(antiDiag3[myTId]);
+		//__syncthreads();
+		//if(myTId==0){
+			best = (best > antiDiagBest) ? best : antiDiagBest;
 
-		//original min and max col update
-		best = (best > antiDiagBest) ? best : antiDiagBest;
+			while (minCol - offset3 < a3size && antiDiag3[minCol - offset3] == undefined && minCol - offset2 - 1 < a2size && antiDiag2[minCol - offset2 - 1] == undefined)
+				++minCol;
+			while (maxCol - offset3 > 0 && (antiDiag3[maxCol - offset3 - 1] == undefined) && (antiDiag2[maxCol - offset2 - 1] == undefined))
+				--maxCol;
+			++maxCol;
+	
+			// Calculate new lowerDiag and upperDiag of extended seed
+			calcExtendedLowerDiag(&lowerDiag, minCol, antiDiagNo);
+			calcExtendedUpperDiag(&upperDiag, maxCol - 1, antiDiagNo);
 
-		while (minCol - offset3 < a3size && antiDiag3[minCol - offset3] == undefined && minCol - offset2 - 1 < a2size && antiDiag2[minCol - offset2 - 1] == undefined)
-		{
-			++minCol;
-		}	
-	
-		while (maxCol - offset3 > 0 && (antiDiag3[maxCol - offset3 - 1] == undefined) && (antiDiag2[maxCol - offset2 - 1] == undefined))
- 		{
-			--maxCol;
-		}
-		++maxCol;
-	
-		// Calculate new lowerDiag and upperDiag of extended seed
-		calcExtendedLowerDiag(&lowerDiag, minCol, antiDiagNo);
-		calcExtendedUpperDiag(&upperDiag, maxCol - 1, antiDiagNo);
-
-		// end of databaseSeg reached?
-		minCol = max_logan(minCol,(antiDiagNo + 2 - rows));
-		// end of querySeg reached?
-		maxCol = min(maxCol, cols);
-	
+			// end of databaseSeg reached?
+			minCol = (minCol > (antiDiagNo + 2 - rows)) ? minCol : (antiDiagNo + 2 - rows);
+			// end of querySeg reached?
+			maxCol = (maxCol < cols) ? maxCol : cols;
+		//}
 	}
-
-	int longestExtensionCol = a3size + offset3 - 2;
-	int longestExtensionRow = antiDiagNo - longestExtensionCol;
-	int longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
+	//if(myTId==0){
+		int longestExtensionCol = a3size + offset3 - 2;
+		int longestExtensionRow = antiDiagNo - longestExtensionCol;
+		int longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
 	
-	if (longestExtensionScore == undefined)
-	{
-		if (antiDiag2[a2size -2] != undefined)
+		if (longestExtensionScore == undefined)
 		{
-			// reached end of query segment
-			longestExtensionCol = a2size + offset2 - 2;
-			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
-			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
+			if (antiDiag2[a2size -2] != undefined)
+			{
+				// reached end of query segment
+				longestExtensionCol = a2size + offset2 - 2;
+				longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
+				longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
 			
-		}
-		else if (a2size > 2 && antiDiag2[a2size-3] != undefined)
-		{
-			// reached end of database segment
-			longestExtensionCol = a2size + offset2 - 3;
-			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
-			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
+			}
+			else if (a2size > 2 && antiDiag2[a2size-3] != undefined)
+			{
+				// reached end of database segment
+				longestExtensionCol = a2size + offset2 - 3;
+				longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
+				longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
 			
-		}
-	}
-
-
-	//could be parallelized in some way
-	if (longestExtensionScore == undefined){
-
-		// general case
-		for (int i = 0; i < a1size; ++i){
-
-			if (antiDiag1[i] > longestExtensionScore){
-
-				longestExtensionScore = antiDiag1[i];
-				longestExtensionCol = i + offset1;
-				longestExtensionRow = antiDiagNo - 2 - longestExtensionCol;
-				
 			}
 		}
-	}
+
+
+		//could be parallelized in some way
+		if (longestExtensionScore == undefined){
+
+			// general case
+			for (int i = 0; i < a1size; ++i){
+	
+				if (antiDiag1[i] > longestExtensionScore){
+	
+					longestExtensionScore = antiDiag1[i];
+					longestExtensionCol = i + offset1;
+					longestExtensionRow = antiDiagNo - 2 - longestExtensionCol;
+				
+				}
+			}
+		}
 	// update seed
-	if (longestExtensionScore != undefined)
-		updateExtendedSeedL(seed[myId], direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
+		if (longestExtensionScore != undefined)
+			updateExtendedSeedL(seed[myId], direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
 	//if(threadIdx.x == 0)		
 		//printf("%d\n", longestExtensionScore);
-	res[myId] = longestExtensionScore;
-	
+		res[myId] = longestExtensionScore;
+	//}
 }
 
 inline void extendSeedL(vector<SeedL> &seeds,
@@ -644,9 +620,9 @@ inline void extendSeedL(vector<SeedL> &seeds,
   	cudaErrchk(cudaMalloc(&seed_d_r, nSequences*sizeof(SeedL)));
 
   	//declare and allocate GPU scoring
-  	ScoringSchemeL *penalties_r, *penalties_l;
-  	cudaErrchk(cudaMalloc(&penalties_r, nSequences*sizeof(ScoringSchemeL)));
-  	cudaErrchk(cudaMalloc(&penalties_l, nSequences*sizeof(ScoringSchemeL)));
+  	//ScoringSchemeL *penalties_r, *penalties_l;
+  	//cudaErrchk(cudaMalloc(&penalties_r, nSequences*sizeof(ScoringSchemeL)));
+  	//cudaErrchk(cudaMalloc(&penalties_l, nSequences*sizeof(ScoringSchemeL)));
 
   	//declare result variables
   	int *scoreLeft_d, *scoreRight_d;
@@ -678,15 +654,15 @@ inline void extendSeedL(vector<SeedL> &seeds,
   	cudaErrchk(cudaMemcpyAsync(seed_d_l, &seeds[0], nSequences*sizeof(SeedL), cudaMemcpyHostToDevice, streams[0]));	
 	cudaErrchk(cudaMemcpyAsync(seed_d_r, &seeds[0], nSequences*sizeof(SeedL), cudaMemcpyHostToDevice, streams[1]));
   	//scoring scheme
-  	cudaErrchk(cudaMemcpyAsync(penalties_l, &penalties[0], nSequences*sizeof(ScoringSchemeL), cudaMemcpyHostToDevice, streams[0]));	
-	cudaErrchk(cudaMemcpyAsync(penalties_r, &penalties[0], nSequences*sizeof(ScoringSchemeL), cudaMemcpyHostToDevice, streams[1]));	
+  	//cudaErrchk(cudaMemcpyAsync(penalties_l, &penalties[0], nSequences*sizeof(ScoringSchemeL), cudaMemcpyHostToDevice, streams[0]));	
+	//cudaErrchk(cudaMemcpyAsync(penalties_r, &penalties[0], nSequences*sizeof(ScoringSchemeL), cudaMemcpyHostToDevice, streams[1]));	
 
 	auto end_t1 = NOW;
 	auto start_c = NOW;
 	
 	
-	extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS, 0, streams[0]>>> (seed_d_l, prefQ_d, prefT_d, EXTEND_LEFTL, penalties_l, XDROP, scoreLeft_d, lenLeftQ_d, lenLeftT_d, offsetLeftQ_d, offsetLeftT_d);
-	extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS, 0, streams[1]>>> (seed_d_r, suffQ_d, suffT_d, EXTEND_RIGHTL, penalties_r, XDROP, scoreRight_d, lenRightQ_d, lenRightT_d, offsetRightQ_d, offsetRightT_d);
+	extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS, 0, streams[0]>>> (seed_d_l, prefQ_d, prefT_d, EXTEND_LEFTL/*, penalties_l*/, XDROP, scoreLeft_d, lenLeftQ_d, lenLeftT_d, offsetLeftQ_d, offsetLeftT_d);
+	extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS, 0, streams[1]>>> (seed_d_r, suffQ_d, suffT_d, EXTEND_RIGHTL/*, penalties_r*/, XDROP, scoreRight_d, lenRightQ_d, lenRightT_d, offsetRightQ_d, offsetRightT_d);
 	
 	
 	auto end_c = NOW;
@@ -699,10 +675,10 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	
 	auto end_t2 = NOW;
 	cudaErrchk(cudaPeekAtLastError());
-	duration<double> transfer1, transfer2, compute, tfree;
-	transfer1=end_t1-start_t1;
-	transfer2=end_t2-start_t2;
-	compute=end_c-start_c;
+	//duration<double> transfer1, transfer2, compute, tfree;
+	//transfer1=end_t1-start_t1;
+	//transfer2=end_t2-start_t2;
+	//compute=end_c-start_c;
 	
 	auto start_f = NOW;
 	
@@ -719,20 +695,21 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	cudaErrchk(cudaFree(offsetRightQ_d));
 	cudaErrchk(cudaFree(offsetRightT_d));
 	cudaErrchk(cudaFree(seed_d_l));
-	cudaErrchk(cudaFree(penalties_r));
+	cudaErrchk(cudaFree(seed_d_r));
+	//cudaErrchk(cudaFree(penalties_r));
 	cudaErrchk(cudaFree(scoreLeft_d));
 	cudaErrchk(cudaFree(scoreRight_d));
 
 	auto end_f = NOW;
-	tfree = end_f - start_f;
+	//tfree = end_f - start_f;
 	//std::cout << "\nTransfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  <<" Free time: "<< tfree.count() << std::endl;	
 
 	//FIGURE OUT A WAY TO PRINT RESULTS
 	for(int i = 0; i < N_BLOCKS; i++)
 		cout<< scoreLeft[i]+scoreRight[i]+kmer_length<<endl;	
 
-
 }
+
 
 
 
