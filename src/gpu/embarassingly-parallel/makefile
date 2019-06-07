@@ -22,7 +22,11 @@ gpu: test-performance-gpu.cu
 
 gpu_cori: test-performance-gpu.cu
 
-	$(COMPILER_GPU) -Xptxas -O3 -arch=sm_70 -std=c++11 $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
+	$(COMPILER_GPU) --default-stream per-thread -Xptxas -O3 -arch=sm_70 -std=c++11 $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
+
+gpu_cori_dbg: test-performance-gpu.cu
+
+	$(COMPILER_GPU) -G -arch=sm_70 -std=c++11 $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
 
 clean:
 	rm -f *.o
