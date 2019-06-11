@@ -1,32 +1,8 @@
 //==================================================================
-// Title:  C++ x-drop seed-and-extend alignment algorithm
+// Title:  Cuda x-drop seed-and-extend alignment algorithm
 // Author: G. Guidi, A. Zeni
 // Date:   6 March 2019
 //==================================================================
-
-// -----------------------------------------------------------------
-// Function extendSeedL                         [GappedXDrop, Cuda]
-// -----------------------------------------------------------------
-
-//remove asserts to speedup 
-
-//#define DEBUG
-
-#include<vector>
-#include<iostream>
-#include<chrono>
-//#include <cub/block/block_load.cuh>
-//#include <cub/block/block_store.cuh>
-//#include <cub/block/block_reduce.cuh>
-//#include <cub/cub.cuh>
-//#include<boost/array.hpp>
-#include"logan.h"
-#include"score.h"
-#include <thrust/reduce.h>
-#include <thrust/functional.h>
-#include <thrust/execution_policy.h>
-// using namespace cub;
-
 
 #define N_THREADS 1024
 #define N_BLOCKS 29000
@@ -59,8 +35,6 @@ inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort =
 	}
 }
 
-using namespace std;
-
 enum ExtensionDirectionL
 {
     EXTEND_NONEL  = 0,
@@ -68,7 +42,6 @@ enum ExtensionDirectionL
     EXTEND_RIGHTL = 2,
     EXTEND_BOTHL  = 3
 };
-
 
 __inline__ __device__ short simple_max(int *antidiag,
 			  int &dim,
@@ -140,8 +113,9 @@ __inline__ __device__ int reduce_max(int *antidiag){
 	if(myTId<32)
 		warpReduce(input, myTId);
 	__syncthreads();
-	if(myTId==0)
-		return input[myTId];
+	return input[0];
+	//if(myTId==0)
+	//	return input[myTId];
 }
 
 __inline__ __device__ void updateExtendedSeedL(SeedL& seed,
@@ -304,7 +278,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		int *offsetTarget)
 {
 	int myId = blockIdx.x;
-	int myTId = threadIdx.x;
+	//int myTId = threadIdx.x;
 	char *querySeg;
 	char *databaseSeg;
 
@@ -584,6 +558,8 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	}
 
   	//declare and allocate GPU strings
+	int nSeqInt = nSequences*sizeof(int);
+
   	char *prefQ_d, *prefT_d;
   	char *suffQ_d, *suffT_d;
   	cudaErrchk(cudaMalloc(&prefQ_d, totalLengthQPref*sizeof(char)));
@@ -594,21 +570,24 @@ inline void extendSeedL(vector<SeedL> &seeds,
   	//declare and allocate GPU lengths
   	int *lenLeftQ_d, *lenLeftT_d;
   	int *lenRightQ_d, *lenRightT_d;
-  	cudaErrchk(cudaMalloc(&lenLeftQ_d, nSequences*sizeof(int)));
-  	cudaErrchk(cudaMalloc(&lenLeftT_d, nSequences*sizeof(int)));
-  	cudaErrchk(cudaMalloc(&lenRightQ_d, nSequences*sizeof(int)));
-  	cudaErrchk(cudaMalloc(&lenRightT_d, nSequences*sizeof(int)));
+  	cudaErrchk(cudaMalloc(&lenLeftQ_d, nSeqInt));
+  	cudaErrchk(cudaMalloc(&lenLeftT_d, nSeqInt));
+  	cudaErrchk(cudaMalloc(&lenRightQ_d, nSeqInt));
+  	cudaErrchk(cudaMalloc(&lenRightT_d, nSeqInt));
 
   	//declare and allocate GPU offsets
   	int *offsetLeftQ_d, *offsetLeftT_d;
   	int *offsetRightQ_d, *offsetRightT_d;
-  	cudaErrchk(cudaMalloc(&offsetLeftQ_d, nSequences*sizeof(int)));
-  	cudaErrchk(cudaMalloc(&offsetLeftT_d, nSequences*sizeof(int)));
-  	cudaErrchk(cudaMalloc(&offsetRightQ_d, nSequences*sizeof(int)));
-  	cudaErrchk(cudaMalloc(&offsetRightT_d, nSequences*sizeof(int)));
+  	cudaErrchk(cudaMalloc(&offsetLeftQ_d, nSeqInt));
+  	cudaErrchk(cudaMalloc(&offsetLeftT_d, nSeqInt));
+  	cudaErrchk(cudaMalloc(&offsetRightQ_d, nSeqInt));
+  	cudaErrchk(cudaMalloc(&offsetRightT_d, nSeqInt));
 
   	//declare and allocate GPU seeds
   	SeedL *seed_d_l, *seed_d_r;
+  	vector<SeedL> seeds_r;
+  	for (int i=0; i<seeds.size(); i++) 
+        seeds_r.push_back(seeds[i]); 
   	cudaErrchk(cudaMalloc(&seed_d_l, nSequences*sizeof(SeedL)));
   	cudaErrchk(cudaMalloc(&seed_d_r, nSequences*sizeof(SeedL)));
 
@@ -619,8 +598,8 @@ inline void extendSeedL(vector<SeedL> &seeds,
 
   	//declare result variables
   	int *scoreLeft_d, *scoreRight_d;
-  	cudaErrchk(cudaMalloc(&scoreLeft_d, nSequences*sizeof(int)));
-  	cudaErrchk(cudaMalloc(&scoreRight_d, nSequences*sizeof(int)));
+  	cudaErrchk(cudaMalloc(&scoreLeft_d, nSeqInt));
+  	cudaErrchk(cudaMalloc(&scoreRight_d, nSeqInt));
 
 
   	//copy data to the GPU
@@ -632,20 +611,20 @@ inline void extendSeedL(vector<SeedL> &seeds,
   	cudaErrchk(cudaMemcpyAsync(suffT_d, suffT, totalLengthTSuff*sizeof(char), cudaMemcpyHostToDevice, streams[1]));	
   	
   	//lengths
-  	cudaErrchk(cudaMemcpyAsync(lenLeftQ_d, lenLeftQ, nSequences*sizeof(int), cudaMemcpyHostToDevice, streams[0]));	
-  	cudaErrchk(cudaMemcpyAsync(lenLeftT_d, lenLeftT, nSequences*sizeof(int), cudaMemcpyHostToDevice, streams[0]));	
-  	cudaErrchk(cudaMemcpyAsync(lenRightQ_d, lenRightQ, nSequences*sizeof(int), cudaMemcpyHostToDevice, streams[1]));	
-  	cudaErrchk(cudaMemcpyAsync(lenRightT_d, lenRightT, nSequences*sizeof(int), cudaMemcpyHostToDevice, streams[1]));	
+  	cudaErrchk(cudaMemcpyAsync(lenLeftQ_d, lenLeftQ, nSeqInt, cudaMemcpyHostToDevice, streams[0]));	
+  	cudaErrchk(cudaMemcpyAsync(lenLeftT_d, lenLeftT, nSeqInt, cudaMemcpyHostToDevice, streams[0]));	
+  	cudaErrchk(cudaMemcpyAsync(lenRightQ_d, lenRightQ, nSeqInt, cudaMemcpyHostToDevice, streams[1]));	
+  	cudaErrchk(cudaMemcpyAsync(lenRightT_d, lenRightT, nSeqInt, cudaMemcpyHostToDevice, streams[1]));	
   	
   	//offsets
-  	cudaErrchk(cudaMemcpyAsync(offsetLeftQ_d, offsetLeftQ, nSequences*sizeof(int), cudaMemcpyHostToDevice, streams[0]));	
-  	cudaErrchk(cudaMemcpyAsync(offsetLeftT_d, offsetLeftT, nSequences*sizeof(int), cudaMemcpyHostToDevice, streams[0]));	
-  	cudaErrchk(cudaMemcpyAsync(offsetRightQ_d, offsetRightQ, nSequences*sizeof(int), cudaMemcpyHostToDevice, streams[1]));	
-  	cudaErrchk(cudaMemcpyAsync(offsetRightT_d, offsetRightT, nSequences*sizeof(int), cudaMemcpyHostToDevice, streams[1]));	
+  	cudaErrchk(cudaMemcpyAsync(offsetLeftQ_d, offsetLeftQ, nSeqInt, cudaMemcpyHostToDevice, streams[0]));	
+  	cudaErrchk(cudaMemcpyAsync(offsetLeftT_d, offsetLeftT, nSeqInt, cudaMemcpyHostToDevice, streams[0]));	
+  	cudaErrchk(cudaMemcpyAsync(offsetRightQ_d, offsetRightQ, nSeqInt, cudaMemcpyHostToDevice, streams[1]));	
+  	cudaErrchk(cudaMemcpyAsync(offsetRightT_d, offsetRightT, nSeqInt, cudaMemcpyHostToDevice, streams[1]));	
   	
   	//seeds
   	cudaErrchk(cudaMemcpyAsync(seed_d_l, &seeds[0], nSequences*sizeof(SeedL), cudaMemcpyHostToDevice, streams[0]));	
-	cudaErrchk(cudaMemcpyAsync(seed_d_r, &seeds[0], nSequences*sizeof(SeedL), cudaMemcpyHostToDevice, streams[1]));
+	cudaErrchk(cudaMemcpyAsync(seed_d_r, &seeds_r[0], nSequences*sizeof(SeedL), cudaMemcpyHostToDevice, streams[1]));
   	//scoring scheme
   	//cudaErrchk(cudaMemcpyAsync(penalties_l, &penalties[0], nSequences*sizeof(ScoringSchemeL), cudaMemcpyHostToDevice, streams[0]));	
 	//cudaErrchk(cudaMemcpyAsync(penalties_r, &penalties[0], nSequences*sizeof(ScoringSchemeL), cudaMemcpyHostToDevice, streams[1]));	
@@ -663,8 +642,8 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	//auto end_c = NOW;
     	//auto start_t2 = NOW;
 	
-	cudaErrchk(cudaMemcpyAsync(scoreLeft, scoreLeft_d, nSequences*sizeof(int), cudaMemcpyDeviceToHost, streams[0]));
-	cudaErrchk(cudaMemcpyAsync(scoreRight, scoreRight_d, nSequences*sizeof(int), cudaMemcpyDeviceToHost, streams[1]));
+	cudaErrchk(cudaMemcpyAsync(scoreLeft, scoreLeft_d, nSeqInt, cudaMemcpyDeviceToHost, streams[0]));
+	cudaErrchk(cudaMemcpyAsync(scoreRight, scoreRight_d, nSeqInt, cudaMemcpyDeviceToHost, streams[1]));
 	cudaDeviceSynchronize();
 	//cudaErrchk(cudaMemcpy(&seeds[0], seed_d_l, nSequences*sizeof(ScoringSchemeL), cudaMemcpyDeviceToHost));
 	auto end_c = NOW;
