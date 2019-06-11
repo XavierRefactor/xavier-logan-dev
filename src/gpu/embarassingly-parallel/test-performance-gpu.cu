@@ -152,21 +152,45 @@ void loganXdrop(std::vector< std::vector<std::string> > &v, int mat, int mis, in
 			seeds[i+j*v.size()] = tmp_seed;
 		}
 	}
-		
 
+	//seqan testbench
+	seqan::Score<int, seqan::Simple> scoringScheme_s(mat, mis, -1, gap);
+	int scoreSeqAn[N_BLOCKS];
+	std::cout << "STARTING CPU" << std::endl;
+	std::chrono::duration<double>  diff_s;
+	auto start_s = std::chrono::high_resolution_clock::now();
+	for(int i = 0; i < N_BLOCKS; i++){
+		seqan::Dna5String seqV_s(seqV[i]);
+		seqan::Dna5String seqH_s(seqH[i]);
+		TSeed seed(posH[i], posV[i], kmerLen);
+		scoreSeqAn[i] = seqan::extendSeed(seed[i], seqH_s, seqV_s, seqan::EXTEND_BOTH, scoringScheme_s, xdrop, seqan::GappedXDrop(), kmerLen);
+	}
+	auto end_s = std::chrono::high_resolution_clock::now();
+	diff_s = end_s-start_s;
+	cout << "SEQAN TIME:\t" <<  diff_s.count() <<endl;
+
+	int scoreLogan[N_BLOCKS];
 	std::chrono::duration<double>  diff_l;
 	std::cout << "STARTING GPU" << std::endl;
-
-		// perform match extension	
 	auto start_l = NOW;
-		// GGGG: double check call function
-	extendSeedL(seeds, EXTEND_BOTHL, seqH, seqV, penalties, xdrop, kmerLen);
+	extendSeedL(seeds, EXTEND_BOTHL, seqH, seqV, penalties, xdrop, kmerLen, scoreLogan);
 	auto end_l = NOW;
 	diff_l = end_l-start_l;
 
-	cout << "logan time:\t" <<  diff_l.count() <<endl;
+	cout << "LOGAN TIME:\t" <<  diff_l.count() <<endl;
+	cout << "CHECKING RESULTS"<< endl;
 	
-	
+	bool test = true;
+	for(int i = 0; i<N_BLOCKS; i++){
+		if(scoreLogan[i]!=scoreSeqAn[i]){
+			test = false;
+			cout << "ERROR ALIGNMENT: "<< i << endl;
+			cout << "SEQAN ALIGNMENT: "<< scoreSeqAn[i] << " LOGAN ALIGNMENT: " << scoreLogan[i] << endl;
+		}
+
+	}
+	if(test)
+		cout << "ALL OK\n" << "SPEEDUP" << diff_s.count()/diff_l.count() << endl;	
 	//loganresult = std::make_tuple(result, getBeginPositionV(seed), getEndPositionV(seed), getBeginPositionH(seed), getEndPositionH(seed), diff_l.count());
 	//return loganresult;
 }
@@ -187,7 +211,7 @@ int main(int argc, char **argv)
 	const char* filename =  (char*) malloc(20 * sizeof(char));
 	std::string temp = "benchmark.txt"; // GGGG: make filename input parameter
 	filename = temp.c_str();
-	std::cout << "starting benchmark" << std::endl;
+	std::cout << "STARTING BENCHMARK" << std::endl;
 	int maxt = 30;
 	
 	//setting up the gpu environment

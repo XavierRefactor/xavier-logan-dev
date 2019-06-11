@@ -426,7 +426,8 @@ inline void extendSeedL(vector<SeedL> &seeds,
 			vector<string> &query,
 			vector<ScoringSchemeL> &penalties,
 			int const& XDrop,
-			int const& kmer_length)
+			int const& kmer_length
+			int *res)
 {
 	//NB N_BLOCKS should be double or close as possible to target.size()=queryu.size()
 
@@ -682,8 +683,8 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	//std::cout << "\nTransfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  <<" Free time: "<< tfree.count() << std::endl;	
 
 	//FIGURE OUT A WAY TO PRINT RESULTS
-	for(int i = N_BLOCKS-29; i < N_BLOCKS; i++)
-		cout<< scoreLeft[i]+scoreRight[i]+kmer_length<<endl;	
+	for(int i = 0; i < N_BLOCKS; i++)
+		res[i] = scoreLeft[i]+scoreRight[i]+kmer_length;
 
 }
 
