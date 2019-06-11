@@ -703,7 +703,7 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	//std::cout << "\nTransfer time1: "<<transfer1.count()<<" Transfer time2: "<<transfer2.count() <<" Compute time: "<<compute.count()  <<" Free time: "<< tfree.count() << std::endl;	
 
 	//FIGURE OUT A WAY TO PRINT RESULTS
-	for(int i = N_BLOCKS-30; i < N_BLOCKS; i++)
+	for(int i = N_BLOCKS-29; i < N_BLOCKS; i++)
 		cout<< scoreLeft[i]+scoreRight[i]+kmer_length<<endl;	
 
 }

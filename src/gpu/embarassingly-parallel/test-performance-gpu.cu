@@ -39,7 +39,7 @@
 // #include <seqan/score.h>
 // #include <seqan/modifier.h>
 // #include "../gpu/v0_antidiag/logan-functions.h"
-#include "logan-functions.h"
+#include "logan-functions.cuh"
 using namespace std;
 //using namespace seqan;
 
