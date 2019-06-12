@@ -426,7 +426,7 @@ inline void extendSeedL(vector<SeedL> &seeds,
 			vector<string> &query,
 			vector<ScoringSchemeL> &penalties,
 			int const& XDrop,
-			int const& kmer_length
+			int const& kmer_length,
 			int *res)
 {
 	//NB N_BLOCKS should be double or close as possible to target.size()=queryu.size()
@@ -636,8 +636,8 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	auto start_c = NOW;
 	
 	
-	extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS, 0, streams[0]>>> (seed_d_l, prefQ_d, prefT_d, EXTEND_LEFTL/*, penalties_l*/, XDROP, scoreLeft_d, lenLeftQ_d, lenLeftT_d, offsetLeftQ_d, offsetLeftT_d);
-	extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS, 0, streams[1]>>> (seed_d_r, suffQ_d, suffT_d, EXTEND_RIGHTL/*, penalties_r*/, XDROP, scoreRight_d, lenRightQ_d, lenRightT_d, offsetRightQ_d, offsetRightT_d);
+	extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS, 0, streams[0]>>> (seed_d_l, prefQ_d, prefT_d, EXTEND_LEFTL/*, penalties_l*/, XDrop, scoreLeft_d, lenLeftQ_d, lenLeftT_d, offsetLeftQ_d, offsetLeftT_d);
+	extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS, 0, streams[1]>>> (seed_d_r, suffQ_d, suffT_d, EXTEND_RIGHTL/*, penalties_r*/, XDrop, scoreRight_d, lenRightQ_d, lenRightT_d, offsetRightQ_d, offsetRightT_d);
 	
 	
 	//auto end_c = NOW;

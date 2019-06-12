@@ -35,7 +35,7 @@
 #include <seqan/seeds.h>
 #include <seqan/score.h>
 #include <seqan/modifier.h>
-#include "../cpu-nosimd/logan-functions.h"
+#include "../optimized_c/logan-functions.h"
 
 using namespace std;
 //using namespace seqan;
