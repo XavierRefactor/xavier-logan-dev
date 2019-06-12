@@ -18,7 +18,7 @@ gpu_c: test-performance-gpu-temp_cpp.cpp
 
 gpu: test-performance-gpu.cu
 
-	$(COMPILER_GPU) -std=c++14 $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
+	$(COMPILER_GPU) -std=c++14 -maxrregcount=32 $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
 
 gpu_dbg: test-performance-gpu.cu
 
@@ -26,7 +26,7 @@ gpu_dbg: test-performance-gpu.cu
 
 gpu_cori: test-performance-gpu.cu
 
-	$(COMPILER_GPU) -O3 -arch=sm_70 -std=c++14 $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
+	$(COMPILER_GPU) -O3 -arch=sm_70 -maxrregcount=32 -std=c++14 $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
 
 gpu_cori_dbg: test-performance-gpu.cu
 

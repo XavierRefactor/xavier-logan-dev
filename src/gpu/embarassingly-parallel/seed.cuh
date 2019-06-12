@@ -171,46 +171,46 @@ __device__ setAlignScore(SeedL &myseed,int const value){
 }
 
 void
-__device__ setBeginPositionH(SeedL &myseed,int const value){
+__device__ __host__ setBeginPositionH(SeedL &myseed,int const value){
 	myseed.beginPositionH = value;
 }
 
 void
-__device__ setBeginPositionV(SeedL &myseed,int const value){
+__device__ __host__ setBeginPositionV(SeedL &myseed,int const value){
 	myseed.beginPositionV = value;
 }
 
 void
-__device__ setEndPositionH(SeedL &myseed,int const value){
+__device__ __host__ setEndPositionH(SeedL &myseed,int const value){
 	myseed.endPositionH = value;
 }
 
 void
-__device__ setEndPositionV(SeedL &myseed,int const value){
+__device__ __host__ setEndPositionV(SeedL &myseed,int const value){
 	myseed.endPositionV = value;
 }
 
 void
-__device__ setSeedLLength(SeedL &myseed,int const value){
+__device__ __host__ setSeedLLength(SeedL &myseed,int const value){
 	myseed.seedLength = value;
 }
 
 void
-__device__ setLowerDiagonal(SeedL &myseed,int const value){
+__device__ __host__ setLowerDiagonal(SeedL &myseed,int const value){
 	myseed.lowerDiagonal = value;
 }
 
 void
-__device__ setUpperDiagonal(SeedL &myseed,int const value){
+__device__ __host__ setUpperDiagonal(SeedL &myseed,int const value){
 	myseed.upperDiagonal = value;
 }
 
 void
-__device__ setBeginDiagonal(SeedL &myseed,int const value){
+__device__ __host__ setBeginDiagonal(SeedL &myseed,int const value){
 	myseed.beginDiagonal = value;
 }
 
 void
-__device__ setEndDiagonal(SeedL &myseed,int const value){
+__device__ __host__ setEndDiagonal(SeedL &myseed,int const value){
 	myseed.endDiagonal = value;
 }
