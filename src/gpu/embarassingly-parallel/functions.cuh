@@ -470,16 +470,6 @@ inline void extendSeedL(vector<SeedL> &seeds,
 
 	//SeedL *seed_ptr = (SeedL *)malloc(nSequences*sizeof(SeedL));
 
-	int *lenLeftQ = (int*)malloc(nSequences*sizeof(int));
-	int *lenLeftT = (int*)malloc(nSequences*sizeof(int));
-  	int *lenRightQ = (int*)malloc(nSequences*sizeof(int));
-  	int *lenRightT = (int*)malloc(nSequences*sizeof(int));
-	int *offsetLeftQ = (int*)malloc(nSequences*sizeof(int));
-	int *offsetLeftT = (int*)malloc(nSequences*sizeof(int));
-  	int *offsetRightQ = (int*)malloc(nSequences*sizeof(int));
-  	int *offsetRightT = (int*)malloc(nSequences*sizeof(int));
-
-
 	vector<string> queryPrefix(nSequences);
 	vector<string> targetPrefix(nSequences);
 	vector<string> querySuffix(nSequences);
@@ -496,76 +486,77 @@ inline void extendSeedL(vector<SeedL> &seeds,
 		targetSuffix[i] = target[i].substr(getEndPositionH(seeds[i]), target[i].length()); 	// from end seed until the end (seed not included)
 	
 	}
-
-	//offset Left Query
-	lenLeftQ[0]=offsetLeftQ[0]=queryPrefix[0].size();
-  	for(int i = 1; i < nSequences; i++){
-  		lenLeftQ[i]=queryPrefix[i].size();
-  		offsetLeftQ[i]=offsetLeftQ[i-1]+queryPrefix[i].size();
-  	}
-
-  	//offset Left Target
-  	lenLeftT[0]=offsetLeftT[0]=targetPrefix[0].size();
-  	offsetLeftT[0]=targetPrefix[0].size();
-  	for(int i = 1; i < nSequences; i++){
-  		lenLeftT[i]=targetPrefix[i].size();
-  		offsetLeftT[i]=offsetLeftT[i-1]+targetPrefix[i].size();
-  	}
-
-  	//offset Right Query
-  	lenRightQ[0]=offsetRightQ[0]=querySuffix[0].size();
-  	for(int i = 1; i < nSequences; i++){
-  		lenRightQ[i]=querySuffix[i].size();
-  		offsetRightQ[i]=offsetRightQ[i-1]+querySuffix[i].size();
-  	}
-
-  	//offset Right Target
-  	lenRightT[0]=offsetRightT[0]=targetSuffix[0].size();
-  	for(int i = 1; i < nSequences; i++){
-  		lenRightT[i]=targetSuffix[i].size();
-  		offsetRightT[i]=offsetRightT[i-1]+targetSuffix[i].size();
-  	}
+	//compute and save sequences lenghts and offsets	
+	vector<int> lenLeftQ;
+	vector<int> lenLeftT;
+        vector<int> lenRightQ;
+        vector<int> lenRightT; 	 		
+	vector<int> offsetLeftQ;
+	vector<int> offsetLeftT;	
+	vector<int> offsetRightQ;	
+	vector<int> offsetRightT;	
+		
+	
+	lenLeftQ.reserve(nSequences);
+	offsetLeftQ.reserve(nSequences);
+	lenLeftT.reserve(nSequences);
+        offsetLeftT.reserve(nSequences);
+	lenRightQ.reserve(nSequences);
+        offsetRightQ.reserve(nSequences);
+	lenRightT.reserve(nSequences);
+        offsetRightT.reserve(nSequences);
+	
+	for(int i = 0; i < nSequences; i++){
+		lenLeftQ.push_back(queryPrefix[i].size());
+		lenLeftT.push_back(targetPrefix[i].size());
+		lenRightQ.push_back(querySuffix[i].size());
+		lenRightT.push_back(targetSuffix[i].size());
+		offsetLeftQ.push_back(lenLeftQ[i]);
+		offsetLeftT.push_back(lenLeftT[i]);
+		offsetRightQ.push_back(lenRightQ[i]);
+		offsetRightT.push_back(lenRightT[i]);
+	}
+	partial_sum(offsetLeftQ.begin(),offsetLeftQ.end(),offsetLeftQ.begin());	
+	partial_sum(offsetLeftT.begin(),offsetLeftT.end(),offsetLeftT.begin());
+	partial_sum(offsetRightQ.begin(),offsetRightQ.end(),offsetRightQ.begin());
+	partial_sum(offsetRightT.begin(),offsetRightT.end(),offsetRightT.begin());
 
   	//total length of query/target prefix/suffix
   	int totalLengthQPref = offsetLeftQ[nSequences-1];
   	int totalLengthTPref = offsetLeftT[nSequences-1];
   	int totalLengthQSuff = offsetRightQ[nSequences-1];
   	int totalLengthTSuff = offsetRightT[nSequences-1];
-	//cout << totalLengthQPref << " " << totalLengthTPref << " " << totalLengthQSuff << " " << totalLengthTSuff << " " << offsetRightT[28]<< endl;
-  	//declare prefixes
+  	
+	//declare prefixes
 	char *prefQ, *prefT;
   	//allocate and copy prefixes strings
-	int off = 0;
   	prefQ = (char*)malloc(sizeof(char)*totalLengthQPref);
-	for(int i = 0; i<nSequences; i++){
-  	 	char *seqptr = prefQ + off;
-  	 	memcpy(seqptr, queryPrefix[i].c_str(), queryPrefix[i].size());
-  		off+=queryPrefix[i].size();
+	memcpy(prefQ, queryPrefix[0].c_str(), lenLeftQ[0]);
+	for(int i = 1; i<nSequences; i++){
+  	 	char *seqptr = prefQ + offsetLeftQ[i-1];
+  	 	memcpy(seqptr, queryPrefix[i].c_str(), lenLeftQ[i]);
 	}
-	off = 0;
   	prefT = (char*)malloc(sizeof(char)*totalLengthTPref);
-  	for(int i = 0; i<nSequences; i++){
-  	 	char *seqptr = prefT + off;
-  	 	memcpy(seqptr, targetPrefix[i].c_str(), targetPrefix[i].size());
-		off+=targetPrefix[i].size();
+  	memcpy(prefT, targetPrefix[0].c_str(), lenLeftT[0]);
+	for(int i = 1; i<nSequences; i++){
+  	 	char *seqptr = prefT + offsetLeftT[i-1];
+  	 	memcpy(seqptr, targetPrefix[i].c_str(), lenLeftT[i]);
   	}
 
   	//declare suffixes
 	char *suffQ, *suffT;
   	//allocate and copy suffixes strings
-  	off = 0;
 	suffQ = (char*)malloc(sizeof(char)*totalLengthQSuff);
-  	for(int i = 0; i<nSequences; i++){
-  	 	char *seqptr = suffQ + off;
-  	 	memcpy(seqptr, querySuffix[i].c_str(), querySuffix[i].size());
-  		off+=querySuffix[i].size();
+	memcpy(suffQ, querySuffix[0].c_str(), lenRightQ[0]);
+  	for(int i = 1; i<nSequences; i++){
+  	 	char *seqptr = suffQ + offsetRightQ[i-1];
+  	 	memcpy(seqptr, querySuffix[i].c_str(), lenRightQ[i]);
 	}
-	off = 0;
   	suffT = (char*)malloc(sizeof(char)*totalLengthTSuff);
-  	for(int i = 0; i<nSequences; i++){
-  	 	char *seqptr = suffT + off;
-  	 	memcpy(seqptr, targetSuffix[i].c_str(), targetSuffix[i].size());
-  		off+=targetSuffix[i].size();
+  	memcpy(suffT, targetSuffix[0].c_str(), lenRightT[0]);
+	for(int i = 1; i<nSequences; i++){
+  	 	char *seqptr = suffT + offsetRightT[i-1];
+  	 	memcpy(seqptr, targetSuffix[i].c_str(), lenRightT[i]);
 	}
 
   	//declare and allocate GPU strings
@@ -625,16 +616,16 @@ inline void extendSeedL(vector<SeedL> &seeds,
   	cudaErrchk(cudaMemcpyAsync(suffT_d, suffT, totalLengthTSuff*sizeof(char), cudaMemcpyHostToDevice, stream_r));	
   	
   	//lengths
-  	cudaErrchk(cudaMemcpyAsync(lenLeftQ_d, lenLeftQ, nSeqInt, cudaMemcpyHostToDevice, stream_l));	
-  	cudaErrchk(cudaMemcpyAsync(lenLeftT_d, lenLeftT, nSeqInt, cudaMemcpyHostToDevice, stream_l));	
-  	cudaErrchk(cudaMemcpyAsync(lenRightQ_d, lenRightQ, nSeqInt, cudaMemcpyHostToDevice, stream_r));	
-  	cudaErrchk(cudaMemcpyAsync(lenRightT_d, lenRightT, nSeqInt, cudaMemcpyHostToDevice, stream_r));	
+  	cudaErrchk(cudaMemcpyAsync(lenLeftQ_d, &lenLeftQ[0], nSeqInt, cudaMemcpyHostToDevice, stream_l));	
+  	cudaErrchk(cudaMemcpyAsync(lenLeftT_d, &lenLeftT[0], nSeqInt, cudaMemcpyHostToDevice, stream_l));	
+  	cudaErrchk(cudaMemcpyAsync(lenRightQ_d, &lenRightQ[0], nSeqInt, cudaMemcpyHostToDevice, stream_r));	
+  	cudaErrchk(cudaMemcpyAsync(lenRightT_d, &lenRightT[0], nSeqInt, cudaMemcpyHostToDevice, stream_r));	
   	
   	//offsets
-  	cudaErrchk(cudaMemcpyAsync(offsetLeftQ_d, offsetLeftQ, nSeqInt, cudaMemcpyHostToDevice, stream_l));	
-  	cudaErrchk(cudaMemcpyAsync(offsetLeftT_d, offsetLeftT, nSeqInt, cudaMemcpyHostToDevice, stream_l));	
-  	cudaErrchk(cudaMemcpyAsync(offsetRightQ_d, offsetRightQ, nSeqInt, cudaMemcpyHostToDevice, stream_r));	
-  	cudaErrchk(cudaMemcpyAsync(offsetRightT_d, offsetRightT, nSeqInt, cudaMemcpyHostToDevice, stream_r));	
+  	cudaErrchk(cudaMemcpyAsync(offsetLeftQ_d, &offsetLeftQ[0], nSeqInt, cudaMemcpyHostToDevice, stream_l));	
+  	cudaErrchk(cudaMemcpyAsync(offsetLeftT_d, &offsetLeftT[0], nSeqInt, cudaMemcpyHostToDevice, stream_l));	
+  	cudaErrchk(cudaMemcpyAsync(offsetRightQ_d, &offsetRightQ[0], nSeqInt, cudaMemcpyHostToDevice, stream_r));	
+  	cudaErrchk(cudaMemcpyAsync(offsetRightT_d, &offsetRightT[0], nSeqInt, cudaMemcpyHostToDevice, stream_r));	
   	
   	//seeds
   	cudaErrchk(cudaMemcpyAsync(seed_d_l, &seeds[0], nSequences*sizeof(SeedL), cudaMemcpyHostToDevice, stream_l));	
