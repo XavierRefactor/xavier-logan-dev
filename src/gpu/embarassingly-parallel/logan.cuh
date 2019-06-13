@@ -10,6 +10,9 @@
 #include<vector>
 #include<iostream>
 #include<chrono>
+#include<numeric>
+#include<functional>
+#include<iterator>
 #include <thrust/reduce.h>
 #include <thrust/functional.h>
 #include <thrust/execution_policy.h>
