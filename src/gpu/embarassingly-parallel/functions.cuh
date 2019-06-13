@@ -5,7 +5,7 @@
 //==================================================================
 
 #define N_THREADS 1024
-#define N_BLOCKS 29000
+#define N_BLOCKS 29000 
 #define MIN -32768
 #define BYTES_INT 4
 #define XDROP 21
@@ -119,12 +119,12 @@ __inline__ __device__ int reduce_max(int *antidiag, int dim){
 	//	return input[myTId];
 }
 
-__inline__ __device__ void updateExtendedSeedL(SeedL& seed,
+__inline__ __device__ void updateExtendedSeedL(SeedL &seed,
 					ExtensionDirectionL direction, //as there are only 4 directions we may consider even smaller data types
-					int &cols,
-					int &rows,
-					int &lowerDiag,
-					int &upperDiag)
+					int cols,
+					int rows,
+					int lowerDiag,
+					int upperDiag)
 {
 	if (direction == EXTEND_LEFTL)
 	{
@@ -137,8 +137,8 @@ __inline__ __device__ void updateExtendedSeedL(SeedL& seed,
 			setUpperDiagonal(seed, beginDiag + upperDiag);
 
 		// Set new start position of seed.
-		setBeginPositionH(seed, getBeginPositionH(seed) - rows);
-		setBeginPositionV(seed, getBeginPositionV(seed) - cols);
+		seed.beginPositionH -= rows;
+		seed.beginPositionV -= cols;
 	} else {  // direction == EXTEND_RIGHTL
 		// Set new lower and upper diagonals.
 		int endDiag = seed.endDiagonal;
@@ -148,8 +148,8 @@ __inline__ __device__ void updateExtendedSeedL(SeedL& seed,
 			setLowerDiagonal(seed, endDiag - upperDiag);
 
 		// Set new end position of seed.
-		setEndPositionH(seed, getEndPositionH(seed) + rows);
-		setEndPositionV(seed, getEndPositionV(seed) + cols);
+		seed.endPositionH += rows;
+		seed.endPositionV += cols;
 		
 	}
 }
@@ -192,22 +192,22 @@ __inline__ __device__ void computeAntidiag(int *antiDiag1,
 	}
 }
 
-__inline__ __device__ void calcExtendedLowerDiag(int *lowerDiag,
+__inline__ __device__ void calcExtendedLowerDiag(int &lowerDiag,
 		      int const &minCol,
 		      int const &antiDiagNo)
 {
 	int minRow = antiDiagNo - minCol;
-	if (minCol - minRow < *lowerDiag)
-		*lowerDiag = minCol - minRow;
+	if (minCol - minRow < lowerDiag)
+		lowerDiag = minCol - minRow;
 }
 
-__inline__ __device__ void calcExtendedUpperDiag(int *upperDiag,
+__inline__ __device__ void calcExtendedUpperDiag(int &upperDiag,
 			  int const &maxCol,
 			  int const &antiDiagNo)
 {
 	int maxRow = antiDiagNo + 1 - maxCol;
-	if (maxCol - 1 - maxRow > *upperDiag)
-		*upperDiag = maxCol - 1 - maxRow;
+	if (maxCol - 1 - maxRow > upperDiag)
+		upperDiag = maxCol - 1 - maxRow;
 }
 
 __inline__ __device__ void initAntiDiag3(int *antiDiag3,
@@ -298,7 +298,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
 	int* antiDiag1 = (int*) antiDiag1p;
 	int* antiDiag2 = (int*) antiDiag2p;
 	int* antiDiag3 = (int*) antiDiag3p;
-	
+	SeedL mySeed(seed[myId]);	
 	//dimension of the antidiagonals
 	int a1size = 0, a2size = 0, a3size = 0;
 	
@@ -351,74 +351,83 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		computeAntidiag(antiDiag1, antiDiag2, antiDiag3, querySeg, databaseSeg, best, scoreDropOff, cols, rows, minCol, maxCol, antiDiagNo, offset1, offset2, direction);	 	
 		__syncthreads();	
 		int antiDiagBest = reduce_max(antiDiag3, a3size);
+		best = (best > antiDiagBest) ? best : antiDiagBest;
 		//__syncthreads();
-		//if(myTId==0){
-			best = (best > antiDiagBest) ? best : antiDiagBest;
 
-			while (minCol - offset3 < a3size && antiDiag3[minCol - offset3] == undefined && minCol - offset2 - 1 < a2size && antiDiag2[minCol - offset2 - 1] == undefined)
-				++minCol;
-			while (maxCol - offset3 > 0 && (antiDiag3[maxCol - offset3 - 1] == undefined) && (antiDiag2[maxCol - offset2 - 1] == undefined))
-				--maxCol;
-			++maxCol;
-	
-			// Calculate new lowerDiag and upperDiag of extended seed
-			calcExtendedLowerDiag(&lowerDiag, minCol, antiDiagNo);
-			calcExtendedUpperDiag(&upperDiag, maxCol - 1, antiDiagNo);
+		while (minCol - offset3 < a3size && antiDiag3[minCol - offset3] == undefined &&
+			   minCol - offset2 - 1 < a2size && antiDiag2[minCol - offset2 - 1] == undefined)
+		{
+			++minCol;
+		}
 
-			// end of databaseSeg reached?
-			minCol = (minCol > (antiDiagNo + 2 - rows)) ? minCol : (antiDiagNo + 2 - rows);
-			// end of querySeg reached?
-			maxCol = (maxCol < cols) ? maxCol : cols;
+		// Calculate new maxCol
+		while (maxCol - offset3 > 0 && (antiDiag3[maxCol - offset3 - 1] == undefined) &&
+									   (antiDiag2[maxCol - offset2 - 1] == undefined))
+		{
+			--maxCol;
+		}
+		++maxCol;
+
+		// Calculate new lowerDiag and upperDiag of extended seed
+		calcExtendedLowerDiag(lowerDiag, minCol, antiDiagNo);
+		calcExtendedUpperDiag(upperDiag, maxCol - 1, antiDiagNo);
+		
+		// end of databaseSeg reached?
+		minCol = (minCol > (antiDiagNo + 2 - rows)) ? minCol : (antiDiagNo + 2 - rows);
+		// end of querySeg reached?
+		maxCol = (maxCol < cols) ? maxCol : cols;
 		//}
 	}
 	//if(myTId==0){
-		int longestExtensionCol = a3size + offset3 - 2;
-		int longestExtensionRow = antiDiagNo - longestExtensionCol;
-		int longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
+	//__syncthreads();
+	int longestExtensionCol = a3size + offset3 - 2;
+	int longestExtensionRow = antiDiagNo - longestExtensionCol;
+	int longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
 	
-		if (longestExtensionScore == undefined)
+	if (longestExtensionScore == undefined)
+	{
+		if (antiDiag2[a2size -2] != undefined)
 		{
-			if (antiDiag2[a2size -2] != undefined)
-			{
-				// reached end of query segment
-				longestExtensionCol = a2size + offset2 - 2;
-				longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
-				longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
+			// reached end of query segment
+			longestExtensionCol = a2size + offset2 - 2;
+			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
+			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
 			
-			}
-			else if (a2size > 2 && antiDiag2[a2size-3] != undefined)
-			{
-				// reached end of database segment
-				longestExtensionCol = a2size + offset2 - 3;
-				longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
-				longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
+		}
+		else if (a2size > 2 && antiDiag2[a2size-3] != undefined)
+		{
+			// reached end of database segment
+			longestExtensionCol = a2size + offset2 - 3;
+			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
+			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
+			
+		}
+	}
+
+
+	//could be parallelized in some way
+	if (longestExtensionScore == undefined){
+
+		// general case
+		for (int i = 0; i < a1size; ++i){
+
+			if (antiDiag1[i] > longestExtensionScore){
+
+				longestExtensionScore = antiDiag1[i];
+				longestExtensionCol = i + offset1;
+				longestExtensionRow = antiDiagNo - 2 - longestExtensionCol;
 			
 			}
 		}
-
-
-		//could be parallelized in some way
-		if (longestExtensionScore == undefined){
-
-			// general case
-			for (int i = 0; i < a1size; ++i){
-	
-				if (antiDiag1[i] > longestExtensionScore){
-	
-					longestExtensionScore = antiDiag1[i];
-					longestExtensionCol = i + offset1;
-					longestExtensionRow = antiDiagNo - 2 - longestExtensionCol;
-				
-				}
-			}
-		}
+	}
 	// update seed
-		if (longestExtensionScore != undefined)
-			updateExtendedSeedL(seed[myId], direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
-	//if(threadIdx.x == 0)		
-		//printf("%d\n", longestExtensionScore);
-		res[myId] = longestExtensionScore;
+	//__syncthreads();
+	if (longestExtensionScore != undefined)
+		updateExtendedSeedL(mySeed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
+	seed[myId] = mySeed;
+	res[myId] = longestExtensionScore;
 	//}
+
 }
 
 inline void extendSeedL(vector<SeedL> &seeds,
@@ -587,10 +596,13 @@ inline void extendSeedL(vector<SeedL> &seeds,
 
   	//declare and allocate GPU seeds
   	SeedL *seed_d_l, *seed_d_r;
-  	vector<SeedL> seeds_r;
-  	for (int i=0; i<seeds.size(); i++) 
-        seeds_r.push_back(seeds[i]); 
-  	cudaErrchk(cudaMalloc(&seed_d_l, nSequences*sizeof(SeedL)));
+	//SeedL *seed_l = (SeedL*)malloc(nSequences*sizeof(SeedL));
+	//SeedL seed_l[N_BLOCKS];
+	vector<SeedL> seeds_r;
+  	for (int i=0; i<seeds.size(); i++){
+        	seeds_r.push_back(seeds[i]);
+	}
+	cudaErrchk(cudaMalloc(&seed_d_l, nSequences*sizeof(SeedL)));
   	cudaErrchk(cudaMalloc(&seed_d_r, nSequences*sizeof(SeedL)));
 
   	//declare and allocate GPU scoring
@@ -627,9 +639,6 @@ inline void extendSeedL(vector<SeedL> &seeds,
   	//seeds
   	cudaErrchk(cudaMemcpyAsync(seed_d_l, &seeds[0], nSequences*sizeof(SeedL), cudaMemcpyHostToDevice, stream_l));	
 	cudaErrchk(cudaMemcpyAsync(seed_d_r, &seeds_r[0], nSequences*sizeof(SeedL), cudaMemcpyHostToDevice, stream_r));
-  	//scoring scheme
-  	//cudaErrchk(cudaMemcpyAsync(penalties_l, &penalties[0], nSequences*sizeof(ScoringSchemeL), cudaMemcpyHostToDevice, streams[0]));	
-	//cudaErrchk(cudaMemcpyAsync(penalties_r, &penalties[0], nSequences*sizeof(ScoringSchemeL), cudaMemcpyHostToDevice, streams[1]));	
 
 	auto end_t1 = NOW;
 	duration<double> transfer1=end_t1-start_t1;
@@ -646,8 +655,8 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	
 	cudaErrchk(cudaMemcpyAsync(scoreLeft, scoreLeft_d, nSeqInt, cudaMemcpyDeviceToHost, stream_l));
 	cudaErrchk(cudaMemcpyAsync(scoreRight, scoreRight_d, nSeqInt, cudaMemcpyDeviceToHost, stream_r));
-	cudaErrchk(cudaMemcpyAsync(&seeds[0], seed_d_l, nSequences*sizeof(ScoringSchemeL), cudaMemcpyDeviceToHost, stream_l));
-	cudaErrchk(cudaMemcpyAsync(&seeds_r[0], seed_d_r, nSequences*sizeof(ScoringSchemeL), cudaMemcpyDeviceToHost, stream_r));
+	cudaErrchk(cudaMemcpyAsync(&seeds[0], seed_d_l, nSequences*sizeof(SeedL), cudaMemcpyDeviceToHost,stream_l));
+	cudaErrchk(cudaMemcpyAsync(&seeds_r[0], seed_d_r, nSequences*sizeof(SeedL), cudaMemcpyDeviceToHost,stream_r));
 	cudaDeviceSynchronize();
 	auto end_c = NOW;
         duration<double> compute = end_c-start_c;

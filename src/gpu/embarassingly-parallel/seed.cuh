@@ -78,7 +78,7 @@ struct SeedL
 		assert(upperDiagonal >= lowerDiagonal);
 	}
 
-	SeedL(SeedL const& other):
+	__device__ __host__ SeedL(SeedL const& other):
 		beginPositionH(other.beginPositionH),
 		beginPositionV(other.beginPositionV),
 		endPositionH(other.endPositionH),

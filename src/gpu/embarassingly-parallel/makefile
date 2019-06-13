@@ -26,7 +26,7 @@ gpu_dbg: test-performance-gpu.cu
 
 gpu_cori: test-performance-gpu.cu
 
-	$(COMPILER_GPU) -O3 -arch=sm_70 -maxrregcount=32 -std=c++14 $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
+	$(COMPILER_GPU) -arch=sm_70 -O3 -maxrregcount=32 -std=c++14 $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
 
 gpu_cori_dbg: test-performance-gpu.cu
 
