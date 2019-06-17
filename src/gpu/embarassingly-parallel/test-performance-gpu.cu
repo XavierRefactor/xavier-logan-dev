@@ -198,7 +198,7 @@ void loganXdrop(std::vector< std::vector<std::string> > &v, int mat, int mis, in
                         cout << "ERROR ALIGNMENT: "<< i << endl;
                         cout << "SEQAN ALIGNMENT: "<< scoreSeqAn[i] << " LOGAN ALIGNMENT: " << scoreLogan[i] << endl;
                 }
-		if(seqan::endPositionH(seed[i])!=seeds[i].endPositionH||seqan::endPositionV(seed[i])!=seeds[i].endPositionV||seqan::beginPositionV(seed[i])!=seeds[i].beginPositionV||seqan::beginPositionH(seed[i])!=seeds[i].beginPositionH){
+		else if(seqan::endPositionH(seed[i])!=seeds[i].endPositionH||seqan::endPositionV(seed[i])!=seeds[i].endPositionV||seqan::beginPositionV(seed[i])!=seeds[i].beginPositionV||seqan::beginPositionH(seed[i])!=seeds[i].beginPositionH){
 			test = false;
 			cout << "ERROR SEED: "<< i << endl;
                         cout << "ENDH SEQAN: "<< seqan::endPositionH(seed[i]) << " LOGAN: " << seeds[i].endPositionH << endl;
@@ -207,10 +207,13 @@ void loganXdrop(std::vector< std::vector<std::string> > &v, int mat, int mis, in
 			cout << "BEGINV SEQAN: "<< seqan::beginPositionV(seed[i]) << " LOGAN: " << seeds[i].beginPositionV << endl;
 		}
         }
-        if(test)
-                cout << "ALL OK\n" << "SPEEDUP " << diff_s.count()/diff_l.count()<<"X"<< endl;	
+        if(test){
+                cout << "ALL OK\n" << "SPEEDUP " << diff_s.count()/diff_l.count()<<"X"<< endl;
+		cout << "MIN GCUPS="<< xdrop*xdrop*N_BLOCKS/(diff_s.count()*1000000000)<<endl;	
+	}
 	else{
 		cout << "ERROR BUT..\n" << "SPEEDUP " << diff_s.count()/diff_l.count()<<"X"<< endl;
+		cout << "MIN GCUPS="<< xdrop*xdrop*N_BLOCKS/(diff_s.count()*1000000000)<<endl;
 	}
 }
 

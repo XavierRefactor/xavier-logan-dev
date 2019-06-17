@@ -11,9 +11,9 @@
 #define XDROP 21
 // #define N_STREAMS 60
 #define MAX_SIZE_ANTIDIAG 1024
-#define warpsize 32
+#define WARPSIZE 32
 #define FULL_MASK 0xffffffff
-#define N_WARPS N_THREADS/warpsize
+#define N_WARPS N_THREADS/WARPSIZE
 
 //trying to see if the scoring scheme is a bottleneck in some way
 #define MATCH     1
@@ -54,20 +54,35 @@ __inline__ __device__ short simple_max(short *antidiag,
 
 }
 
-__inline__ __device__ void warpReduce(volatile int *input,
-					  int myTId){
-	input[myTId] = (input[myTId] > input[myTId + 32]) ? input[myTId] : input[myTId + 32];
-	input[myTId] = (input[myTId] > input[myTId + 16]) ? input[myTId] : input[myTId + 16];
-	input[myTId] = (input[myTId] > input[myTId + 8]) ? input[myTId] : input[myTId + 8];
-	input[myTId] = (input[myTId] > input[myTId + 4]) ? input[myTId] : input[myTId + 4];
-	input[myTId] = (input[myTId] > input[myTId + 2]) ? input[myTId] : input[myTId + 2];
-	input[myTId] = (input[myTId] > input[myTId + 1]) ? input[myTId] : input[myTId + 1];
+__inline__ __device__ void warpReduce(volatile short *input,
+                                          int myTId){
+        input[myTId] = (input[myTId] > input[myTId + 32]) ? input[myTId] : input[myTId + 32]; 
+        input[myTId] = (input[myTId] > input[myTId + 16]) ? input[myTId] : input[myTId + 16];
+        input[myTId] = (input[myTId] > input[myTId + 8]) ? input[myTId] : input[myTId + 8]; 
+        input[myTId] = (input[myTId] > input[myTId + 4]) ? input[myTId] : input[myTId + 4];
+        input[myTId] = (input[myTId] > input[myTId + 2]) ? input[myTId] : input[myTId + 2];
+        input[myTId] = (input[myTId] > input[myTId + 1]) ? input[myTId] : input[myTId + 1];
+}
+
+__inline__ __device__ short reduce_max(short *input, int dim){
+	unsigned int myTId = threadIdx.x;   
+	if(dim>32){
+		for(int i = N_THREADS/2; i >32; i>>=1){
+			if(myTId < i){
+				        input[myTId] = (input[myTId] > input[myTId + i]) ? input[myTId] : input[myTId + i];
+			}__syncthreads();
+		}//__syncthreads();
+	}
+	if(myTId<32)
+		warpReduce(input, myTId);
+	__syncthreads();
+	return input[0];
 }
 
 __inline__ __device__
 short warpReduceMax(short val) {
-	for (int mask = warpSize/2; mask > 0; mask /= 2){ 
-		short v = __shfl_xor_sync(FULL_MASK,val, mask);
+	for (int mask = WARPSIZE/2; mask > 0; mask /= 2){ 
+		short v = __shfl_down_sync(FULL_MASK,val, mask);
 		val = (v>val)?v:val;
 	}
 	return val;
@@ -77,49 +92,24 @@ __inline__ __device__
 short blockReduceMax(short val) {
 
 	static __shared__ short shared[N_WARPS]; // Shared mem for 32 partial sums
-	int lane = threadIdx.x % warpSize;
-	int wid = threadIdx.x / warpSize;
+	int lane = threadIdx.x % WARPSIZE;
+	int wid = threadIdx.x / WARPSIZE;
 
 	val = warpReduceMax(val);  
 
-	if (lane==0) shared[wid]=val; 
+	if (lane==0)
+		shared[wid]=val; 
 
 	__syncthreads();             
 
 	//read from shared memory only if that warp existed
 	val = (threadIdx.x < blockDim.x / warpSize) ? shared[lane] : UNDEF;
 
-	if (wid==0) val = warpReduceMax(val);
-	
-	return val;
+	if (wid==0) 
+		val = warpReduceMax(val);
+	if (threadIdx.x == 0)
+		return val;
 
-}
-
-__inline__ __device__ int reduce_max(short *antidiag, int dim){
-
-	int myTId = threadIdx.x;
-	int halfdim = (dim+1)/2;
-
-	__shared__ int input[N_THREADS/2];
-	if(myTId<halfdim){
-		int cmp = (myTId<dim/2) ? antidiag[myTId+dim/2] : UNDEF;
-		input[myTId] = (antidiag[myTId]>cmp) ? antidiag[myTId]:cmp;
-	}
-	__syncthreads();	
-	if(dim>32){
-		for(int i = halfdim/4; i >32; i/=2){
-			if(myTId < i){
-						input[myTId] = (input[myTId] > input[myTId + i]) ? input[myTId] : input[myTId + i];
-			}
-			//__syncthreads();
-		}
-	}
-	if(myTId<32)
-		warpReduce(input, myTId);
-	__syncthreads();
-	return input[0];
-	//if(myTId==0)
-	//	return input[myTId];
 }
 
 __inline__ __device__ void updateExtendedSeedL(SeedL &seed,
@@ -287,7 +277,7 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		int offAntidiag)
 {
 	int myId = blockIdx.x;
-	//int myTId = threadIdx.x;
+	int myTId = threadIdx.x;
 	char *querySeg;
 	char *databaseSeg;
 
@@ -368,17 +358,32 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		offset1 = offset2;
 		offset2 = offset3;
 		offset3 = minCol-1;
-
+		__shared__ short temp[N_THREADS];
 		initAntiDiag3(antiDiag3, a3size, offset3, maxCol, antiDiagNo, best - scoreDropOff, GAP_EXT, UNDEF);
 		
 		computeAntidiag(antiDiag1, antiDiag2, antiDiag3, querySeg, databaseSeg, best, scoreDropOff, cols, rows, minCol, maxCol, antiDiagNo, offset1, offset2, direction);	 	
 		__syncthreads();	
-		
-		//int antiDiagBest = reduce_max(antiDiag3, a3size);
-		int antiDiagBest = simple_max(antiDiag3, a3size);
-		best = (best > antiDiagBest) ? best : antiDiagBest;
-		
+	
+		int tmp, antiDiagBest = UNDEF;	
+		for(int i=0; i<a3size; i+=N_THREADS){
+			int size = a3size-i;
+			
+			if(myTId<N_THREADS){
+				temp[myTId] = (myTId<size) ? antiDiag3[myTId+i]:UNDEF;				
+			}
+			__syncthreads();
+			
+			tmp = reduce_max(temp,size);
+			//__syncthreads();	
+			antiDiagBest = (tmp>antiDiagBest) ? tmp:antiDiagBest;
 
+		}
+		best = (best > antiDiagBest) ? best : antiDiagBest;
+		//int prova = simple_max(antiDiag3, a3size);	
+		//if(prova!=antiDiagBest){
+		//	if(myTId==0)
+		//		printf("errore %d/%d\n", prova,antiDiagBest);
+		//}
 		while (minCol - offset3 < a3size && antiDiag3[minCol - offset3] == UNDEF &&
 			   minCol - offset2 - 1 < a2size && antiDiag2[minCol - offset2 - 1] == UNDEF)
 		{
