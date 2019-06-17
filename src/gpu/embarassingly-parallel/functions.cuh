@@ -5,7 +5,7 @@
 //==================================================================
 
 #define N_THREADS 1024
-#define N_BLOCKS 29000 
+#define N_BLOCKS 2900 
 #define MIN -32768
 #define BYTES_INT 4
 #define XDROP 21
@@ -78,7 +78,7 @@ __inline__ __device__ short reduce_max(short *input, int dim){
 	__syncthreads();
 	return input[0];
 }
-
+/*
 __inline__ __device__
 short warpReduceMax(short val) {
 	for (int mask = WARPSIZE/2; mask > 0; mask /= 2){ 
@@ -110,7 +110,7 @@ short blockReduceMax(short val) {
 	if (threadIdx.x == 0)
 		return val;
 
-}
+}*/
 
 __inline__ __device__ void updateExtendedSeedL(SeedL &seed,
 					ExtensionDirectionL direction, //as there are only 4 directions we may consider even smaller data types
@@ -374,7 +374,6 @@ __global__ void extendSeedLGappedXDropOneDirection(
 			__syncthreads();
 			
 			tmp = reduce_max(temp,size);
-			//__syncthreads();	
 			antiDiagBest = (tmp>antiDiagBest) ? tmp:antiDiagBest;
 
 		}
@@ -568,14 +567,19 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	//shared_mem_size per block
     int shared_left = 0;
     int shared_right = 0;
+	int n_cell =0;
 
 	for(int i = 0; i < nSequences; i++){
 		offsetLeftQ.push_back(queryPrefix[i].size());
 		offsetLeftT.push_back(targetPrefix[i].size());
 		shared_left = std::max(std::min(offsetLeftQ[i],offsetLeftT[i]), shared_left);
+		int tmp = std::min(offsetLeftQ[i],offsetLeftT[i]);
+		n_cell += (tmp*tmp);
 		offsetRightQ.push_back(querySuffix[i].size());
 		offsetRightT.push_back(targetSuffix[i].size());
 		shared_right = std::max(std::min(offsetRightQ[i], offsetRightT[i]), shared_right);
+		tmp = std::min(offsetRightQ[i], offsetRightT[i]);
+		n_cell += (tmp*tmp);
 	}
 	
 	partial_sum(offsetLeftQ.begin(),offsetLeftQ.end(),offsetLeftQ.begin());	
@@ -692,4 +696,5 @@ inline void extendSeedL(vector<SeedL> &seeds,
 		setEndPositionH(seeds[i], getEndPositionH(seeds_r[i]));    
 				setEndPositionV(seeds[i], getEndPositionV(seeds_r[i])); 
 	}
+	std::cout << "N_CELLS: "<< n_cell<<endl;
 }

@@ -207,13 +207,14 @@ void loganXdrop(std::vector< std::vector<std::string> > &v, int mat, int mis, in
 			cout << "BEGINV SEQAN: "<< seqan::beginPositionV(seed[i]) << " LOGAN: " << seeds[i].beginPositionV << endl;
 		}
         }
+	double gcups = (N_BLOCKS)/(10*diff_l.count());
         if(test){
                 cout << "ALL OK\n" << "SPEEDUP " << diff_s.count()/diff_l.count()<<"X"<< endl;
-		cout << "MIN GCUPS="<< xdrop*xdrop*N_BLOCKS/(diff_s.count()*1000000000)<<endl;	
+		cout << "MIN GCUPS="<< gcups <<endl;	
 	}
 	else{
 		cout << "ERROR BUT..\n" << "SPEEDUP " << diff_s.count()/diff_l.count()<<"X"<< endl;
-		cout << "MIN GCUPS="<< xdrop*xdrop*N_BLOCKS/(diff_s.count()*1000000000)<<endl;
+		cout << "MIN GCUPS="<< gcups <<endl;
 	}
 }
 
