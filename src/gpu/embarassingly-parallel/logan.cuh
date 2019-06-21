@@ -19,6 +19,7 @@
 #include"seed.cuh"
 #include"score.cuh"
 #include"functions.cuh"
+//#include <boost/algorithm/string.hpp>
 //#include <cub/block/block_load.cuh>
 //#include <cub/block/block_store.cuh>
 //#include <cub/block/block_reduce.cuh>

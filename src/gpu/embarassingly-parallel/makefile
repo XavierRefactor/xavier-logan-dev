@@ -28,4 +28,4 @@ clean:
 	rm -f *.o
 	rm -f test
 	rm -f benchmark.txt
-	
+	rm -f test-cpu	
