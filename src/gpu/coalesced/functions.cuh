@@ -10,7 +10,7 @@
 #define BYTES_INT 4
 #define XDROP 21
 // #define N_STREAMS 60
-#define MAX_SIZE_ANTIDIAG 1024
+#define MAX_SIZE_ANTIDIAG 8000
 #define WARPSIZE 32
 #define FULL_MASK 0xffffffff
 #define N_WARPS N_THREADS/WARPSIZE
@@ -221,7 +221,7 @@ __inline__ __device__ void initAntiDiags(
 	// }
 }
 
-__global__ void extendSeedLGappedXDropOneDirection(
+__global__ void extendSeedLGappedXDropOneDirectionShared(
 		SeedL *seed,
 		char *querySegArray,
 		char *databaseSegArray,
@@ -231,7 +231,6 @@ __global__ void extendSeedLGappedXDropOneDirection(
 		int *offsetQuery,
 		int *offsetTarget,
 		int offAntidiag
-		//,short *antidiag  //comment this line for shared/decomment for global
 		)
 {
 	int myId = blockIdx.x;
@@ -250,8 +249,186 @@ __global__ void extendSeedLGappedXDropOneDirection(
 
 	extern __shared__ short antidiagonals[]; //decomment this for shared/ comment for global
 	short* antiDiag1 = &antidiagonals[0]; //decomment this for shared/ comment for global
+	short* antiDiag2 = &antiDiag1[offAntidiag];
+        short* antiDiag3 = &antiDiag2[offAntidiag];
 
-	//short *antiDiag1 = &antidiag[myId*offAntidiag*3]; //decomment this for global/ comment for shared
+
+	SeedL mySeed(seed[myId]);	
+	//dimension of the antidiagonals
+	int a1size = 0, a2size = 0, a3size = 0;
+	int cols, rows;
+
+    if(myId == 0){
+            cols = offsetQuery[myId]+1;
+            rows = offsetTarget[myId]+1;
+    }
+    else{
+            cols = offsetQuery[myId]-offsetQuery[myId-1]+1;
+            rows = offsetTarget[myId]-offsetTarget[myId-1]+1;
+    }
+
+	if (rows == 1 || cols == 1)
+		return;
+
+	//printf("%d\n", gapCost);
+	//int undefined = UNDEF;
+	int minCol = 1;
+	int maxCol = 2;
+
+	int offset1 = 0; // number of leading columns that need not be calculated in antiDiag1
+	int offset2 = 0; //                                                       in antiDiag2
+	int offset3 = 0; //                                                       in antiDiag3
+
+	initAntiDiags(antiDiag1,antiDiag2, antiDiag3, a2size, a3size, scoreDropOff, GAP_EXT, UNDEF);
+	int antiDiagNo = 1; // the currently calculated anti-diagonal
+
+	int best = 0; // maximal score value in the DP matrix (for drop-off calculation)
+
+	int lowerDiag = 0;
+	int upperDiag = 0;
+
+	while (minCol < maxCol)
+	{	
+
+		
+		++antiDiagNo;
+
+		//antidiagswap
+		//antiDiag2 -> antiDiag1
+		//antiDiag3 -> antiDiag2
+		//antiDiag1 -> antiDiag3
+		short *t = antiDiag1;
+		antiDiag1 = antiDiag2;
+		antiDiag2 = antiDiag3;
+		antiDiag3 = t;
+		int t_l = a1size;
+		a1size = a2size;
+		a2size = a3size;
+		a3size = t_l;
+		offset1 = offset2;
+		offset2 = offset3;
+		offset3 = minCol-1;
+		__shared__ short temp[N_THREADS];
+		initAntiDiag3(antiDiag3, a3size, offset3, maxCol, antiDiagNo, best - scoreDropOff, GAP_EXT, UNDEF);
+		
+		computeAntidiag(antiDiag1, antiDiag2, antiDiag3, querySeg, databaseSeg, best, scoreDropOff, cols, rows, minCol, maxCol, antiDiagNo, offset1, offset2, direction);	 	
+		__syncthreads();	
+	
+		int tmp, antiDiagBest = UNDEF;	
+		for(int i=0; i<a3size; i+=N_THREADS){
+			int size = a3size-i;
+			
+			if(myTId<N_THREADS){
+				temp[myTId] = (myTId<size) ? antiDiag3[myTId+i]:UNDEF;				
+			}
+			__syncthreads();
+			
+			tmp = reduce_max(temp,size);
+			antiDiagBest = (tmp>antiDiagBest) ? tmp:antiDiagBest;
+
+		}
+		best = (best > antiDiagBest) ? best : antiDiagBest;
+		
+		while (minCol - offset3 < a3size && antiDiag3[minCol - offset3] == UNDEF &&
+			   minCol - offset2 - 1 < a2size && antiDiag2[minCol - offset2 - 1] == UNDEF)
+		{
+			++minCol;
+		}
+
+		// Calculate new maxCol
+		while (maxCol - offset3 > 0 && (antiDiag3[maxCol - offset3 - 1] == UNDEF) &&
+									   (antiDiag2[maxCol - offset2 - 1] == UNDEF))
+		{
+			--maxCol;
+		}
+		++maxCol;
+
+		// Calculate new lowerDiag and upperDiag of extended seed
+		calcExtendedLowerDiag(lowerDiag, minCol, antiDiagNo);
+		calcExtendedUpperDiag(upperDiag, maxCol - 1, antiDiagNo);
+		
+		// end of databaseSeg reached?
+		minCol = (minCol > (antiDiagNo + 2 - rows)) ? minCol : (antiDiagNo + 2 - rows);
+		// end of querySeg reached?
+		maxCol = (maxCol < cols) ? maxCol : cols;
+		//}
+	}
+
+	int longestExtensionCol = a3size + offset3 - 2;
+	int longestExtensionRow = antiDiagNo - longestExtensionCol;
+	int longestExtensionScore = antiDiag3[longestExtensionCol - offset3];
+	
+	if (longestExtensionScore == UNDEF)
+	{
+		if (antiDiag2[a2size -2] != UNDEF)
+		{
+			// reached end of query segment
+			longestExtensionCol = a2size + offset2 - 2;
+			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
+			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
+			
+		}
+		else if (a2size > 2 && antiDiag2[a2size-3] != UNDEF)
+		{
+			// reached end of database segment
+			longestExtensionCol = a2size + offset2 - 3;
+			longestExtensionRow = antiDiagNo - 1 - longestExtensionCol;
+			longestExtensionScore = antiDiag2[longestExtensionCol - offset2];
+			
+		}
+	}
+
+
+	if (longestExtensionScore == UNDEF){
+
+		// general case
+		for (int i = 0; i < a1size; ++i){
+
+			if (antiDiag1[i] > longestExtensionScore){
+
+				longestExtensionScore = antiDiag1[i];
+				longestExtensionCol = i + offset1;
+				longestExtensionRow = antiDiagNo - 2 - longestExtensionCol;
+			
+			}
+		}
+	}
+	
+	if (longestExtensionScore != UNDEF)
+		updateExtendedSeedL(mySeed, direction, longestExtensionCol, longestExtensionRow, lowerDiag, upperDiag);
+	seed[myId] = mySeed;
+	res[myId] = longestExtensionScore;
+
+}
+
+__global__ void extendSeedLGappedXDropOneDirectionGlobal(
+		SeedL *seed,
+		char *querySegArray,
+		char *databaseSegArray,
+		ExtensionDirectionL direction,
+		int scoreDropOff,
+		int *res,
+		int *offsetQuery,
+		int *offsetTarget,
+		int offAntidiag,
+		short *antidiag
+		)
+{
+	int myId = blockIdx.x;
+	int myTId = threadIdx.x;
+	char *querySeg;
+	char *databaseSeg;
+
+	if(myId==0){
+		querySeg = querySegArray;
+		databaseSeg = databaseSegArray;
+	}
+	else{
+		querySeg = querySegArray + offsetQuery[myId-1];
+		databaseSeg = databaseSegArray + offsetTarget[myId-1];
+	}
+
+	short *antiDiag1 = &antidiag[myId*offAntidiag*3]; 
 	short* antiDiag2 = &antiDiag1[offAntidiag];
         short* antiDiag3 = &antiDiag2[offAntidiag];
 
@@ -417,7 +594,8 @@ inline void extendSeedL(vector<SeedL> &seeds,
 			vector<ScoringSchemeL> &penalties,
 			int const& XDrop,
 			int const& kmer_length,
-			int *res)
+			int *res,
+			int numAlignments)
 {
 
 	if(scoreGapExtend(penalties[0]) >= 0){
@@ -440,7 +618,7 @@ inline void extendSeedL(vector<SeedL> &seeds,
 
 	// NB N_BLOCKS corresponds to the total number of alignments
 	// change here for future implementations
-	int nSequences = N_BLOCKS;
+	int nSequences = numAlignments;
 	int nSeqInt = nSequences*sizeof(int);
 
 	//declare score for right and left extension
@@ -509,6 +687,20 @@ inline void extendSeedL(vector<SeedL> &seeds,
 		shared_right = std::max(std::min(offsetRightQ[i], offsetRightT[i]), shared_right);
 	}
 
+	//declare and allocate GPU antidiags only if i need the antidiags to be in global memory
+        short *ant_l, *ant_r;
+	bool global_left = false, global_right = false;
+	
+	if(shared_left>=MAX_SIZE_ANTIDIAG){
+        	cudaErrchk(cudaMalloc(&ant_l, sizeof(short)*shared_left*3*nSequences));
+       		global_left = true;
+		cout<<"LEFT GLOBAL"<<endl;
+	}
+	if(shared_right>=MAX_SIZE_ANTIDIAG){
+		cudaErrchk(cudaMalloc(&ant_r, sizeof(short)*shared_right*3*nSequences));
+		global_right = true;
+		cout<<"RIGHT GLOBAL"<<endl;
+	}
 	auto t = NOW;
 	partial_sum(offsetLeftQ.begin(),offsetLeftQ.end(),offsetLeftQ.begin());	
 	partial_sum(offsetLeftT.begin(),offsetLeftT.end(),offsetLeftT.begin());
@@ -538,12 +730,6 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	prefT = (char*)malloc(sizeof(char)*totalLengthTPref);
 	suffQ = (char*)malloc(sizeof(char)*totalLengthQSuff);
 	suffT = (char*)malloc(sizeof(char)*totalLengthTSuff);
-	
-	//declare and allocate GPU antidiags only if i need the antidiags to be in global memory
-	//short *ant_l, *ant_r;
-
-	//cudaErrchk(cudaMalloc(&ant_l, sizeof(short)*shared_left*3*nSequences));
-	//cudaErrchk(cudaMalloc(&ant_r, sizeof(short)*shared_right*3*nSequences));
 	
 	//declare and allocate GPU strings  
 	char *prefQ_d, *prefT_d;
@@ -603,15 +789,17 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	std::cout << "Input setup time: " << transfer1.count() << std::endl;
 	auto start_c = NOW;
 	
-	//andidiags global
-	// extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS, 0, stream_l>>> (seed_d_l, prefQ_d, prefT_d, EXTEND_LEFTL, XDrop, scoreLeft_d, offsetLeftQ_d, offsetLeftT_d, shared_left, ant_l);
-	// extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS, 0, stream_r>>> (seed_d_r, suffQ_d, suffT_d, EXTEND_RIGHTL, XDrop, scoreRight_d, offsetRightQ_d, offsetRightT_d, shared_right, ant_r);
-	
+	//execute kernels
+	if(global_left)
+		extendSeedLGappedXDropOneDirectionGlobal <<<numAlignments, N_THREADS, 0, stream_l>>> (seed_d_l, prefQ_d, prefT_d, EXTEND_LEFTL, XDrop, scoreLeft_d, offsetLeftQ_d, offsetLeftT_d, shared_left, ant_l);
+	else
+		extendSeedLGappedXDropOneDirectionShared <<<numAlignments, N_THREADS, 3*shared_left*sizeof(short), stream_l>>> (seed_d_l, prefQ_d, prefT_d, EXTEND_LEFTL, XDrop, scoreLeft_d, offsetLeftQ_d, offsetLeftT_d, shared_left);
+	if(global_right)
+	extendSeedLGappedXDropOneDirectionGlobal <<<numAlignments, N_THREADS, 0, stream_r>>> (seed_d_r, suffQ_d, suffT_d, EXTEND_RIGHTL, XDrop, scoreRight_d, offsetRightQ_d, offsetRightT_d, shared_right, ant_r);
+	else 
+	extendSeedLGappedXDropOneDirectionShared <<<numAlignments, N_THREADS, 3*shared_right*sizeof(short), stream_r>>> (seed_d_r, suffQ_d, suffT_d, EXTEND_RIGHTL, XDrop, scoreRight_d, offsetRightQ_d, offsetRightT_d, shared_right);
+        
 
-	//antidiags shared	
-	extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS, 3*shared_left*sizeof(short), stream_l>>> (seed_d_l, prefQ_d, prefT_d, EXTEND_LEFTL, XDrop, scoreLeft_d, offsetLeftQ_d, offsetLeftT_d, shared_left);
-	extendSeedLGappedXDropOneDirection <<<N_BLOCKS, N_THREADS, 3*shared_right*sizeof(short), stream_r>>> (seed_d_r, suffQ_d, suffT_d, EXTEND_RIGHTL, XDrop, scoreRight_d, offsetRightQ_d, offsetRightT_d, shared_right);
-	
 
 	cudaErrchk(cudaMemcpyAsync(scoreLeft, scoreLeft_d, nSeqInt, cudaMemcpyDeviceToHost, stream_l));
 	cudaErrchk(cudaMemcpyAsync(&seeds[0], seed_d_l, nSequences*sizeof(SeedL), cudaMemcpyDeviceToHost,stream_l));
@@ -646,11 +834,14 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	cudaErrchk(cudaFree(seed_d_r));
 	cudaErrchk(cudaFree(scoreLeft_d));
 	cudaErrchk(cudaFree(scoreRight_d));
-	//cudaErrchk(cudaFree(ant_l)); decomment if global antidiags
-        //cudaErrchk(cudaFree(ant_r)); decomment if global antidiags
+	
+	if(global_left)
+		cudaErrchk(cudaFree(ant_l)); 
+        if(global_right)
+		cudaErrchk(cudaFree(ant_r));
 	auto end_f = NOW;
 	
-	for(int i = 0; i < N_BLOCKS; i++){
+	for(int i = 0; i < numAlignments; i++){
 		res[i] = scoreLeft[i]+scoreRight[i]+kmer_length;
 		setEndPositionH(seeds[i], getEndPositionH(seeds_r[i]));    
 		setEndPositionV(seeds[i], getEndPositionV(seeds_r[i])); 
@@ -659,5 +850,4 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	free(scoreLeft);
         free(scoreRight);
 		
-	//std::cout << "N_CELLS: "<< n_cell<< " MAX DIM LEFT: "<<shared_left << " MAX DIM RIGHT: " << shared_right <<endl;
 }

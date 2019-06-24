@@ -127,9 +127,33 @@ void loganXdrop(std::vector< std::vector<std::string> > &v, int mat, int mis, in
 		seeds[i] = tmp_seed;
         }
 	//seqan testbench
-//	seqan::Score<int, seqan::Simple> scoringScheme_s(mat, mis, -1, gap);
+	seqan::Score<int, seqan::Simple> scoringScheme_s(mat, mis, -1, gap);
         cout<< "PERFORMING "<< numpair << " ALIGNMENTS"<<endl;
-        int scoreLogan[N_BLOCKS];
+        int *scoreSeqAn;
+	scoreSeqAn = (int *)malloc(sizeof(int)*numpair);
+        std::cout << "STARTING CPU" << std::endl;
+        std::chrono::duration<double>  diff_s;
+        vector<seqan::Dna5String> seqV_s_arr(numpair);
+	vector<seqan::Dna5String> seqH_s_arr(numpair);
+	vector<TSeed> seed(numpair);
+        for(int i = 0; i < numpair; i++){
+                seqan::Dna5String seqV_s(seqV[i]);
+                seqan::Dna5String seqH_s(seqH[i]);
+                seqV_s_arr[i]=seqV_s;
+                seqH_s_arr[i]=seqH_s;
+                TSeed tmp(posH[i], posV[i], kmerLen);
+                seed[i]=tmp;
+        }
+        auto start_s = std::chrono::high_resolution_clock::now();
+        for(int i = 0; i < numpair; i++){
+                scoreSeqAn[i] = seqan::extendSeed(seed[i], seqH_s_arr[i], seqV_s_arr[i], seqan::EXTEND_BOTH, scoringScheme_s, xdrop, seqan::GappedXDrop(), kmerLen);
+        }
+        auto end_s = std::chrono::high_resolution_clock::now();
+        diff_s = end_s-start_s;
+        cout << "SEQAN TIME:\t" <<  diff_s.count() <<endl;
+
+        int *scoreLogan;
+	scoreLogan = (int *)malloc(sizeof(int)*numpair);
         std::chrono::duration<double>  diff_l;
         std::cout << "STARTING GPU" << std::endl;
         auto start_l = NOW;
@@ -138,6 +162,29 @@ void loganXdrop(std::vector< std::vector<std::string> > &v, int mat, int mis, in
         diff_l = end_l-start_l;
 
         cout << "LOGAN TIME:\t" <<  diff_l.count() <<endl;
+        cout << "CHECKING RESULTS"<< endl;
+        bool test = true;
+        for(int i = 0; i<numpair; i++){
+                if(scoreLogan[i]!=scoreSeqAn[i]){
+                        test = false;
+                        cout << "ERROR ALIGNMENT: "<< i << endl;
+                        cout << "SEQAN ALIGNMENT: "<< scoreSeqAn[i] << " LOGAN ALIGNMENT: " << scoreLogan[i] << endl;
+                }
+		else if(seqan::endPositionH(seed[i])!=seeds[i].endPositionH||seqan::endPositionV(seed[i])!=seeds[i].endPositionV||seqan::beginPositionV(seed[i])!=seeds[i].beginPositionV||seqan::beginPositionH(seed[i])!=seeds[i].beginPositionH){
+			test = false;
+			cout << "ERROR SEED: "<< i << endl;
+                        cout << "ENDH SEQAN: "<< seqan::endPositionH(seed[i]) << " LOGAN: " << seeds[i].endPositionH << endl;
+			cout << "ENDV SEQAN: "<< seqan::endPositionV(seed[i]) << " LOGAN: " << seeds[i].endPositionV << endl;
+			cout << "BEGINH SEQAN: "<< seqan::beginPositionH(seed[i]) << " LOGAN: " << seeds[i].beginPositionH << endl;
+			cout << "BEGINV SEQAN: "<< seqan::beginPositionV(seed[i]) << " LOGAN: " << seeds[i].beginPositionV << endl;
+		}
+        }
+        if(test){
+                cout << "ALL OK\n" << "SPEEDUP " << diff_s.count()/diff_l.count()<<"X"<< endl;
+	}
+	else{
+		cout << "ERROR BUT..\n" << "SPEEDUP " << diff_s.count()/diff_l.count()<<"X"<< endl;
+	}
 }
 
 //=======================================================================

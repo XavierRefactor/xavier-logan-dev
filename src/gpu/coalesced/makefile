@@ -20,6 +20,10 @@ gpu_cori: test-performance-gpu.cu
 
 	$(COMPILER_GPU) -arch=sm_70 -O3 -maxrregcount=32 -std=c++14 $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
 
+cpu_gpu: test-performance-gpu-cpu.cu
+
+	$(COMPILER_GPU) -arch=sm_70 -O3 -maxrregcount=32 -std=c++14 $(INCLUDE) $(SEQINCLUDE) test-performance-gpu-cpu.cu -o test
+
 cpu_openmp: test-performance-cpu.cpp
 
 	$(COMPILER) -o test-cpu test-performance-cpu.cpp $(SEQINCLUDE) -fopenmp -O3
