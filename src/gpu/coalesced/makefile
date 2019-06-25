@@ -26,10 +26,11 @@ cpu_gpu: test-performance-gpu-cpu.cu
 
 cpu_openmp: test-performance-cpu.cpp
 
-	$(COMPILER) -o test-cpu test-performance-cpu.cpp $(SEQINCLUDE) -fopenmp -O3
+	$(COMPILER) -O3 -fopenmp -o test-cpu test-performance-cpu.cpp $(SEQINCLUDE) 
 
 clean:
 	rm -f *.o
 	rm -f test
 	rm -f benchmark.txt
-	rm -f test-cpu	
+	rm -f test-cpu
+	rm -f ../input-gen/gen	

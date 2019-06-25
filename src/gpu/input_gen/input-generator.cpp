@@ -19,9 +19,9 @@ int main(int argc, char const *argv[])
 	for(int i = 0; i < nseq; i++){
 		string tmp;
 		int len1 = rand()%(maxlen-minlen) + minlen;
-		int seed1 = rand()%(len1-200)+100;
+		int seed1 = rand()%(len1/2)+len1/4;
 		int len2 = rand()%(maxlen-minlen) + minlen;
-		int seed2 = rand()%(len2-200)+100;
+		int seed2 = rand()%(len2/2)+len2/4;
 		for(int j=0; j < len1; j++)
 			tmp+=dictionary[rand()%4];
 		tmp.append("\t");

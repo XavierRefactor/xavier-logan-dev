@@ -4,7 +4,7 @@
 // Author: G. Guidi
 // Date:   12 March 2019
 //========================================================================================================
-#define N_BLOCKS 500000 
+#define N_BLOCKS 5000 
 //#include <omp.h>
 #include <chrono>
 #include <fstream>
@@ -151,14 +151,14 @@ void loganXdrop(std::vector< std::vector<std::string> > &v, int mat, int mis, in
 
 	//seqan testbench
 	seqan::Score<int, seqan::Simple> scoringScheme_s(mat, mis, -1, gap);
-        cout<< "PERFORMING "<< N_BLOCKS << " ALIGNMENTS"<<endl;
+        cout<< "PERFORMING "<< n_align << " ALIGNMENTS"<<endl;
         int scoreSeqAn[N_BLOCKS];
         std::cout << "STARTING CPU" << std::endl;
         std::chrono::duration<double>  diff_s;
-        seqan::Dna5String seqV_s_arr[N_BLOCKS];
-        seqan::Dna5String seqH_s_arr[N_BLOCKS];
+        vector<seqan::Dna5String> seqV_s_arr(n_align);
+        vector<seqan::Dna5String> seqH_s_arr(n_align);
         TSeed seed[N_BLOCKS];
-        for(int i = 0; i < N_BLOCKS; i++){
+        for(int i = 0; i < n_align; i++){
                 seqan::Dna5String seqV_s(seqV[i]);
                 seqan::Dna5String seqH_s(seqH[i]);
                 seqV_s_arr[i]=seqV_s;
@@ -168,11 +168,9 @@ void loganXdrop(std::vector< std::vector<std::string> > &v, int mat, int mis, in
         }
         auto start_s = std::chrono::high_resolution_clock::now();
         #pragma omp parallel for
-	for(int i = 0; i < N_BLOCKS; i++){
-                //seqan::Dna5String seqV_s(seqV[i]);
-                //seqan::Dna5String seqH_s(seqH[i]);
-                //TSeed seed(posH[i], posV[i], kmerLen);
-                scoreSeqAn[i] = seqan::extendSeed(seed[i], seqH_s_arr[i], seqV_s_arr[i], seqan::EXTEND_BOTH, scoringScheme_s, xdrop, seqan::GappedXDrop(), kmerLen);
+	for(int i = 0; i < n_align; i++){
+               	//printf("N threads: %d\n", omp_get_num_threads());
+		scoreSeqAn[i] = seqan::extendSeed(seed[i], seqH_s_arr[i], seqV_s_arr[i], seqan::EXTEND_BOTH, scoringScheme_s, xdrop, seqan::GappedXDrop(), kmerLen);
         }
         auto end_s = std::chrono::high_resolution_clock::now();
         diff_s = end_s-start_s;
