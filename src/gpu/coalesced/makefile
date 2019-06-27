@@ -4,6 +4,7 @@ CC = gcc
 CFLAGS = -I. -O3 -Wall -Wextra -pedantic -ansi -c -Wno-write-strings
 SEQINCLUDE = -Iseqan
 CUB = -Icub
+CUDAFLAGS = -arch=sm_70 -O3 -maxrregcount=32 -std=c++14
 
 optlist.o:	../optlist/optlist.c ../optlist/optlist.h
 	$(CC) $(CFLAGS) $<
@@ -18,11 +19,11 @@ gpu_c: test-performance-gpu-temp_cpp.cpp
 
 gpu_cori: test-performance-gpu.cu
 
-	$(COMPILER_GPU) -arch=sm_70 -O3 -maxrregcount=32 -std=c++14 $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
+	$(COMPILER_GPU) $(CUDAFLAGS) $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
 
 cpu_gpu: test-performance-gpu-cpu.cu
 
-	$(COMPILER_GPU) -arch=sm_70 -O3 -maxrregcount=32 -std=c++14 $(INCLUDE) $(SEQINCLUDE) test-performance-gpu-cpu.cu -o test
+	$(COMPILER_GPU) $(CUDAFLAGS) $(INCLUDE) $(SEQINCLUDE) test-performance-gpu-cpu.cu -o test
 
 cpu_openmp: test-performance-cpu.cpp
 
