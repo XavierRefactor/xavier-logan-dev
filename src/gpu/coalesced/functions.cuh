@@ -4,7 +4,7 @@
 // Date:   6 March 2019
 //==================================================================
 
-#define N_THREADS 1024
+#define N_THREADS 512 
 #define N_BLOCKS 500000 
 #define MIN -32768
 #define BYTES_INT 4
