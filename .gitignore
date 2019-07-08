@@ -1,1 +1,8 @@
 .DS_Store
+*.o
+test
+test-cpu
+*.txt
+gens
+input-generator-same.cpp
+core
