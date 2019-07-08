@@ -4,16 +4,14 @@
 // Date:   6 March 2019
 //==================================================================
 
-#define N_THREADS 512 
+#define N_THREADS 512
 #define N_BLOCKS 500000 
 #define MIN -32768
 #define BYTES_INT 4
 #define XDROP 21
 // #define N_STREAMS 60
 #define MAX_SIZE_ANTIDIAG 8000
-#define WARPSIZE 32
-#define FULL_MASK 0xffffffff
-#define N_WARPS N_THREADS/WARPSIZE
+#define MAX_GPUS 8
 
 //trying to see if the scoring scheme is a bottleneck in some way
 #define MATCH     1
@@ -44,13 +42,13 @@ enum ExtensionDirectionL
 };
 
 __inline__ __device__ void warpReduce(volatile short *input,
-                                          int myTId){
-        input[myTId] = (input[myTId] > input[myTId + 32]) ? input[myTId] : input[myTId + 32]; 
-        input[myTId] = (input[myTId] > input[myTId + 16]) ? input[myTId] : input[myTId + 16];
-        input[myTId] = (input[myTId] > input[myTId + 8]) ? input[myTId] : input[myTId + 8]; 
-        input[myTId] = (input[myTId] > input[myTId + 4]) ? input[myTId] : input[myTId + 4];
-        input[myTId] = (input[myTId] > input[myTId + 2]) ? input[myTId] : input[myTId + 2];
-        input[myTId] = (input[myTId] > input[myTId + 1]) ? input[myTId] : input[myTId + 1];
+										  int myTId){
+		input[myTId] = (input[myTId] > input[myTId + 32]) ? input[myTId] : input[myTId + 32]; 
+		input[myTId] = (input[myTId] > input[myTId + 16]) ? input[myTId] : input[myTId + 16];
+		input[myTId] = (input[myTId] > input[myTId + 8]) ? input[myTId] : input[myTId + 8]; 
+		input[myTId] = (input[myTId] > input[myTId + 4]) ? input[myTId] : input[myTId + 4];
+		input[myTId] = (input[myTId] > input[myTId + 2]) ? input[myTId] : input[myTId + 2];
+		input[myTId] = (input[myTId] > input[myTId + 1]) ? input[myTId] : input[myTId + 1];
 }
 
 __inline__ __device__ short reduce_max(short *input, int dim){
@@ -58,7 +56,7 @@ __inline__ __device__ short reduce_max(short *input, int dim){
 	if(dim>32){
 		for(int i = N_THREADS/2; i >32; i>>=1){
 			if(myTId < i){
-				        input[myTId] = (input[myTId] > input[myTId + i]) ? input[myTId] : input[myTId + i];
+						input[myTId] = (input[myTId] > input[myTId + i]) ? input[myTId] : input[myTId + i];
 			}__syncthreads();
 		}//__syncthreads();
 	}
@@ -211,8 +209,8 @@ __inline__ __device__ void initAntiDiags(
 	//}
 	//else
 	//{
-	 	antiDiag3[0] = gapCost;
-	 	antiDiag3[1] = gapCost;
+		antiDiag3[0] = gapCost;
+		antiDiag3[1] = gapCost;
 	//}
 }
 
@@ -245,7 +243,7 @@ __global__ void extendSeedLGappedXDropOneDirectionShared(
 	extern __shared__ short antidiagonals[]; //decomment this for shared/ comment for global
 	short* antiDiag1 = &antidiagonals[0]; //decomment this for shared/ comment for global
 	short* antiDiag2 = &antiDiag1[offAntidiag];
-        short* antiDiag3 = &antiDiag2[offAntidiag];
+	short* antiDiag3 = &antiDiag2[offAntidiag];
 
 
 	SeedL mySeed(seed[myId]);	
@@ -253,14 +251,14 @@ __global__ void extendSeedLGappedXDropOneDirectionShared(
 	int a1size = 0, a2size = 0, a3size = 0;
 	int cols, rows;
 
-    if(myId == 0){
-            cols = offsetQuery[myId]+1;
-            rows = offsetTarget[myId]+1;
-    }
-    else{
-            cols = offsetQuery[myId]-offsetQuery[myId-1]+1;
-            rows = offsetTarget[myId]-offsetTarget[myId-1]+1;
-    }
+	if(myId == 0){
+			cols = offsetQuery[myId]+1;
+			rows = offsetTarget[myId]+1;
+	}
+	else{
+			cols = offsetQuery[myId]-offsetQuery[myId-1]+1;
+			rows = offsetTarget[myId]-offsetTarget[myId-1]+1;
+	}
 
 	if (rows == 1 || cols == 1)
 		return;
@@ -425,7 +423,7 @@ __global__ void extendSeedLGappedXDropOneDirectionGlobal(
 
 	short *antiDiag1 = &antidiag[myId*offAntidiag*3]; 
 	short* antiDiag2 = &antiDiag1[offAntidiag];
-        short* antiDiag3 = &antiDiag2[offAntidiag];
+		short* antiDiag3 = &antiDiag2[offAntidiag];
 
 
 	SeedL mySeed(seed[myId]);	
@@ -433,14 +431,14 @@ __global__ void extendSeedLGappedXDropOneDirectionGlobal(
 	int a1size = 0, a2size = 0, a3size = 0;
 	int cols, rows;
 
-    if(myId == 0){
-            cols = offsetQuery[myId]+1;
-            rows = offsetTarget[myId]+1;
-    }
-    else{
-            cols = offsetQuery[myId]-offsetQuery[myId-1]+1;
-            rows = offsetTarget[myId]-offsetTarget[myId-1]+1;
-    }
+	if(myId == 0){
+			cols = offsetQuery[myId]+1;
+			rows = offsetTarget[myId]+1;
+	}
+	else{
+			cols = offsetQuery[myId]-offsetQuery[myId-1]+1;
+			rows = offsetTarget[myId]-offsetTarget[myId-1]+1;
+	}
 
 	if (rows == 1 || cols == 1)
 		return;
@@ -590,7 +588,9 @@ inline void extendSeedL(vector<SeedL> &seeds,
 			int const& XDrop,
 			int const& kmer_length,
 			int *res,
-			int numAlignments)
+			int numAlignments,
+			int ngpus
+			)
 {
 
 	if(scoreGapExtend(penalties[0]) >= 0){
@@ -603,192 +603,228 @@ inline void extendSeedL(vector<SeedL> &seeds,
 		cout<<"Error: Logan does not support gap opening penalty >= 0\n";
 		exit(-1);
 	}
-	
+	//start measuring time
 	auto start_t1 = NOW;
+
 	//declare streams
-	cudaStream_t stream_r, stream_l;	
-	cudaStreamCreate(&stream_r);
-	cudaStreamCreate(&stream_l);
+	cudaStream_t stream_r[MAX_GPUS], stream_l[MAX_GPUS];
 
+	// NB nSequences is correlated to the number of GPUs that we have
+	
+	int nSequences = numAlignments/ngpus;
+	//int nSeqInt = nSequences*sizeof(int);
+	int nSequencesLast = nSequences+numAlignments%ngpus;
+	//int nSeqIntLast = nSequencesLast*sizeof(int);	
 
-	// NB N_BLOCKS corresponds to the total number of alignments
-	// change here for future implementations
-	int nSequences = numAlignments;
-	int nSeqInt = nSequences*sizeof(int);
+	//final result of the alignment
+	int *scoreLeft = (int *)malloc(numAlignments * sizeof(int));
+	int *scoreRight = (int *)malloc(numAlignments * sizeof(int));
 
-	//declare score for right and left extension
-	//int *scoreLeft, *scoreRight;
-	//cudaErrchk(cudaMallocHost(&scoreLeft, nSeqInt));
-        //cudaErrchk(cudaMallocHost(&scoreRight, nSeqInt));
-
-	int *scoreLeft = (int *)malloc(nSequences * sizeof(int));
-	int *scoreRight = (int *)malloc(nSequences * sizeof(int));
-
-	//malloc data on the GPU ASAP to hide the time required by these operations
-
-	//declare and allocate GPU offsets
-	int *offsetLeftQ_d, *offsetLeftT_d;
-	int *offsetRightQ_d, *offsetRightT_d;
-	cudaErrchk(cudaMalloc(&offsetLeftQ_d, nSeqInt));
-	cudaErrchk(cudaMalloc(&offsetLeftT_d, nSeqInt));
-	cudaErrchk(cudaMalloc(&offsetRightQ_d, nSeqInt));
-	cudaErrchk(cudaMalloc(&offsetRightT_d, nSeqInt));
-
-	//declare result variables
-	int *scoreLeft_d, *scoreRight_d;
-	cudaErrchk(cudaMalloc(&scoreLeft_d, nSeqInt));
-	cudaErrchk(cudaMalloc(&scoreRight_d, nSeqInt));
-
-	//declare and allocate GPU seeds
-	SeedL *seed_d_l, *seed_d_r;
-	cudaErrchk(cudaMalloc(&seed_d_l, nSequences*sizeof(SeedL)));
-	cudaErrchk(cudaMalloc(&seed_d_r, nSequences*sizeof(SeedL)));
-
+	//create two sets of seeds
 	//copy seeds
 	vector<SeedL> seeds_r;
 	vector<SeedL> seeds_l;
-	seeds_r.reserve(nSequences);
-	seeds_l.reserve(nSequences);
+	seeds_r.reserve(numAlignments);
+	//seeds_l.reserve(numAlignments);
 	for (int i=0; i<seeds.size(); i++){
 			seeds_r.push_back(seeds[i]);
-			seeds_l.push_back(seeds[i]);
+			//seeds_l.push_back(seeds[i]);
 	}
 
-	//copy seeds
-	cudaErrchk(cudaMemcpyAsync(seed_d_l, &seeds_l[0], nSequences*sizeof(SeedL), cudaMemcpyHostToDevice, stream_l));
-	cudaErrchk(cudaMemcpyAsync(seed_d_r, &seeds_r[0], nSequences*sizeof(SeedL), cudaMemcpyHostToDevice, stream_r));	
+	//sequences offsets	 		
+	//vector<int> offsetLeftQ[MAX_GPUS];
+	//vector<int> offsetLeftT[MAX_GPUS];	
+	//vector<int> offsetRightQ[MAX_GPUS];	
+	//vector<int> offsetRightT[MAX_GPUS];
 
-	//compute and save sequences lenghts and offsets	 		
-	vector<int> offsetLeftQ;
-	vector<int> offsetLeftT;	
-	vector<int> offsetRightQ;	
-	vector<int> offsetRightT;	
+	//shared_mem_size per block per GPU
+	int shared_left[MAX_GPUS];
+	int shared_right[MAX_GPUS];
 
-	offsetLeftQ.reserve(nSequences);
-	offsetLeftT.reserve(nSequences);
-	offsetRightQ.reserve(nSequences);
-	offsetRightT.reserve(nSequences);
+	//antidiag in case shared memory isn't enough
+	short *ant_l[MAX_GPUS], *ant_r[MAX_GPUS];
 
-	//shared_mem_size per block
-    	int shared_left = 0;
-    	int shared_right = 0;
-	
-	for(int i = 0; i < nSequences; i++){
-		offsetLeftQ.push_back(getBeginPositionV(seeds[i]));
-		offsetLeftT.push_back(getBeginPositionH(seeds[i]));
-		shared_left = std::max(std::min(offsetLeftQ[i],offsetLeftT[i]), shared_left);
-		offsetRightQ.push_back(query[i].size()-getEndPositionV(seeds[i]));
-		offsetRightT.push_back(target[i].size()-getEndPositionH(seeds[i]));
-		shared_right = std::max(std::min(offsetRightQ[i], offsetRightT[i]), shared_right);
-	}
-
-	//declare and allocate GPU antidiags only if i need the antidiags to be in global memory
-        short *ant_l, *ant_r;
-	bool global_left = false, global_right = false;
-	
-	if(shared_left>=MAX_SIZE_ANTIDIAG){
-        	cudaErrchk(cudaMalloc(&ant_l, sizeof(short)*shared_left*3*nSequences));
-       		global_left = true;
-		cout<<"LEFT GLOBAL"<<endl;
-	}
-	if(shared_right>=MAX_SIZE_ANTIDIAG){
-		cudaErrchk(cudaMalloc(&ant_r, sizeof(short)*shared_right*3*nSequences));
-		global_right = true;
-		cout<<"RIGHT GLOBAL"<<endl;
-	}
-	auto t = NOW;
-	partial_sum(offsetLeftQ.begin(),offsetLeftQ.end(),offsetLeftQ.begin());	
-	partial_sum(offsetLeftT.begin(),offsetLeftT.end(),offsetLeftT.begin());
-	partial_sum(offsetRightQ.begin(),offsetRightQ.end(),offsetRightQ.begin());
-	partial_sum(offsetRightT.begin(),offsetRightT.end(),offsetRightT.begin());
-	auto t2 = NOW;
-        duration<double> t_tot = t2-t;
-        cout<< "TIME SETTING OFFSETS: "<< t_tot.count()<<endl;
-
-	//copy offsets
-	cudaErrchk(cudaMemcpyAsync(offsetLeftQ_d, &offsetLeftQ[0], nSeqInt, cudaMemcpyHostToDevice, stream_l));
-	cudaErrchk(cudaMemcpyAsync(offsetLeftT_d, &offsetLeftT[0], nSeqInt, cudaMemcpyHostToDevice, stream_l));
-	cudaErrchk(cudaMemcpyAsync(offsetRightQ_d, &offsetRightQ[0], nSeqInt, cudaMemcpyHostToDevice, stream_r));
-	cudaErrchk(cudaMemcpyAsync(offsetRightT_d, &offsetRightT[0], nSeqInt, cudaMemcpyHostToDevice, stream_r));
+	//boolean used to know which kernel will be launched
+	bool global_left[MAX_GPUS], global_right[MAX_GPUS];
 
 	//total lenght of the sequences
-	int totalLengthQPref = offsetLeftQ[nSequences-1];
-	int totalLengthTPref = offsetLeftT[nSequences-1];
-	int totalLengthQSuff = offsetRightQ[nSequences-1];
-	int totalLengthTSuff = offsetRightT[nSequences-1];
+	// int totalLengthQPref[MAX_GPUS];
+	// int totalLengthTPref[MAX_GPUS];
+	// int totalLengthQSuff[MAX_GPUS];
+	// int totalLengthTSuff[MAX_GPUS];
 
-	//declare and allocate prefixes and suffixes
-	char *prefQ, *prefT;
-	char *suffQ, *suffT;
-	
-	prefQ = (char*)malloc(sizeof(char)*totalLengthQPref);
-	prefT = (char*)malloc(sizeof(char)*totalLengthTPref);
-	suffQ = (char*)malloc(sizeof(char)*totalLengthQSuff);
-	suffT = (char*)malloc(sizeof(char)*totalLengthTSuff);
-	
-	//declare and allocate GPU strings  
-	char *prefQ_d, *prefT_d;
-	char *suffQ_d, *suffT_d;
-	
-	t = NOW;
+	//declare and allocate sequences prefixes and suffixes
+	// char *prefQ[MAX_GPUS], *prefT[MAX_GPUS];
+	// char *suffQ[MAX_GPUS], *suffT[MAX_GPUS];
 
-	//query and target suffix/prefix
-        
-	reverse_copy(query[0].c_str(),query[0].c_str()+offsetLeftQ[0],prefQ);
-	memcpy(prefT, target[0].c_str(), offsetLeftT[0]);
-	memcpy(suffQ, query[0].c_str()+getEndPositionV(seeds[0]), offsetRightQ[0]);
-	reverse_copy(target[0].c_str()+getEndPositionH(seeds[0]),target[0].c_str()+getEndPositionH(seeds[0])+offsetRightT[0],suffT);
+	//declare GPU offsets
+	int *offsetLeftQ_d[MAX_GPUS], *offsetLeftT_d[MAX_GPUS];
+	int *offsetRightQ_d[MAX_GPUS], *offsetRightT_d[MAX_GPUS];
 	
-	for(int i = 1; i<nSequences; i++){
-		char *seqptr = prefQ + offsetLeftQ[i-1];
-                reverse_copy(query[i].c_str(),query[i].c_str()+(offsetLeftQ[i]-offsetLeftQ[i-1]),seqptr);
-		seqptr = prefT + offsetLeftT[i-1];
-		memcpy(seqptr, target[i].c_str(), offsetLeftT[i]-offsetLeftT[i-1]);
-		seqptr = suffQ + offsetRightQ[i-1];
-                memcpy(seqptr, query[i].c_str()+getEndPositionV(seeds[i]), offsetRightQ[i]-offsetRightQ[i-1]);
-		seqptr = suffT + offsetRightT[i-1];
-		reverse_copy(target[i].c_str()+getEndPositionH(seeds[i]),target[i].c_str()+getEndPositionH(seeds[i])+(offsetRightT[i]-offsetRightT[i-1]),seqptr);
+	//declare GPU results
+	int *scoreLeft_d[MAX_GPUS], *scoreRight_d[MAX_GPUS];
+
+	//declare GPU seeds
+	SeedL *seed_d_l[MAX_GPUS], *seed_d_r[MAX_GPUS];
+
+	//declare prefixes and suffixes on the GPU  
+	char *prefQ_d[MAX_GPUS], *prefT_d[MAX_GPUS];
+	char *suffQ_d[MAX_GPUS], *suffT_d[MAX_GPUS];
+
+	for(int i = 0; i < ngpus; i++){
+		int dim = nSequences;
+		if(i==ngpus-1)
+			dim = nSequencesLast;
+		//set gpu device
+		cudaSetDevice(i);
+		//create streams
+		cudaStreamCreateWithFlags(&stream_r[i],cudaStreamNonBlocking);
+		cudaStreamCreateWithFlags(&stream_l[i],cudaStreamNonBlocking);
+		//allocate offsets on the GPU
+		cudaErrchk(cudaMalloc(&offsetLeftQ_d[i], dim*sizeof(int)));
+		cudaErrchk(cudaMalloc(&offsetLeftT_d[i], dim*sizeof(int)));
+		cudaErrchk(cudaMalloc(&offsetRightQ_d[i], dim*sizeof(int)));
+		cudaErrchk(cudaMalloc(&offsetRightT_d[i], dim*sizeof(int)));
+		//allocate results on the GPU
+		cudaErrchk(cudaMalloc(&scoreLeft_d[i], dim*sizeof(int)));
+		cudaErrchk(cudaMalloc(&scoreRight_d[i], dim*sizeof(int)));
+		//allocate seeds on the GPU
+		cudaErrchk(cudaMalloc(&seed_d_l[i], dim*sizeof(SeedL)));
+		cudaErrchk(cudaMalloc(&seed_d_r[i], dim*sizeof(SeedL)));
+		//reserve space for the offsets
+		//sequences offsets	 		
+		vector<int> offsetLeftQ;
+		vector<int> offsetLeftT;	
+		vector<int> offsetRightQ;	
+		vector<int> offsetRightT;
+		
+		offsetLeftQ.reserve(dim);
+		offsetLeftT.reserve(dim);
+		offsetRightQ.reserve(dim);
+		offsetRightT.reserve(dim);
+		//compute offsets and shared memory per block
+		shared_left[i]=0;
+		shared_right[i]=0;
+		for(int j = 0; j < dim; j++){
+
+			offsetLeftQ.push_back(getBeginPositionV(seeds[j+i*nSequences]));
+			offsetLeftT.push_back(getBeginPositionH(seeds[j+i*nSequences]));
+			shared_left[i] = std::max(std::min(offsetLeftQ[j],offsetLeftT[j]), shared_left[i]);
+			
+			offsetRightQ.push_back(query[j+i*nSequences].size()-getEndPositionV(seeds[j+i*nSequences]));
+			offsetRightT.push_back(target[j+i*nSequences].size()-getEndPositionH(seeds[j+i*nSequences]));
+			shared_right[i] = std::max(std::min(offsetRightQ[j], offsetRightT[j]), shared_right[i]);
+		}
+		//check if shared memory is enough
+		global_left[i] = false;
+		global_right[i] = false;
+		if(shared_left[i]>=MAX_SIZE_ANTIDIAG){
+			cudaErrchk(cudaMalloc(&ant_l[i], sizeof(short)*shared_left[i]*3*dim));
+			global_left[i] = true;
+			cout<<"LEFT GLOBAL GPU "<< i <<endl;
+		}
+		if(shared_right[i]>=MAX_SIZE_ANTIDIAG){
+			cudaErrchk(cudaMalloc(&ant_r[i], sizeof(short)*shared_right[i]*3*dim));
+			global_right[i] = true;
+			cout<<"RIGHT GLOBAL GPU "<< i <<endl;
+		}
+		//compute antidiagonal offsets
+		partial_sum(offsetLeftQ.begin(),offsetLeftQ.end(),offsetLeftQ.begin());	
+		partial_sum(offsetLeftT.begin(),offsetLeftT.end(),offsetLeftT.begin());
+		partial_sum(offsetRightQ.begin(),offsetRightQ.end(),offsetRightQ.begin());
+		partial_sum(offsetRightT.begin(),offsetRightT.end(),offsetRightT.begin());
+		//set total length of the sequences
+		int totalLengthQPref = offsetLeftQ[dim-1];
+		int totalLengthTPref = offsetLeftT[dim-1];
+		int totalLengthQSuff = offsetRightQ[dim-1];
+		int totalLengthTSuff = offsetRightT[dim-1];
+		//allocate sequences prefix and suffix on the CPU
+		char *prefQ, *prefT;
+		char *suffQ, *suffT;
+		prefQ = (char*)malloc(sizeof(char)*totalLengthQPref);
+		prefT = (char*)malloc(sizeof(char)*totalLengthTPref);
+		suffQ = (char*)malloc(sizeof(char)*totalLengthQSuff);
+		suffT = (char*)malloc(sizeof(char)*totalLengthTSuff);
+		//generate prefix and suffix on the CPU
+		reverse_copy(query[0+i*nSequences].c_str(),query[0+i*nSequences].c_str()+offsetLeftQ[0],prefQ);
+		memcpy(prefT, target[0+i*nSequences].c_str(), offsetLeftT[0]);
+		memcpy(suffQ, query[0+i*nSequences].c_str()+getEndPositionV(seeds[0+i*nSequences]), offsetRightQ[0]);
+		reverse_copy(target[0+i*nSequences].c_str()+getEndPositionH(seeds[0+i*nSequences]),target[0+i*nSequences].c_str()+getEndPositionH(seeds[0+i*nSequences])+offsetRightT[0],suffT);
+		
+		for(int j = 1; j<dim; j++){
+			char *seqptr = prefQ + offsetLeftQ[j-1];
+			reverse_copy(query[j+i*nSequences].c_str(),query[j+i*nSequences].c_str()+(offsetLeftQ[j]-offsetLeftQ[j-1]),seqptr);
+			seqptr = prefT + offsetLeftT[j-1];
+			memcpy(seqptr, target[j+i*nSequences].c_str(), offsetLeftT[j]-offsetLeftT[j-1]);
+			seqptr = suffQ + offsetRightQ[j-1];
+			memcpy(seqptr, query[j+i*nSequences].c_str()+getEndPositionV(seeds[j+i*nSequences]), offsetRightQ[j]-offsetRightQ[j-1]);
+			seqptr = suffT + offsetRightT[j-1];
+			reverse_copy(target[j+i*nSequences].c_str()+getEndPositionH(seeds[j+i*nSequences]),target[j+i*nSequences].c_str()+getEndPositionH(seeds[j+i*nSequences])+(offsetRightT[j]-offsetRightT[j-1]),seqptr);
+
+		}
+		cudaErrchk(cudaMalloc(&prefQ_d[i], totalLengthQPref*sizeof(char)));
+		cudaErrchk(cudaMalloc(&prefT_d[i], totalLengthTPref*sizeof(char)));
+		cudaErrchk(cudaMalloc(&suffQ_d[i], totalLengthQSuff*sizeof(char)));
+		cudaErrchk(cudaMalloc(&suffT_d[i], totalLengthTSuff*sizeof(char)));
+		//copy seeds on the GPU
+		cudaErrchk(cudaMemcpyAsync(seed_d_l[i], &seeds[0]+i*nSequences, dim*sizeof(SeedL), cudaMemcpyHostToDevice, stream_l[i]));
+		cudaErrchk(cudaMemcpyAsync(seed_d_r[i], &seeds_r[0]+i*nSequences, dim*sizeof(SeedL), cudaMemcpyHostToDevice, stream_r[i]));
+		//copy offsets on the GPU
+		cudaErrchk(cudaMemcpyAsync(offsetLeftQ_d[i], &offsetLeftQ[0], dim*sizeof(int), cudaMemcpyHostToDevice, stream_l[i]));
+		cudaErrchk(cudaMemcpyAsync(offsetLeftT_d[i], &offsetLeftT[0], dim*sizeof(int), cudaMemcpyHostToDevice, stream_l[i]));
+		cudaErrchk(cudaMemcpyAsync(offsetRightQ_d[i], &offsetRightQ[0], dim*sizeof(int), cudaMemcpyHostToDevice, stream_r[i]));
+		cudaErrchk(cudaMemcpyAsync(offsetRightT_d[i], &offsetRightT[0], dim*sizeof(int), cudaMemcpyHostToDevice, stream_r[i]));
+		//copy sequences on the GPU
+		cudaErrchk(cudaMemcpyAsync(prefQ_d[i], prefQ, totalLengthQPref*sizeof(char), cudaMemcpyHostToDevice, stream_l[i]));
+		cudaErrchk(cudaMemcpyAsync(prefT_d[i], prefT, totalLengthTPref*sizeof(char), cudaMemcpyHostToDevice, stream_l[i]));
+		cudaErrchk(cudaMemcpyAsync(suffQ_d[i], suffQ, totalLengthQSuff*sizeof(char), cudaMemcpyHostToDevice, stream_r[i]));
+		cudaErrchk(cudaMemcpyAsync(suffT_d[i], suffT, totalLengthTSuff*sizeof(char), cudaMemcpyHostToDevice, stream_r[i]));
 
 	}
 	
-	t2 = NOW;
-	t_tot = t2-t;
-	cout<< "TIME SETTING SUFF/PREF: "<< t_tot.count()<<endl;	
 	
-	cudaErrchk(cudaMalloc(&prefQ_d, totalLengthQPref*sizeof(char)));
-	cudaErrchk(cudaMalloc(&prefT_d, totalLengthTPref*sizeof(char)));
-	cudaErrchk(cudaMalloc(&suffQ_d, totalLengthQSuff*sizeof(char)));
-	cudaErrchk(cudaMalloc(&suffT_d, totalLengthTSuff*sizeof(char)));
-	
-	//copy sequences
-	cudaErrchk(cudaMemcpyAsync(prefQ_d, prefQ, totalLengthQPref*sizeof(char), cudaMemcpyHostToDevice, stream_l));
-	cudaErrchk(cudaMemcpyAsync(prefT_d, prefT, totalLengthTPref*sizeof(char), cudaMemcpyHostToDevice, stream_l));
-	cudaErrchk(cudaMemcpyAsync(suffQ_d, suffQ, totalLengthQSuff*sizeof(char), cudaMemcpyHostToDevice, stream_r));
-	cudaErrchk(cudaMemcpyAsync(suffT_d, suffT, totalLengthTSuff*sizeof(char), cudaMemcpyHostToDevice, stream_r));
-
 	auto end_t1 = NOW;
 	duration<double> transfer1=end_t1-start_t1;
 	std::cout << "Input setup time: " << transfer1.count() << std::endl;
 	auto start_c = NOW;
 	
 	//execute kernels
-	if(global_left)
-		extendSeedLGappedXDropOneDirectionGlobal <<<numAlignments, N_THREADS, 0, stream_l>>> (seed_d_l, prefQ_d, prefT_d, EXTEND_LEFTL, XDrop, scoreLeft_d, offsetLeftQ_d, offsetLeftT_d, shared_left, ant_l);
-	else
-		extendSeedLGappedXDropOneDirectionShared <<<numAlignments, N_THREADS, 3*shared_left*sizeof(short), stream_l>>> (seed_d_l, prefQ_d, prefT_d, EXTEND_LEFTL, XDrop, scoreLeft_d, offsetLeftQ_d, offsetLeftT_d, shared_left);
-	if(global_right)
-	extendSeedLGappedXDropOneDirectionGlobal <<<numAlignments, N_THREADS, 0, stream_r>>> (seed_d_r, suffQ_d, suffT_d, EXTEND_RIGHTL, XDrop, scoreRight_d, offsetRightQ_d, offsetRightT_d, shared_right, ant_r);
-	else 
-	extendSeedLGappedXDropOneDirectionShared <<<numAlignments, N_THREADS, 3*shared_right*sizeof(short), stream_r>>> (seed_d_r, suffQ_d, suffT_d, EXTEND_RIGHTL, XDrop, scoreRight_d, offsetRightQ_d, offsetRightT_d, shared_right);
-        
+	for(int i = 0; i<ngpus;i++){
+		cudaSetDevice(i);
+		
+		int dim = nSequences;
+		if(i==ngpus-1)
+			dim = nSequencesLast;
+		
+		if(global_left[i]){
+			extendSeedLGappedXDropOneDirectionGlobal <<<dim, N_THREADS, 0, stream_l[i]>>> (seed_d_l[i], prefQ_d[i], prefT_d[i], EXTEND_LEFTL, XDrop, scoreLeft_d[i], offsetLeftQ_d[i], offsetLeftT_d[i], shared_left[i], ant_l[i]);
+		}else{
+			extendSeedLGappedXDropOneDirectionShared <<<dim, N_THREADS, 3*shared_left[i]*sizeof(short), stream_l[i]>>> (seed_d_l[i], prefQ_d[i], prefT_d[i], EXTEND_LEFTL, XDrop, scoreLeft_d[i], offsetLeftQ_d[i], offsetLeftT_d[i], shared_left[i]);
+		}
+		if(global_right[i]){
+			extendSeedLGappedXDropOneDirectionGlobal <<<dim, N_THREADS, 0, stream_r[i]>>> (seed_d_r[i], suffQ_d[i], suffT_d[i], EXTEND_RIGHTL, XDrop, scoreRight_d[i], offsetRightQ_d[i], offsetRightT_d[i], shared_right[i], ant_r[i]);
+		}else{ 
+			extendSeedLGappedXDropOneDirectionShared <<<dim, N_THREADS, 3*shared_right[i]*sizeof(short), stream_r[i]>>> (seed_d_r[i], suffQ_d[i], suffT_d[i], EXTEND_RIGHTL, XDrop, scoreRight_d[i], offsetRightQ_d[i], offsetRightT_d[i], shared_right[i]);
+		}
 
+		cout<<"LAUNCHED"<<endl;
+	}
+	
+	for(int i = 0; i < ngpus; i++){
+		cudaSetDevice(i);
+		int dim = nSequences;
+		if(i==ngpus-1)
+			dim = nSequencesLast;
+		cudaErrchk(cudaMemcpyAsync(scoreLeft+i*nSequences, scoreLeft_d[i], dim*sizeof(int), cudaMemcpyDeviceToHost, stream_l[i]));
+		cudaErrchk(cudaMemcpyAsync(&seeds[0]+i*nSequences, seed_d_l[i], dim*sizeof(SeedL), cudaMemcpyDeviceToHost,stream_l[i]));
+		cudaErrchk(cudaMemcpyAsync(scoreRight+i*nSequences, scoreRight_d[i], dim*sizeof(int), cudaMemcpyDeviceToHost, stream_r[i]));
+		cudaErrchk(cudaMemcpyAsync(&seeds_r[0]+i*nSequences, seed_d_r[i], dim*sizeof(SeedL), cudaMemcpyDeviceToHost,stream_r[i]));
+	}
 
-	cudaErrchk(cudaMemcpyAsync(scoreLeft, scoreLeft_d, nSeqInt, cudaMemcpyDeviceToHost, stream_l));
-	cudaErrchk(cudaMemcpyAsync(&seeds[0], seed_d_l, nSequences*sizeof(SeedL), cudaMemcpyDeviceToHost,stream_l));
-	cudaErrchk(cudaMemcpyAsync(scoreRight, scoreRight_d, nSeqInt, cudaMemcpyDeviceToHost, stream_r));
-	cudaErrchk(cudaMemcpyAsync(&seeds_r[0], seed_d_r, nSequences*sizeof(SeedL), cudaMemcpyDeviceToHost,stream_r));
-
-	cudaDeviceSynchronize();
+	for(int i = 0; i < ngpus; i++){
+		cudaSetDevice(i);
+		cudaDeviceSynchronize();
+	}
 
 	auto end_c = NOW;
 	duration<double> compute = end_c-start_c;
@@ -796,40 +832,50 @@ inline void extendSeedL(vector<SeedL> &seeds,
 
 	cudaErrchk(cudaPeekAtLastError());
 
-	cudaStreamDestroy(stream_l);
-	cudaStreamDestroy(stream_r);
+	//cudaStreamDestroy(stream_l);
+	//cudaStreamDestroy(stream_r);
 	auto start_f = NOW;
 
-	free(prefQ);
-        free(prefT);
-        free(suffQ);
-        free(suffT);
-	cudaErrchk(cudaFree(prefQ_d));
-	cudaErrchk(cudaFree(prefT_d));
-	cudaErrchk(cudaFree(suffQ_d));
-	cudaErrchk(cudaFree(suffT_d));
-	cudaErrchk(cudaFree(offsetLeftQ_d));
-	cudaErrchk(cudaFree(offsetLeftT_d));
-	cudaErrchk(cudaFree(offsetRightQ_d));
-	cudaErrchk(cudaFree(offsetRightT_d));
-	cudaErrchk(cudaFree(seed_d_l));
-	cudaErrchk(cudaFree(seed_d_r));
-	cudaErrchk(cudaFree(scoreLeft_d));
-	cudaErrchk(cudaFree(scoreRight_d));
+
+	for(int i = 0; i < ngpus; i++){
+		cudaSetDevice(i);
+
+		cudaStreamDestroy(stream_l[i]);
+		cudaStreamDestroy(stream_r[i]);
+		//free(prefQ[i]);
+		//free(prefT[i]);
+		//free(suffQ[i]);
+		//free(suffT[i]);
+		cudaErrchk(cudaFree(prefQ_d[i]));
+		cudaErrchk(cudaFree(prefT_d[i]));
+		cudaErrchk(cudaFree(suffQ_d[i]));
+		cudaErrchk(cudaFree(suffT_d[i]));
+		cudaErrchk(cudaFree(offsetLeftQ_d[i]));
+		cudaErrchk(cudaFree(offsetLeftT_d[i]));
+		cudaErrchk(cudaFree(offsetRightQ_d[i]));
+		cudaErrchk(cudaFree(offsetRightT_d[i]));
+		cudaErrchk(cudaFree(seed_d_l[i]));
+		cudaErrchk(cudaFree(seed_d_r[i]));
+		cudaErrchk(cudaFree(scoreLeft_d[i]));
+		cudaErrchk(cudaFree(scoreRight_d[i]));
 	
-	if(global_left)
-		cudaErrchk(cudaFree(ant_l)); 
-        if(global_right)
-		cudaErrchk(cudaFree(ant_r));
+		if(global_left[i])
+			cudaErrchk(cudaFree(ant_l[i])); 
+			if(global_right[i])
+			cudaErrchk(cudaFree(ant_r[i]));
+
+	}
 	auto end_f = NOW;
 	
 	for(int i = 0; i < numAlignments; i++){
 		res[i] = scoreLeft[i]+scoreRight[i]+kmer_length;
 		setEndPositionH(seeds[i], getEndPositionH(seeds_r[i]));    
 		setEndPositionV(seeds[i], getEndPositionV(seeds_r[i])); 
+		//cout << res[i] <<endl;
 	}
 	
 	free(scoreLeft);
-        free(scoreRight);
+	free(scoreRight);
 		
 }
+

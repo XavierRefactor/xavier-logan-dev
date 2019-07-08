@@ -152,12 +152,14 @@ void loganXdrop(std::vector< std::vector<std::string> > &v, int mat, int mis, in
 	//seqan testbench
 	seqan::Score<int, seqan::Simple> scoringScheme_s(mat, mis, -1, gap);
         cout<< "PERFORMING "<< n_align << " ALIGNMENTS"<<endl;
-        int scoreSeqAn[N_BLOCKS];
+        int* scoreSeqAn;
+	scoreSeqAn = (int*)malloc(n_align*sizeof(int));
         std::cout << "STARTING CPU" << std::endl;
         std::chrono::duration<double>  diff_s;
         vector<seqan::Dna5String> seqV_s_arr(n_align);
         vector<seqan::Dna5String> seqH_s_arr(n_align);
-        TSeed seed[N_BLOCKS];
+        TSeed* seed;
+	seed = (TSeed*)malloc(n_align*sizeof(TSeed));
         for(int i = 0; i < n_align; i++){
                 seqan::Dna5String seqV_s(seqV[i]);
                 seqan::Dna5String seqH_s(seqH[i]);
