@@ -4,7 +4,7 @@ CC = gcc
 CFLAGS = -I. -O3 -Wall -Wextra -pedantic -ansi -c -Wno-write-strings
 SEQINCLUDE = -Iseqan
 CUB = -Icub
-CUDAFLAGS = -arch=sm_70 -O3 -maxrregcount=32 -std=c++14
+CUDAFLAGS = -arch=sm_70 -O3 -maxrregcount=32 -std=c++14 -Xcompiler -fopenmp
 
 optlist.o:	../optlist/optlist.c ../optlist/optlist.h
 	$(CC) $(CFLAGS) $<
