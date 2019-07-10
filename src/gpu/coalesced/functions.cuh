@@ -3,8 +3,7 @@
 // Author: G. Guidi, A. Zeni
 // Date:   6 March 2019
 //==================================================================
-
-#define N_THREADS 512
+#define N_THREADS 512 
 #define N_BLOCKS 500000 
 #define MIN -32768
 #define BYTES_INT 4
@@ -127,6 +126,14 @@ __inline__ __device__ void computeAntidiag(short *antiDiag1,
 		queryPos = col - 1;
 		dbPos = col + rows - antiDiagNo - 1;
 		
+		/*if(direction == EXTEND_LEFTL){
+			queryPos = cols - 1 - col;
+			dbPos = rows - 1 + col - antiDiagNo;
+		}else{//EXTEND RIGHT
+			queryPos = col - 1;
+			dbPos = antiDiagNo - col - 1;
+		}*/
+
 		if(col < maxCol){
 		
 			int tmp = max_logan(antiDiag2[col-offset2],antiDiag2[col-offset2-1]) + GAP_EXT;
@@ -718,20 +725,24 @@ inline void extendSeedL(vector<SeedL> &seeds,
 		suffQ[i] = (char*)malloc(sizeof(char)*totalLengthQSuff[i]);
 		suffT[i] = (char*)malloc(sizeof(char)*totalLengthTSuff[i]);
 		//generate prefix and suffix on the CPU
+		//std::cout << "SETTING UP PREF/SUFF" << std::endl;
 		reverse_copy(query[0+i*nSequences].c_str(),query[0+i*nSequences].c_str()+offsetLeftQ[i][0],prefQ[i]);
+		//memcpy(prefQ[i], query[0+i*nSequences].c_str(), offsetLeftQ[i][0]);
 		memcpy(prefT[i], target[0+i*nSequences].c_str(), offsetLeftT[i][0]);
 		memcpy(suffQ[i], query[0+i*nSequences].c_str()+getEndPositionV(seeds[0+i*nSequences]), offsetRightQ[i][0]);
 		reverse_copy(target[0+i*nSequences].c_str()+getEndPositionH(seeds[0+i*nSequences]),target[0+i*nSequences].c_str()+getEndPositionH(seeds[0+i*nSequences])+offsetRightT[i][0],suffT[i]);
-		
+		//memcpy(suffT[i], target[0+i*nSequences].c_str()+getEndPositionH(seeds[0+i*nSequences]), offsetRightT[i][0]);
 		for(int j = 1; j<dim; j++){
 			char *seqptr = prefQ[i] + offsetLeftQ[i][j-1];
 			reverse_copy(query[j+i*nSequences].c_str(),query[j+i*nSequences].c_str()+(offsetLeftQ[i][j]-offsetLeftQ[i][j-1]),seqptr);
+			//memcpy(seqptr, query[j+i*nSequences].c_str(), offsetLeftQ[i][j]-offsetLeftQ[i][j-1]);
 			seqptr = prefT[i] + offsetLeftT[i][j-1];
 			memcpy(seqptr, target[j+i*nSequences].c_str(), offsetLeftT[i][j]-offsetLeftT[i][j-1]);
 			seqptr = suffQ[i] + offsetRightQ[i][j-1];
 			memcpy(seqptr, query[j+i*nSequences].c_str()+getEndPositionV(seeds[j+i*nSequences]), offsetRightQ[i][j]-offsetRightQ[i][j-1]);
 			seqptr = suffT[i] + offsetRightT[i][j-1];
 			reverse_copy(target[j+i*nSequences].c_str()+getEndPositionH(seeds[j+i*nSequences]),target[j+i*nSequences].c_str()+getEndPositionH(seeds[j+i*nSequences])+(offsetRightT[i][j]-offsetRightT[i][j-1]),seqptr);
+			//memcpy(seqptr, target[j+i*nSequences].c_str()+getEndPositionH(seeds[j+i*nSequences]), offsetRightT[i][j]-offsetRightT[i][j-1]);
 
 		}
 	}
