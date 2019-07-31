@@ -312,8 +312,14 @@ __global__ void extendSeedLGappedXDropOneDirectionShared(
 		initAntiDiag3(antiDiag3, a3size, offset3, maxCol, antiDiagNo, best - scoreDropOff, GAP_EXT, UNDEF);
 		
 		computeAntidiag(antiDiag1, antiDiag2, antiDiag3, querySeg, databaseSeg, best, scoreDropOff, cols, rows, minCol, maxCol, antiDiagNo, offset1, offset2, direction);	 	
+		
 		__syncthreads();	
 	
+#ifdef ROOFLINE
+                //roofline analysis
+                if(myTId==0)
+                        printf("ANT %d SIZE: %d\n", antiDiagNo, a3size);
+#endif
 		int tmp, antiDiagBest = UNDEF;	
 		for(int i=0; i<a3size; i+=N_THREADS){
 			int size = a3size-i;
@@ -492,6 +498,11 @@ __global__ void extendSeedLGappedXDropOneDirectionGlobal(
 		initAntiDiag3(antiDiag3, a3size, offset3, maxCol, antiDiagNo, best - scoreDropOff, GAP_EXT, UNDEF);
 		
 		computeAntidiag(antiDiag1, antiDiag2, antiDiag3, querySeg, databaseSeg, best, scoreDropOff, cols, rows, minCol, maxCol, antiDiagNo, offset1, offset2, direction);	 	
+		//roofline analysis
+#ifdef ROOFLINE
+		if(myTId==0)
+			printf("ANT %d SIZE: %d\n", antiDiagNo-1, a3size);
+#endif		
 		__syncthreads();	
 	
 		int tmp, antiDiagBest = UNDEF;	

@@ -5,6 +5,8 @@ CFLAGS = -I. -O3 -Wall -Wextra -pedantic -ansi -c -Wno-write-strings
 SEQINCLUDE = -Iseqan
 CUB = -Icub
 CUDAFLAGS = -arch=sm_70 -O3 -maxrregcount=32 -std=c++14 -Xcompiler -fopenmp
+ROOFLINE = -D ROOFLINE
+
 
 optlist.o:	../optlist/optlist.c ../optlist/optlist.h
 	$(CC) $(CFLAGS) $<
@@ -28,6 +30,10 @@ cpu_gpu: test-performance-gpu-cpu.cu
 cpu_openmp: test-performance-cpu.cpp
 
 	$(COMPILER) -O3 -fopenmp -o test-cpu test-performance-cpu.cpp $(SEQINCLUDE) 
+
+roofline:
+
+	$(COMPILER_GPU) $(ROOFLINE) $(CUDAFLAGS) $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
 
 clean:
 	rm -f *.o
