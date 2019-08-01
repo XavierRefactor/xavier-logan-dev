@@ -35,9 +35,15 @@ roofline:
 
 	$(COMPILER_GPU) $(ROOFLINE) $(CUDAFLAGS) $(INCLUDE) $(SEQINCLUDE) test-performance-gpu.cu -o test
 
+roofline_cpu:
+
+	$(COMPILER) $(ROOFLINE) -O3 -o test-cpu test-performance-cpu.cpp $(SEQINCLUDE)
+
 clean:
 	rm -f *.o
 	rm -f test
+	rm -f test-cpu
 	rm -f benchmark.txt
 	rm -f test-cpu
-	rm -f ../input-gen/gen	
+	rm -f ../input-gen/gen
+	rm -f roofline.txt	

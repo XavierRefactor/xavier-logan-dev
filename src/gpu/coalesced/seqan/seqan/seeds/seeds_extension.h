@@ -511,7 +511,9 @@ _initAntiDiag3(TAntiDiag & antiDiag3,
                TScoreValue undefined)
 {
     resize(antiDiag3, maxCol + 1 - offset);
-
+#ifdef ROOFLINE
+    std::cout<<"ANT: "<<antiDiagNo<<" SIZE: "<<length(antiDiag3)<<std::endl;
+#endif
     antiDiag3[0] = undefined;
     antiDiag3[maxCol - offset] = undefined;
 
