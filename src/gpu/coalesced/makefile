@@ -40,6 +40,7 @@ roofline_cpu:
 	$(COMPILER) $(ROOFLINE) -O3 -o test-cpu test-performance-cpu.cpp $(SEQINCLUDE)
 
 clean:
+	rm -f core
 	rm -f *.o
 	rm -f test
 	rm -f test-cpu
