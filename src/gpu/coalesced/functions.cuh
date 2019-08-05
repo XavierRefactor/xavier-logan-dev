@@ -757,6 +757,7 @@ inline void extendSeedL(vector<SeedL> &seeds,
 
 		}
 	}
+	auto start_transfer = NOW;
 
 	for(int i = 0; i < ngpus; i++){
 		int dim = nSequences;
@@ -801,8 +802,11 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	
 	
 	auto end_t1 = NOW;
-	duration<double> transfer1=end_t1-start_t1;
-	std::cout << "Input setup time: " << transfer1.count() << std::endl;
+	duration<double> setup_transfer=end_t1-start_t1;
+	duration<double> transfer=end_t1-start_transfer;
+	std::cout << "Input setup time: " << setup_transfer.count() << std::endl;
+	std::cout << "Input transfer and malloc time: " << transfer.count() << std::endl;
+	
 	auto start_c = NOW;
 	
 	//execute kernels
