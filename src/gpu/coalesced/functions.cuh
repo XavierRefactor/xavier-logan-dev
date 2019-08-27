@@ -707,19 +707,6 @@ inline void extendSeedL(vector<SeedL> &seeds,
 			offsetRightT[i].push_back(target[j+i*nSequences].size()-getEndPositionH(seeds[j+i*nSequences]));
 			shared_right[i] = std::max(std::min(offsetRightQ[i][j], offsetRightT[i][j]), shared_right[i]);
 		}
-		//check if shared memory is enough
-		global_left[i] = false;
-		global_right[i] = false;
-		if(shared_left[i]>=MAX_SIZE_ANTIDIAG){
-			cudaErrchk(cudaMalloc(&ant_l[i], sizeof(short)*shared_left[i]*3*dim));
-			global_left[i] = true;
-			cout<<"LEFT GLOBAL GPU "<< i <<endl;
-		}
-		if(shared_right[i]>=MAX_SIZE_ANTIDIAG){
-			cudaErrchk(cudaMalloc(&ant_r[i], sizeof(short)*shared_right[i]*3*dim));
-			global_right[i] = true;
-			cout<<"RIGHT GLOBAL GPU "<< i <<endl;
-		}
 		//compute antidiagonal offsets
 		partial_sum(offsetLeftQ[i].begin(),offsetLeftQ[i].end(),offsetLeftQ[i].begin());	
 		partial_sum(offsetLeftT[i].begin(),offsetLeftT[i].end(),offsetLeftT[i].begin());
@@ -758,7 +745,8 @@ inline void extendSeedL(vector<SeedL> &seeds,
 		}
 	}
 	auto start_transfer = NOW;
-
+	
+	#pragma omp parallel for
 	for(int i = 0; i < ngpus; i++){
 		int dim = nSequences;
 		if(i==ngpus-1)
@@ -768,6 +756,19 @@ inline void extendSeedL(vector<SeedL> &seeds,
 		//create streams
 		cudaStreamCreateWithFlags(&stream_r[i],cudaStreamNonBlocking);
 		cudaStreamCreateWithFlags(&stream_l[i],cudaStreamNonBlocking);
+		//check if shared memory is enough
+                global_left[i] = false;
+                global_right[i] = false;
+                if(shared_left[i]>=MAX_SIZE_ANTIDIAG){
+                        cudaErrchk(cudaMalloc(&ant_l[i], sizeof(short)*shared_left[i]*3*dim));
+                        global_left[i] = true;
+                        cout<<"LEFT GLOBAL GPU "<< i <<endl;
+                }
+                if(shared_right[i]>=MAX_SIZE_ANTIDIAG){
+                        cudaErrchk(cudaMalloc(&ant_r[i], sizeof(short)*shared_right[i]*3*dim));
+                        global_right[i] = true;
+                        cout<<"RIGHT GLOBAL GPU "<< i <<endl;
+                }
 		//allocate offsets on the GPU
 		cudaErrchk(cudaMalloc(&offsetLeftQ_d[i], dim*sizeof(int)));
 		cudaErrchk(cudaMalloc(&offsetLeftT_d[i], dim*sizeof(int)));
@@ -810,6 +811,7 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	auto start_c = NOW;
 	
 	//execute kernels
+	#pragma omp parallel for
 	for(int i = 0; i<ngpus;i++){
 		cudaSetDevice(i);
 		
@@ -831,6 +833,7 @@ inline void extendSeedL(vector<SeedL> &seeds,
 		//cout<<"LAUNCHED"<<endl;
 	}
 	
+	#pragma omp parallel for
 	for(int i = 0; i < ngpus; i++){
 		cudaSetDevice(i);
 		int dim = nSequences;
@@ -842,6 +845,7 @@ inline void extendSeedL(vector<SeedL> &seeds,
 		cudaErrchk(cudaMemcpyAsync(&seeds_r[0]+i*nSequences, seed_d_r[i], dim*sizeof(SeedL), cudaMemcpyDeviceToHost,stream_r[i]));
 	}
 
+	#pragma omp parallel for
 	for(int i = 0; i < ngpus; i++){
 		cudaSetDevice(i);
 		cudaDeviceSynchronize();
@@ -857,7 +861,7 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	//cudaStreamDestroy(stream_r);
 	auto start_f = NOW;
 
-
+	#pragma omp parallel for
 	for(int i = 0; i < ngpus; i++){
 		cudaSetDevice(i);
 
