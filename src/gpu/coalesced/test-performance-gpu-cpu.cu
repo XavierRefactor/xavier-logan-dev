@@ -92,7 +92,7 @@ vector<std::string> split (const std::string &s, char delim)
 //=======================================================================
 
 typedef seqan::Seed<seqan::Simple> TSeed;
-void loganXdrop(std::vector< std::vector<std::string> > &v, int mat, int mis, int gap, int kmerLen, int xdrop, int numpair, int gpus)
+void loganXdrop(std::vector< std::vector<std::string> > &v, int mat, int mis, int gap, int kmerLen, int xdrop, int numpair, int gpus, int n_threads)
 {
 	
 	
@@ -157,7 +157,7 @@ void loganXdrop(std::vector< std::vector<std::string> > &v, int mat, int mis, in
         std::chrono::duration<double>  diff_l;
         std::cout << "STARTING GPU" << std::endl;
         auto start_l = NOW;
-        extendSeedL(seeds, EXTEND_BOTHL, seqH, seqV, penalties, xdrop, kmerLen, scoreLogan, numpair, gpus);
+        extendSeedL(seeds, EXTEND_BOTHL, seqH, seqV, penalties, xdrop, kmerLen, scoreLogan, numpair, gpus, n_threads);
         auto end_l = NOW;
         diff_l = end_l-start_l;
 
@@ -199,7 +199,8 @@ int main(int argc, char **argv)
 	ifstream input(argv[1]);		// file name with sequences and seed positions
 	int kmerLen = atoi(argv[2]);	// kmerLen
 	int xdrop = atoi(argv[3]);		// xdrop
-	int gpus = atoi(argv[4]);
+	int n_threads = atoi(argv[4]);
+	int gpus = atoi(argv[5]);
 	int mat = 1, mis = -1, gap = -1;	// GGGG: make these input parameters
 	const char* filename =  (char*) malloc(20 * sizeof(char));
 	//filename = temp.c_str();
@@ -232,7 +233,7 @@ int main(int argc, char **argv)
                 // format: seqV, posV, seqH, posH, strand -- GGGG: generate this input with BELLA
                 v[i]=temp;
         }
-        loganXdrop(v, mat, mis, gap, kmerLen, xdrop, numpair, gpus);	
+        loganXdrop(v, mat, mis, gap, kmerLen, xdrop, numpair, gpus, n_threads);	
 
 	return 0;
 }
