@@ -40,7 +40,6 @@
 #include <seqan/modifier.h>
 #include"logan.cuh"
 
-#define WARP_DIM 32 
 using namespace std;
 //using namespace seqan;
 
@@ -159,12 +158,8 @@ int main(int argc, char **argv)
 	const char* filename =  (char*) malloc(20 * sizeof(char));
 	//filename = temp.c_str();
 	std::cout << "STARTING BENCHMARK" << std::endl;
-	if(n_threads == 1){
-		std::cout<< "AUTOMATIC DETECTION OF THREADS" << std::endl;
-		n_threads = (xdrop/WARP_DIM + 1)* WARP_DIM;	
-	}
+	
 	//setting up the gpu environment
-	std::cout<< "RUNNING WITH "<<n_threads<< " THREADS"<<std::endl;
 	cudaFree(0);
 
 	uint64_t numpair = std::count(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>(), '\n');
