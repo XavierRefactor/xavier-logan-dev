@@ -16,6 +16,12 @@
 #include"simd_utils.h"
 #include"score.h"
 
+#ifdef DEBUG
+	#define log( var ) do { std::cerr << "LOG: " << __FILE__ << "(" << __LINE__ << ") " << #var << " = " << (var) << std::endl; } while(0)
+#else
+	#define log( var )
+#endif
+
 class LoganState
 {
 public:
@@ -103,7 +109,7 @@ public:
 	void set_antiDiag2 ( vector_t vector ) { antiDiag2.simd = vector; }
 	void set_antiDiag3 ( vector_t vector ) { antiDiag3.simd = vector; }
 
-private:
+// private:
 	// Sequence Lengths
 	unsigned int hlength;
 	unsigned int vlength;
@@ -141,7 +147,8 @@ private:
 	int64_t scoreDropOff;
 };
 
-void LoganPhase1 ( LoganState state )
+void 
+LoganPhase1 ( LoganState state )
 {
 	log( "Phase1" );
 
@@ -164,13 +171,13 @@ void LoganPhase1 ( LoganState state )
 		{
 			int8_t onef = dp_matrix[i-1][j-1];
 
-			if ( queryh[i-1] == queryv[j-1] )
+			if ( state.queryh[i-1] == state.queryv[j-1] )
 				onef += state.get_match_cost();
 			else
 				onef += state.get_mismatch_cost();
 
 			int8_t twof = std::max( dp_matrix[i-1][j], dp_matrix[i][j-1] );
-			twof += state.get_gap_cost()
+			twof += state.get_gap_cost();
 
 			dp_matrix[i][j] = std::max(onef, twof);
 		}
@@ -187,17 +194,19 @@ void LoganPhase1 ( LoganState state )
 
 	for ( int i = 0; i < LOGICALWIDTH; ++i )
 	{
-		state.update_vqueryh( i, queryh[i + 1] );
-		state.update_vqueryv( i, queryv[LOGICALWIDTH - i] );
+		state.update_vqueryh( i, state.queryh[i + 1] );
+		state.update_vqueryv( i, state.queryv[LOGICALWIDTH - i] );
 	}
 
 	state.update_vqueryh( LOGICALWIDTH, NINF );
 	state.update_vqueryv( LOGICALWIDTH, NINF );
 
 	// load dp_matrix into antiDiag1 and antiDiag2 vector
-	for ( int i = 1; i <= LOGICALWIDTH; ++i )
+	for ( int i = 1; i <= LOGICALWIDTH; ++i ) 
+	{
 		state.update_antiDiag1( i - 1, dp_matrix[i][LOGICALWIDTH - i + 1] );
 		state.update_antiDiag2( i, dp_matrix[i + 1][LOGICALWIDTH - i + 1] );
+	}
 	state.update_antiDiag1( LOGICALWIDTH, NINF );
 	state.update_antiDiag2( 0, NINF );
 
@@ -207,11 +216,12 @@ void LoganPhase1 ( LoganState state )
 	// antiDiag2 going right, first computation of antiDiag3 is going down.
 }
 
-void LoganPhase2 ( LoganState state )
+void
+LoganPhase2 ( LoganState state )
 {
 	log( "Phase2" );
 
-	while ( hoffset < hlength && voffset < vlength )
+	while ( state.hoffset < state.hlength && state.voffset < state.vlength )
 	{
 		// antiDiag1F (final)
 		// POST-IT: -1 for a match and 0 for a mismatch
@@ -239,16 +249,16 @@ void LoganPhase2 ( LoganState state )
 		// TODO: x-drop termination
 		// Note: Don't need to check x drop every time
 		// Create custom max_element that also returns position to save computation
-		int8_t  antiDiagBest = *std::max_element( antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
+		int8_t  antiDiagBest = *std::max_element( state.antiDiag3.elem, state.antiDiag3.elem + VECTORWIDTH );
 		int64_t current_best_score = antiDiagBest + state.get_score_offset();
-		int64_t score_threshold = state.get_best_score() - state.get_score_dropoff()
+		int64_t score_threshold = state.get_best_score() - state.get_score_dropoff();
 
 		if ( current_best_score < score_threshold )
-			return std::make_pair( state.get_best_score(), current_best_score );
+			return; // GG: it's a void function and the values are saved in LoganState object
 
-		if ( antiDiagBest > RED_THRESHOLD )
+		if ( antiDiagBest > CUTOFF )
 		{
-			int8_t min = *std::min_element(antiDiag3.elem, antiDiag3.elem + LOGICALWIDTH);
+			int8_t min = *std::min_element(  state.antiDiag3.elem, state.antiDiag3.elem + LOGICALWIDTH);
 			state.set_antiDiag2( sub_func( state.get_antiDiag2(), set1_func( min ) ) );
 			state.set_antiDiag3( sub_func( state.get_antiDiag3(), set1_func( min ) ) );
 			state.set_score_offset( state.get_score_offset() + min );
@@ -265,10 +275,10 @@ void LoganPhase2 ( LoganState state )
 		int maxpos, max = 0;
 		for ( int i = 0; i < VECTORWIDTH; ++i )
 		{
-			if ( antiDiag3.elem[i] > max )
+			if ( state.antiDiag3.elem[i] > max )
 			{
 				maxpos = i;
-				max = antiDiag3.elem[i];
+				max = state.antiDiag3.elem[i];
 			}
 
 		if(maxpos > MIDDLE)
@@ -277,284 +287,84 @@ void LoganPhase2 ( LoganState state )
 			#ifdef DEBUG
 			printf("myRIGHT\n");
 			#endif
-			moveRight (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
+			moveRight (state.antiDiag1, state.antiDiag2, state.antiDiag3, state.hoffset, state.voffset, state.vqueryh, state.vqueryv, state.queryh, state.queryv);
 		}
 		else
 		{
 			#ifdef DEBUG
 			printf("myDOWN\n");
 			#endif
-			moveDown (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
+			moveDown (state.antiDiag1, state.antiDiag2, state.antiDiag3, state.hoffset, state.voffset, state.vqueryh, state.vqueryv, state.queryh, state.queryv);
 		}
 	}
 }
 
-//======================================================================================
-// X-DROP ADAPTIVE BANDED ALIGNMENT
-//======================================================================================
-
-std::pair<int64_t, int64_t>
-LoganOneDirection
-(
-	SeedL & seed,
-	std::string const& targetSeg,
-	std::string const& querySeg,
-	ScoringSchemeL& scoringScheme,
-	int64_t const &scoreDropOff
-)
+void 
+LoganPhase4 (LoganState state)
 {
-	LoganState state( targetSeg, querySeg, scoringScheme, scoreDropOff );
+	log("Phase4");
 
-	LoganPhase1( state );
-	// call phase2( state )
-	// call phase3 ( state )
-	// return result
+	int dir = state.hoffset >= state.hlength ? myDOWN : myRIGHT;
 
-
-	//==================================================================
-	// PHASE I (initial values load using dynamic programming)
-	//==================================================================
-
-
-	//==================================================================
-	// PHASE II (core vectorized computation)
-	//==================================================================
-
-	//==================================================================
-	// PHASE III (we are one edge)
-	//==================================================================
-
-	int dir = hoffset >= hlength ? myDOWN : myRIGHT;
-
-#ifdef DEBUG
-	printf("Phase III\n");
-#endif
-
-	while(hoffset < hlength || voffset < vlength)
-	{
-
-#ifdef DEBUG
-	printf("\n");
-	print_vector_c(vqueryh.simd);
-	print_vector_c(vqueryv.simd);
-#endif
-
-		// antiDiagBest initialization
-		antiDiagNo++;
-		antiDiagBest = antiDiagNo * gapCost;
-
-		// antiDiag1F (final)
-		// POST-IT: -1 for a match and 0 for a mismatch
-		vector_t m = cmpeq_func (vqueryh.simd, vqueryv.simd);
-		m = blendv_func (vmismatchCost, vmatchCost, m);
-		vector_t antiDiag1F = add_func (m, antiDiag1.simd);
-
-	#ifdef DEBUG
-		printf("antiDiag1: ");
-		print_vector_d(antiDiag1.simd);
-		printf("antiDiag1F: ");
-		print_vector_d(antiDiag1F);
-	#endif
-
-		// antiDiag2U (Up)
-		vector_union_t antiDiag2U = leftShift (antiDiag2);
-		antiDiag2U.simd = add_func (antiDiag2U.simd, vgapCost);
-		antiDiag2U.simd = add_func (antiDiag2U.simd, gaphist_up.simd);
-	#ifdef DEBUG
-		printf("antiDiag2U: ");
-		print_vector_d(antiDiag2U.simd);
-	#endif
-
-	// antiDiag2L (Left)
-		vector_union_t antiDiag2L = antiDiag2;
-		antiDiag2L.elem[VECTORWIDTH - 1] = NINF;
-		antiDiag2L.simd = add_func (antiDiag2L.simd, vgapCost);
-		antiDiag2L.simd = add_func (antiDiag2L.simd, gaphist_left.simd);
-	#ifdef DEBUG
-		printf("antiDiag2L: ");
-		print_vector_d(antiDiag2L.simd);
-	#endif
-
-		// antiDiag2M (pairwise max)
-		vector_t antiDiag2M = max_func (antiDiag2L.simd, antiDiag2U.simd);
-	#ifdef DEBUG
-		printf("antiDiag2M: ");
-		print_vector_d(antiDiag2M);
-	#endif
-	#ifdef DEBUG
-		printf("antiDiag2: ");
-		print_vector_d(antiDiag2.simd);
-	#endif
-		// Compute antiDiag3
-		antiDiag3.simd = max_func (antiDiag1F, antiDiag2M);
-		// we need to have always antiDiag3 left-aligned
-		antiDiag3.elem[LOGICALWIDTH] = NINF;
-	#ifdef DEBUG
-		printf("antiDiag3: ");
-		print_vector_d(antiDiag3.simd);
-	#endif
-
-		// Gap History Computation
-		vector_t twogap = cmpeq_func (antiDiag2M, antiDiag2U.simd);
-		gaphist_up.simd = blendv_func (vzeros, vgapopening, twogap); // TODO: Check values
-		gaphist_left.simd = blendv_func (vgapopening, vzeros, twogap); // TODO: Check values
-		vector_t threegap = cmpeq_func (antiDiag3.simd, antiDiag1F);
-		gaphist_up.simd = blendv_func (vgapopening, gaphist_up.simd, threegap); // TODO: Check values
-		gaphist_left.simd = blendv_func (vgapopening, gaphist_left.simd, threegap); // TODO: Check values
-
-		// x-drop termination
-		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
-		if(antiDiagBest + offset < best - scoreDropOff)
-		{
-			delete [] queryh;
-			delete [] queryv;
-			return std::make_pair(best, antiDiagBest + offset);
-		}
-
-		if ( antiDiagBest > RED_THRESHOLD )
-		{
-			int8_t min = *std::min_element(antiDiag3.elem, antiDiag3.elem + LOGICALWIDTH);
-			antiDiag2.simd = sub_func( antiDiag2.simd, set1_func(min) );
-			antiDiag3.simd = sub_func( antiDiag3.simd, set1_func(min) );
-			offset += min;
-		}
-
-		// update best
-		best = (best > antiDiagBest + offset ) ? best : antiDiagBest + offset ;
-
-		// antiDiag swap, offset updates, and new base load
-		if (dir == myRIGHT)
-		{
-		#ifdef DEBUG
-			printf("myRIGHT\n");
-		#endif
-			moveRight (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
-		}
-		else
-		{
-		#ifdef DEBUG
-			printf("myDOWN\n");
-		#endif
-			moveDown (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
-		}
-	}
-
-	//======================================================================================
-	// PHASE IV (reaching end of sequences)
-	//======================================================================================
-
-#ifdef DEBUG
-	printf("Phase IV\n");
-#endif
 	for (int i = 0; i < (LOGICALWIDTH - 3); i++)
 	{
-
-#ifdef DEBUG
-	printf("\n");
-	print_vector_c(vqueryh.simd);
-	print_vector_c(vqueryv.simd);
-#endif
-
-		// antiDiagBest initialization
-		antiDiagNo++;
-		antiDiagBest = antiDiagNo * gapCost;
-
-		// antiDiag1F (final)
+			// antiDiag1F (final)
 		// POST-IT: -1 for a match and 0 for a mismatch
-		vector_t m = cmpeq_func (vqueryh.simd, vqueryv.simd);
-		m = blendv_func (vmismatchCost, vmatchCost, m);
-		vector_t antiDiag1F = add_func (m, antiDiag1.simd);
+		vector_t match = cmpeq_func( state.get_vqueryh(), state.get_vqueryv() );
+		match = blendv_func( state.get_vmismatchCost(), state.get_vmatchCost(), match );
+		vector_t antiDiag1F = add_func( match, state.get_antiDiag1() );
 
-	#ifdef DEBUG
-		printf("antiDiag1: ");
-		print_vector_d(antiDiag1.simd);
-		printf("antiDiag1F: ");
-		print_vector_d(antiDiag1F);
-	#endif
-
-		// antiDiag2U (Up)
-		vector_union_t antiDiag2U = leftShift (antiDiag2);
-		antiDiag2U.simd = add_func (antiDiag2U.simd, vgapCost);
-		antiDiag2U.simd = add_func (antiDiag2U.simd, gaphist_up.simd);
-	#ifdef DEBUG
-		printf("antiDiag2U: ");
-		print_vector_d(antiDiag2U.simd);
-	#endif
-
-	// antiDiag2L (Left)
-		vector_union_t antiDiag2L = antiDiag2;
-		antiDiag2L.elem[VECTORWIDTH - 1] = NINF;
-		antiDiag2L.simd = add_func (antiDiag2L.simd, vgapCost);
-		antiDiag2L.simd = add_func (antiDiag2L.simd, gaphist_left.simd);
-	#ifdef DEBUG
-		printf("antiDiag2L: ");
-		print_vector_d(antiDiag2L.simd);
-	#endif
+		// antiDiag2S (shift)
+		// TODO: vector_t not vector_union_t;
+		// redo left/right shift to take and return vector_t
+		vector_union_t antiDiag2S = leftShift( state.get_antiDiag2() );
 
 		// antiDiag2M (pairwise max)
-		vector_t antiDiag2M = max_func (antiDiag2L.simd, antiDiag2U.simd);
-	#ifdef DEBUG
-		printf("antiDiag2M: ");
-		print_vector_d(antiDiag2M);
-	#endif
-	#ifdef DEBUG
-		printf("antiDiag2: ");
-		print_vector_d(antiDiag2.simd);
-	#endif
+		vector_t antiDiag2M = max_func( antiDiag2S.simd, state.get_antiDiag2() );
+
+		// antiDiag2F (final)
+		vector_t antiDiag2F = add_func( antiDiag2M, state.get_vgapCost() );
+
 		// Compute antiDiag3
-		antiDiag3.simd = max_func (antiDiag1F, antiDiag2M);
+		state.set_antiDiag3( max_func( antiDiag1F, antiDiag2F ) );
+
 		// we need to have always antiDiag3 left-aligned
-		antiDiag3.elem[LOGICALWIDTH] = NINF;
-	#ifdef DEBUG
-		printf("antiDiag3: ");
-		print_vector_d(antiDiag3.simd);
-	#endif
+		state.update_antiDiag3( LOGICALWIDTH, NINF );
 
-		// Gap History Computation
-		vector_t twogap = cmpeq_func (antiDiag2M, antiDiag2U.simd);
-		gaphist_up.simd = blendv_func (vzeros, vgapopening, twogap); // TODO: Check values
-		gaphist_left.simd = blendv_func (vgapopening, vzeros, twogap); // TODO: Check values
-		vector_t threegap = cmpeq_func (antiDiag3.simd, antiDiag1F);
-		gaphist_up.simd = blendv_func (vgapopening, gaphist_up.simd, threegap); // TODO: Check values
-		gaphist_left.simd = blendv_func (vgapopening, gaphist_left.simd, threegap); // TODO: Check values
+		// TODO: x-drop termination
+		// Note: Don't need to check x drop every time
+		// Create custom max_element that also returns position to save computation
+		int8_t  antiDiagBest = *std::max_element( state.antiDiag3.elem, state.antiDiag3.elem + VECTORWIDTH );
+		int64_t current_best_score = antiDiagBest + state.get_score_offset();
+		int64_t score_threshold = state.get_best_score() - state.get_score_dropoff();
 
-		// x-drop termination
-		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
-		if(antiDiagBest + offset  < best - scoreDropOff)
+		if ( current_best_score < score_threshold )
+			return; // GG: it's a void function and the values are saved in LoganState object
+
+		if ( antiDiagBest > CUTOFF )
 		{
-			delete [] queryh;
-			delete [] queryv;
-			return std::make_pair(best, antiDiagBest + offset );
-		}
-
-		if ( antiDiagBest > RED_THRESHOLD )
-		{
-			int8_t min = *std::min_element(antiDiag3.elem, antiDiag3.elem + LOGICALWIDTH);
-			antiDiag2.simd = sub_func( antiDiag2.simd, set1_func(min) );
-			antiDiag3.simd = sub_func( antiDiag3.simd, set1_func(min) );
-			offset += min;
-			printf("%d\n", offset);
+			int8_t min = *std::min_element(  state.antiDiag3.elem, state.antiDiag3.elem + LOGICALWIDTH);
+			state.set_antiDiag2( sub_func( state.get_antiDiag2(), set1_func( min ) ) );
+			state.set_antiDiag3( sub_func( state.get_antiDiag3(), set1_func( min ) ) );
+			state.set_score_offset( state.get_score_offset() + min );
 		}
 
 		// update best
-		best = (best > antiDiagBest + offset ) ? best : antiDiagBest + offset ;
+		if ( current_best_score > state.get_best_score() )
+			state.set_best_score( current_best_score );
 
 		// antiDiag swap, offset updates, and new base load
 		short nextDir = dir ^ 1;
 		// antiDiag swap, offset updates, and new base load
 		if (nextDir == myRIGHT)
 		{
-		#ifdef DEBUG
-			printf("myRIGHT\n");
-		#endif
-			moveRight (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
+			moveRight (state.antiDiag1, state.antiDiag2, state.antiDiag3, state.hoffset, 
+				state.voffset, state.vqueryh, state.vqueryv, state.queryh, state.queryv);
 		}
 		else
 		{
-		#ifdef DEBUG
-			printf("myDOWN\n");
-		#endif
-			moveDown (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
+			moveDown (state.antiDiag1, state.antiDiag2, state.antiDiag3, state.hoffset, 
+				state.voffset, state.vqueryh, state.vqueryv, state.queryh, state.queryv);
 		}
 		// direction update
 		dir = nextDir;
@@ -567,11 +377,154 @@ LoganOneDirection
 	setEndPositionH(seed, hoffset);
 	setEndPositionV(seed, voffset);
 
-	delete [] queryh;
-	delete [] queryv;
-
-	return std::make_pair(best, antiDiagBest + offset );
 }
+//======================================================================================
+// X-DROP ADAPTIVE BANDED ALIGNMENT
+//======================================================================================
+
+std::pair<int64_t, int64_t>
+LoganOneDirection
+(
+	SeedL& seed,
+	std::string const& targetSeg,
+	std::string const& querySeg,
+	ScoringSchemeL& scoringScheme,
+	int64_t const &scoreDropOff
+)
+{
+	LoganState state(targetSeg, querySeg, scoringScheme, scoreDropOff);
+
+	//==================================================================
+	// PHASE I (initial values load using dynamic programming)
+	//==================================================================
+
+	LoganPhase1(state);
+
+	//==================================================================
+	// PHASE II (core vectorized computation)
+	//==================================================================
+
+	LoganPhase2(state);
+
+	//======================================================================================
+	// PHASE IV (reaching end of sequences)
+	//======================================================================================
+
+	LoganPhase4(state);
+}
+
+// #ifdef DEBUG
+// 	printf("Phase III\n");
+// #endif
+
+// 	while(hoffset < hlength || voffset < vlength)
+// 	{
+
+// #ifdef DEBUG
+// 	printf("\n");
+// 	print_vector_c(vqueryh.simd);
+// 	print_vector_c(vqueryv.simd);
+// #endif
+
+// 		// antiDiagBest initialization
+// 		antiDiagNo++;
+// 		antiDiagBest = antiDiagNo * gapCost;
+
+// 		// antiDiag1F (final)
+// 		// POST-IT: -1 for a match and 0 for a mismatch
+// 		vector_t m = cmpeq_func (vqueryh.simd, vqueryv.simd);
+// 		m = blendv_func (vmismatchCost, vmatchCost, m);
+// 		vector_t antiDiag1F = add_func (m, antiDiag1.simd);
+
+// 	#ifdef DEBUG
+// 		printf("antiDiag1: ");
+// 		print_vector_d(antiDiag1.simd);
+// 		printf("antiDiag1F: ");
+// 		print_vector_d(antiDiag1F);
+// 	#endif
+
+// 		// antiDiag2U (Up)
+// 		vector_union_t antiDiag2U = leftShift (antiDiag2);
+// 		antiDiag2U.simd = add_func (antiDiag2U.simd, vgapCost);
+// 		antiDiag2U.simd = add_func (antiDiag2U.simd, gaphist_up.simd);
+// 	#ifdef DEBUG
+// 		printf("antiDiag2U: ");
+// 		print_vector_d(antiDiag2U.simd);
+// 	#endif
+
+// 	// antiDiag2L (Left)
+// 		vector_union_t antiDiag2L = antiDiag2;
+// 		antiDiag2L.elem[VECTORWIDTH - 1] = NINF;
+// 		antiDiag2L.simd = add_func (antiDiag2L.simd, vgapCost);
+// 		antiDiag2L.simd = add_func (antiDiag2L.simd, gaphist_left.simd);
+// 	#ifdef DEBUG
+// 		printf("antiDiag2L: ");
+// 		print_vector_d(antiDiag2L.simd);
+// 	#endif
+
+// 		// antiDiag2M (pairwise max)
+// 		vector_t antiDiag2M = max_func (antiDiag2L.simd, antiDiag2U.simd);
+// 	#ifdef DEBUG
+// 		printf("antiDiag2M: ");
+// 		print_vector_d(antiDiag2M);
+// 	#endif
+// 	#ifdef DEBUG
+// 		printf("antiDiag2: ");
+// 		print_vector_d(antiDiag2.simd);
+// 	#endif
+// 		// Compute antiDiag3
+// 		antiDiag3.simd = max_func (antiDiag1F, antiDiag2M);
+// 		// we need to have always antiDiag3 left-aligned
+// 		antiDiag3.elem[LOGICALWIDTH] = NINF;
+// 	#ifdef DEBUG
+// 		printf("antiDiag3: ");
+// 		print_vector_d(antiDiag3.simd);
+// 	#endif
+
+// 		// Gap History Computation
+// 		vector_t twogap = cmpeq_func (antiDiag2M, antiDiag2U.simd);
+// 		gaphist_up.simd = blendv_func (vzeros, vgapopening, twogap); // TODO: Check values
+// 		gaphist_left.simd = blendv_func (vgapopening, vzeros, twogap); // TODO: Check values
+// 		vector_t threegap = cmpeq_func (antiDiag3.simd, antiDiag1F);
+// 		gaphist_up.simd = blendv_func (vgapopening, gaphist_up.simd, threegap); // TODO: Check values
+// 		gaphist_left.simd = blendv_func (vgapopening, gaphist_left.simd, threegap); // TODO: Check values
+
+// 		// x-drop termination
+// 		antiDiagBest = *std::max_element(antiDiag3.elem, antiDiag3.elem + VECTORWIDTH);
+// 		if(antiDiagBest + offset < best - scoreDropOff)
+// 		{
+// 			delete [] queryh;
+// 			delete [] queryv;
+// 			return std::make_pair(best, antiDiagBest + offset);
+// 		}
+
+// 		if ( antiDiagBest > RED_THRESHOLD )
+// 		{
+// 			int8_t min = *std::min_element(antiDiag3.elem, antiDiag3.elem + LOGICALWIDTH);
+// 			antiDiag2.simd = sub_func( antiDiag2.simd, set1_func(min) );
+// 			antiDiag3.simd = sub_func( antiDiag3.simd, set1_func(min) );
+// 			offset += min;
+// 		}
+
+// 		// update best
+// 		best = (best > antiDiagBest + offset ) ? best : antiDiagBest + offset ;
+
+// 		// antiDiag swap, offset updates, and new base load
+// 		if (dir == myRIGHT)
+// 		{
+// 		#ifdef DEBUG
+// 			printf("myRIGHT\n");
+// 		#endif
+// 			moveRight (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
+// 		}
+// 		else
+// 		{
+// 		#ifdef DEBUG
+// 			printf("myDOWN\n");
+// 		#endif
+// 			moveDown (antiDiag1, antiDiag2, antiDiag3, hoffset, voffset, vqueryh, vqueryv, queryh, queryv);
+// 		}
+// 	}
 
 std::pair<int64_t, int64_t>
 LoganXDrop

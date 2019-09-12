@@ -12,8 +12,8 @@
 //======================================================================================
 // GLOBAL FUNCTION DECLARATION
 //======================================================================================
-
-#ifdef __AVX2__ 	// Compile flag: -mavx2
+#define __AVX2__	// temporary to make VS happy 
+#ifdef  __AVX2__ 	// Compile flag: -mavx2
 #define VECTORWIDTH  (32)
 #define LOGICALWIDTH (VECTORWIDTH - 1)
 #define vector_t    __m256i
@@ -43,7 +43,7 @@
 #define myDOWN  (1)
 #define MIDDLE 	(LOGICALWIDTH / 2)
 
-#define RED_THRESHOLD	(std::numeric_limits<int8_t>::max() - 25)
+#define CUTOFF	(std::numeric_limits<int8_t>::max() - 25)
 
 //======================================================================================
 // SIMD UTILS
@@ -119,7 +119,7 @@ inline vector_union_t
 leftShift (const vector_union_t& a) { // this work for avx2
 
 	vector_union_t b;
-	// https://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avxhttps://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avx
+	// https://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avx
 	b.simd = _mm256_alignr_epi8(_mm256_permute2x128_si256(a.simd, a.simd, _MM_SHUFFLE(2, 0, 0, 1)), a.simd, 2);
 	b.elem[VECTORWIDTH - 1] = NINF;
 	return b;
