@@ -3,7 +3,7 @@
 // Author: G. Guidi, A. Zeni
 // Date:   6 March 2019
 //==================================================================
-#define N_THREADS 64 
+#define N_THREADS 32 
 #define N_BLOCKS 500000 
 #define MIN -32768
 #define BYTES_INT 4
