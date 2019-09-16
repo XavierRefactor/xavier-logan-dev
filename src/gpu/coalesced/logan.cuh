@@ -18,7 +18,11 @@
 #include <thrust/execution_policy.h>
 #include"seed.cuh"
 #include"score.cuh"
+#ifdef ADAPTABLE
 #include"functions.cuh"
+#else
+#include"functions_static.cuh"
+#endif
 //#include <boost/algorithm/string.hpp>
 //#include <cub/block/block_load.cuh>
 //#include <cub/block/block_store.cuh>

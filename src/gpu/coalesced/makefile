@@ -6,7 +6,7 @@ SEQINCLUDE = -Iseqan
 CUB = -Icub
 CUDAFLAGS = -arch=sm_70 -O3 -maxrregcount=32 -std=c++14 -Xcompiler -fopenmp
 ROOFLINE = -D ROOFLINE
-
+ADAPT = -D ADAPTABLE
 
 optlist.o:	../optlist/optlist.c ../optlist/optlist.h
 	$(CC) $(CFLAGS) $<
@@ -38,6 +38,10 @@ roofline:
 roofline_cpu:
 
 	$(COMPILER) $(ROOFLINE) -O3 -o test-cpu test-performance-cpu.cpp $(SEQINCLUDE)
+
+gpu_cori_ad: test-performance-gpu.cu
+
+	$(COMPILER_GPU) $(CUDAFLAGS) $(INCLUDE) $(SEQINCLUDE) $(ADAPT) test-performance-gpu.cu -o test
 
 clean:
 	rm -f core

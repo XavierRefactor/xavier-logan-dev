@@ -6,8 +6,9 @@
 
 #define MIN -32768
 #define BYTES_INT 4
-//#define N_STREAMS 60
-//#define MAX_SIZE_ANTIDIAG 8000
+#define XDROP 21
+// #define N_STREAMS 60
+#define MAX_SIZE_ANTIDIAG 8000
 #define MAX_GPUS 8
 
 //trying to see if the scoring scheme is a bottleneck in some way
@@ -16,7 +17,6 @@
 #define GAP_EXT  -1
 #define GAP_OPEN -1
 #define UNDEF -32767
-#define WARP_DIM 32 
 #define NOW std::chrono::high_resolution_clock::now()
 
 using namespace std;
@@ -116,11 +116,11 @@ __inline__ __device__ void computeAntidiag(short *antiDiag1,
 									ExtensionDirectionL direction,
 									int n_threads
 									){
-	int tid = threadIdx.x;
-	
-	for(int i = 0; i < maxCol; i+=n_threads){
+	//int tid = threadIdx.x;
+	#pragma unroll 16		
+	for(int i = 0; i < maxCol; i++){
 
-		int col = tid + minCol + i;
+		int col = minCol + i;
 		int queryPos, dbPos;
 		
 		queryPos = col - 1;
@@ -142,7 +142,7 @@ __inline__ __device__ void computeAntidiag(short *antiDiag1,
 			
 			tmp = max_logan(antiDiag1[col-offset1-1]+score,tmp);
 			
-			antiDiag3[tid+1+i] = (tmp < best - scoreDropOff) ? UNDEF : tmp;
+			antiDiag3[1+i] = (tmp < best - scoreDropOff) ? UNDEF : tmp;
 		
 		}
 	}
@@ -438,15 +438,6 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	}
 	//start measuring time
 	auto start_t1 = NOW;
-
-	//set num of threads
-	if(n_threads == 1){
-                std::cout<< "AUTOMATIC DETECTION OF THREADS" << std::endl;
-                n_threads = (XDrop/WARP_DIM + 1)* WARP_DIM;
-                if(n_threads>1024)
-                        n_threads=1024;
-        }
-        std::cout<< "RUNNING WITH "<<n_threads<< " THREADS"<<std::endl;
 
 	//declare streams
 	cudaStream_t stream_r[MAX_GPUS], stream_l[MAX_GPUS];
