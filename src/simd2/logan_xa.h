@@ -300,6 +300,14 @@ LoganPhase2 ( LoganState& state )
 			moveDown (state.antiDiag1, state.antiDiag2, state.antiDiag3, state.hoffset, state.voffset, state.vqueryh, state.vqueryv, state.queryh, state.queryv);
 		}
 	}
+
+	// TODO: not sure this is correct
+	// find positions of longest extension and update seed
+	setBeginPositionH(state.seed, 0);
+	setBeginPositionV(state.seed, 0);
+	// TODO : fix rthis
+	setEndPositionH(state.seed, state.hoffset);
+	setEndPositionV(state.seed, state.voffset);
 }
 
 // GG LoganPhase3 not neeeded for BELLA (our highest priority)
@@ -388,18 +396,12 @@ LoganPhase4 ( LoganState& state )
 // X-DROP ADAPTIVE BANDED ALIGNMENT
 //======================================================================================
 
-std::pair<int64_t, int64_t>
+void
 LoganOneDirection
 (
-	SeedL& seed,
-	std::string const& targetSeg,
-	std::string const& querySeg,
-	ScoringSchemeL& scoringScheme,
-	int64_t const &scoreDropOff
+	LoganState& state
 )
 {
-	LoganState state(seed, targetSeg, querySeg, scoringScheme, scoreDropOff);
-
 	//==================================================================
 	// PHASE I (initial values load using dynamic programming)
 	//==================================================================
@@ -421,7 +423,7 @@ LoganOneDirection
 
 // GG PhaseIII removed to read to code easily (can be recovered from simd/ folder or older commits)
 
-std::pair<int64_t, int64_t>
+std::pair<int, int>
 LoganXDrop
 (
 	SeedL& seed,
@@ -439,29 +441,40 @@ LoganXDrop
 		std::string queryPrefix = query.substr (0, getEndPositionV(seed));		// from read start til start seed (seed included)
 		std::reverse (targetPrefix.begin(), targetPrefix.end());
 		std::reverse (queryPrefix.begin(), queryPrefix.end());
-		return LoganOneDirection (seed, targetPrefix, queryPrefix, scoringScheme, scoreDropOff);
+	
+		// TODO: fix here
+		LoganState result (seed, targetPrefix, queryPrefix, scoringScheme, scoreDropOff);
+		LoganOneDirection (result);
+		return std::make_pair(result.get_best_score(), result.get_exit_score());
 	}
 	else if (direction == LOGAN_EXTEND_RIGHT)
 	{
 		std::string targetSuffix = target.substr (getBeginPositionH(seed), target.length()); 	// from end seed until the end (seed included)
-		std::string querySuffix = query.substr (getBeginPositionV(seed), query.length());		// from end seed until the end (seed included)
-		return LoganOneDirection (seed, targetSuffix, querySuffix, scoringScheme, scoreDropOff);
+		std::string querySuffix  = query.substr (getBeginPositionV(seed), query.length());		// from end seed until the end (seed included)
+		
+		// TODO: fix here
+		LoganState result (seed, targetSuffix, querySuffix, scoringScheme, scoreDropOff);
+		LoganOneDirection (result);
+		return std::make_pair(result.get_best_score(), result.get_exit_score());
 	}
 	else
 	{
-		std::pair<int64_t, int64_t> extLeft;
-		std::pair<int64_t, int64_t> extRight;
-
 		std::string targetPrefix = target.substr (0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
 		std::string queryPrefix = query.substr (0, getBeginPositionV(seed));	// from read start til start seed (seed not included)
 		std::reverse (targetPrefix.begin(), targetPrefix.end());
 		std::reverse (queryPrefix.begin(), queryPrefix.end());
-		extLeft = LoganOneDirection (seed, targetPrefix, queryPrefix, scoringScheme, scoreDropOff);
+
+		LoganState result1(seed, targetPrefix, queryPrefix, scoringScheme, scoreDropOff);
+		LoganOneDirection (result1);
 
 		std::string targetSuffix = target.substr (getBeginPositionH(seed), target.length()); 	// from end seed until the end (seed included)
 		std::string querySuffix = query.substr (getBeginPositionV(seed), query.length());		// from end seed until the end (seed included)
-		extRight = LoganOneDirection (seed, targetSuffix, querySuffix, scoringScheme, scoreDropOff);
 
-		return extLeft + extRight;
+		LoganState result2(seed, targetSuffix, querySuffix, scoringScheme, scoreDropOff);
+		LoganOneDirection (result2);
+
+		// TODO: modify this overloading function
+		LoganState result = result1 + result2;
+		return std::make_pair(result.get_best_score(), result.get_exit_score());
 	}
 }
