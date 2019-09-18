@@ -66,6 +66,7 @@ public:
 		voffset = LOGICALWIDTH;
 
 		bestScore    = 0;
+		exitScore    = 0;
 		scoreOffset  = 0;
 		scoreDropOff = _scoreDropOff;
 	}
@@ -76,12 +77,15 @@ public:
 		delete [] queryv;
 	}
 
+	// i think this can be smaller than 64bit
 	int64_t get_score_offset  ( void ) { return scoreOffset;  }
 	int64_t get_best_score    ( void ) { return bestScore;    }
+	int64_t get_exit_score    ( void ) { return exitScore;    }
 	int64_t get_score_dropoff ( void ) { return scoreDropOff; }
 
 	void set_score_offset ( int64_t _scoreOffset ) { scoreOffset = _scoreOffset; }
-	void set_best_score   ( int64_t _bestScore   ) { bestScore = _bestScore; }
+	void set_best_score   ( int64_t _bestScore   ) { bestScore   = _bestScore;   }
+	void set_exit_score   ( int64_t _exitScore   ) { exitScore   = _exitScore;   }
 
 	int8_t get_match_cost    ( void ) { return matchCost;    }
 	int8_t get_mismatch_cost ( void ) { return mismatchCost; }
@@ -114,7 +118,7 @@ public:
 	void set_antiDiag2 ( vector_t vector ) { antiDiag2.simd = vector; }
 	void set_antiDiag3 ( vector_t vector ) { antiDiag3.simd = vector; }
 
-// private:
+	// private:
 
 	// Seed position (define starting position and need to be updated when exiting)
 	SeedL seed;
@@ -152,12 +156,13 @@ public:
 
 	// X-Drop Variables
 	int64_t bestScore;
+	int64_t exitScore;
 	int64_t scoreOffset;
 	int64_t scoreDropOff;
 };
 
 void 
-LoganPhase1 ( LoganState& state )
+LoganPhase1(LoganState& state)
 {
 	log( "Phase1" );
 
@@ -223,10 +228,12 @@ LoganPhase1 ( LoganState& state )
 	state.broadcast_antiDiag3( NINF );
 
 	// antiDiag2 going right, first computation of antiDiag3 is going down.
+
+	// TODO: add x-drop condition here
 }
 
 void
-LoganPhase2 ( LoganState& state )
+LoganPhase2(LoganState& state)
 {
 	log( "Phase2" );
 
@@ -259,10 +266,11 @@ LoganPhase2 ( LoganState& state )
 		// Note: Don't need to check x drop every time
 		// Create custom max_element that also returns position to save computation
 		int8_t  antiDiagBest = *std::max_element( state.antiDiag3.elem, state.antiDiag3.elem + VECTORWIDTH );
-		int64_t current_best_score = antiDiagBest + state.get_score_offset();
+		state.set_exit_score(antiDiagBest + state.get_score_offset());
+		// int64_t current_best_score = antiDiagBest + state.get_score_offset();
 		int64_t score_threshold = state.get_best_score() - state.get_score_dropoff();
 
-		if ( current_best_score < score_threshold )
+		if ( state.get_exit_score() < score_threshold )
 			return; // GG: it's a void function and the values are saved in LoganState object
 
 		if ( antiDiagBest > CUTOFF )
@@ -274,8 +282,8 @@ LoganPhase2 ( LoganState& state )
 		}
 
 		// update best
-		if ( current_best_score > state.get_best_score() )
-			state.set_best_score( current_best_score );
+		if ( state.get_exit_score() > state.get_best_score() )
+			state.set_best_score( state.get_exit_score() );
 
 		// CHECKPOINT
 
@@ -301,19 +309,16 @@ LoganPhase2 ( LoganState& state )
 		}
 	}
 
-	// TODO: not sure this is correct
-	// find positions of longest extension and update seed
+	// TODO: check here
 	setBeginPositionH(state.seed, 0);
 	setBeginPositionV(state.seed, 0);
-	// TODO : fix rthis
+	// TODO: check here
 	setEndPositionH(state.seed, state.hoffset);
 	setEndPositionV(state.seed, state.voffset);
 }
 
-// GG LoganPhase3 not neeeded for BELLA (our highest priority)
-
 void 
-LoganPhase4 ( LoganState& state )
+LoganPhase4(LoganState& state)
 {
 	log("Phase4");
 
@@ -348,10 +353,11 @@ LoganPhase4 ( LoganState& state )
 		// Note: Don't need to check x drop every time
 		// Create custom max_element that also returns position to save computation
 		int8_t  antiDiagBest = *std::max_element( state.antiDiag3.elem, state.antiDiag3.elem + VECTORWIDTH );
-		int64_t current_best_score = antiDiagBest + state.get_score_offset();
+		state.set_exit_score(antiDiagBest + state.get_score_offset());
+		// int64_t current_best_score = antiDiagBest + state.get_score_offset();
 		int64_t score_threshold = state.get_best_score() - state.get_score_dropoff();
 
-		if ( current_best_score < score_threshold )
+		if ( state.get_exit_score() < score_threshold )
 			return; // GG: it's a void function and the values are saved in LoganState object
 
 		if ( antiDiagBest > CUTOFF )
@@ -363,8 +369,8 @@ LoganPhase4 ( LoganState& state )
 		}
 
 		// update best
-		if ( current_best_score > state.get_best_score() )
-			state.set_best_score( current_best_score );
+		if ( state.get_exit_score() > state.get_best_score() )
+			state.set_best_score( state.get_exit_score() );
 
 		// antiDiag swap, offset updates, and new base load
 		short nextDir = dir ^ 1;
@@ -383,45 +389,39 @@ LoganPhase4 ( LoganState& state )
 		dir = nextDir;
 	}
 
-	// find positions of longest extension and update seed
+	// TODO: check here
 	setBeginPositionH(state.seed, 0);
 	setBeginPositionV(state.seed, 0);
-	// TODO : fix rthis
+	// TODO: check here
 	setEndPositionH(state.seed, state.hoffset);
 	setEndPositionV(state.seed, state.voffset);
-
 }
 
 //======================================================================================
 // X-DROP ADAPTIVE BANDED ALIGNMENT
 //======================================================================================
 
-void
-LoganOneDirection
-(
-	LoganState& state
-)
+void operator+(LoganState& state1, const LoganState& state2) 
 {
-	//==================================================================
-	// PHASE I (initial values load using dynamic programming)
-	//==================================================================
-
-	LoganPhase1(state);
-
-	//==================================================================
-	// PHASE II (core vectorized computation)
-	//==================================================================
-
-	LoganPhase2(state);
-
-	//==================================================================
-	// PHASE IV (reaching end of sequences)
-	//==================================================================
-
-	LoganPhase4(state);
+	state1.bestScore = state1.bestScore + state2.bestScore;
+	state1.exitScore = state1.exitScore + state2.exitScore;
 }
 
-// GG PhaseIII removed to read to code easily (can be recovered from simd/ folder or older commits)
+void
+LoganOneDirection (LoganState& state) {
+
+	// PHASE 1 (initial values load using dynamic programming)
+	LoganPhase1 (state);
+
+	// PHASE 2 (core vectorized computation)
+	LoganPhase2 (state);
+
+	// PHASE 3 (align on one edge) 
+	// GG: Phase3 removed to read to code easily (can be recovered from simd/ folder or older commits)
+
+	// PHASE 4 (reaching end of sequences)
+	LoganPhase4 (state);
+}
 
 std::pair<int, int>
 LoganXDrop
@@ -431,50 +431,72 @@ LoganXDrop
 	std::string const& target,
 	std::string const& query,
 	ScoringSchemeL& scoringScheme,
-	int64_t const &scoreDropOff
+	int const &scoreDropOff
 )
 {
-	// TODO: check scoring scheme correctness/input parameters
+	// TODO: add check scoring scheme correctness/input parameters
+
 	if (direction == LOGAN_EXTEND_LEFT)
 	{
+		SeedL _seed = seed; // need temporary datastruct 
+
 		std::string targetPrefix = target.substr (0, getEndPositionH(seed));	// from read start til start seed (seed included)
-		std::string queryPrefix = query.substr (0, getEndPositionV(seed));		// from read start til start seed (seed included)
+		std::string queryPrefix  = query.substr  (0, getEndPositionV(seed));	// from read start til start seed (seed included)
 		std::reverse (targetPrefix.begin(), targetPrefix.end());
-		std::reverse (queryPrefix.begin(), queryPrefix.end());
-	
-		// TODO: fix here
-		LoganState result (seed, targetPrefix, queryPrefix, scoringScheme, scoreDropOff);
+		std::reverse (queryPrefix.begin(),  queryPrefix.end());
+
+		LoganState result (_seed, targetPrefix, queryPrefix, scoringScheme, scoreDropOff);
 		LoganOneDirection (result);
+
+		setBeginPositionH(result.seed, getEndPositionH(seed) - getEndPositionH(result.seed));
+		setBeginPositionV(result.seed, getEndPositionV(seed) - getEndPositionV(result.seed));
+
 		return std::make_pair(result.get_best_score(), result.get_exit_score());
 	}
 	else if (direction == LOGAN_EXTEND_RIGHT)
 	{
+		SeedL _seed = seed; // need temporary datastruct 
+
 		std::string targetSuffix = target.substr (getBeginPositionH(seed), target.length()); 	// from end seed until the end (seed included)
-		std::string querySuffix  = query.substr (getBeginPositionV(seed), query.length());		// from end seed until the end (seed included)
-		
-		// TODO: fix here
-		LoganState result (seed, targetSuffix, querySuffix, scoringScheme, scoreDropOff);
+		std::string querySuffix  = query.substr  (getBeginPositionV(seed), query.length());		// from end seed until the end (seed included)
+
+		LoganState result (_seed, targetSuffix, querySuffix, scoringScheme, scoreDropOff);
 		LoganOneDirection (result);
+
+		setEndPositionH (result.seed, getBeginPositionH(seed) + getEndPositionH(result.seed));
+		setEndPositionV (result.seed, getBeginPositionV(seed) + getEndPositionV(result.seed));
+
 		return std::make_pair(result.get_best_score(), result.get_exit_score());
 	}
 	else
 	{
-		std::string targetPrefix = target.substr (0, getBeginPositionH(seed));	// from read start til start seed (seed not included)
-		std::string queryPrefix = query.substr (0, getBeginPositionV(seed));	// from read start til start seed (seed not included)
-		std::reverse (targetPrefix.begin(), targetPrefix.end());
-		std::reverse (queryPrefix.begin(), queryPrefix.end());
+		SeedL _seed1 = seed; // need temporary datastruct 
+		SeedL _seed2 = seed; // need temporary datastruct 
 
-		LoganState result1(seed, targetPrefix, queryPrefix, scoringScheme, scoreDropOff);
+		std::string targetPrefix = target.substr (0, getEndPositionH(seed));	// from read start til start seed (seed not included)
+		std::string queryPrefix  = query.substr  (0, getEndPositionV(seed));	// from read start til start seed (seed not included)
+
+		std::reverse (targetPrefix.begin(), targetPrefix.end());
+		std::reverse (queryPrefix.begin(),  queryPrefix.end());
+		
+		LoganState result1(_seed1, targetPrefix, queryPrefix, scoringScheme, scoreDropOff);
 		LoganOneDirection (result1);
 
-		std::string targetSuffix = target.substr (getBeginPositionH(seed), target.length()); 	// from end seed until the end (seed included)
-		std::string querySuffix = query.substr (getBeginPositionV(seed), query.length());		// from end seed until the end (seed included)
+		std::string targetSuffix = target.substr (getEndPositionH(seed), target.length()); 	// from end seed until the end (seed included)
+		std::string querySuffix  = query.substr  (getEndPositionV(seed), query.length());	// from end seed until the end (seed included)
 
-		LoganState result2(seed, targetSuffix, querySuffix, scoringScheme, scoreDropOff);
+		LoganState result2(_seed2, targetSuffix, querySuffix, scoringScheme, scoreDropOff);
 		LoganOneDirection (result2);
 
-		// TODO: modify this overloading function
-		LoganState result = result1 + result2;
-		return std::make_pair(result.get_best_score(), result.get_exit_score());
+		setBeginPositionH (result1.seed, getEndPositionH(seed) - getEndPositionH(result1.seed));
+		setBeginPositionV (result1.seed, getEndPositionV(seed) - getEndPositionV(result1.seed));
+
+		setEndPositionH (result1.seed, getEndPositionH(seed) + getEndPositionH(result2.seed));
+		setEndPositionV (result1.seed, getEndPositionV(seed) + getEndPositionV(result2.seed));
+
+		// seed already updated and saved in result1
+		// this operation sums up best and exit scores for result1 and result2 and stores them in result1
+		result1 + result2; 
+		return std::make_pair(result1.get_best_score(), result1.get_exit_score());
 	}
 }
