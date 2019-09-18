@@ -12,7 +12,6 @@
 //======================================================================================
 // GLOBAL FUNCTION DECLARATION
 //======================================================================================
-#define __AVX2__	// temporary to make VS happy 
 #ifdef  __AVX2__ 	// Compile flag: -mavx2
 #define VECTORWIDTH  (32)
 #define LOGICALWIDTH (VECTORWIDTH - 1)
@@ -97,7 +96,9 @@ std::pair<T,U> operator+(const std::pair<T,U> & l,const std::pair<T,U> & r) {
 // TODO: Verify
 #ifdef __AVX2__
 inline vector_union_t
-leftShift (const vector_union_t& a) { // this work for avx2
+leftShift (const vector_t& _a) { // this work for avx2
+	vector_union_t a;
+	a.simd = _a;
 
 	vector_union_t b;
 	// https://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avx
@@ -106,7 +107,9 @@ leftShift (const vector_union_t& a) { // this work for avx2
 	return b;
 }
 inline vector_union_t
-rightShift (const vector_union_t& a) { // this work for avx2
+rightShift (const vector_t& _a) { // this work for avx2
+	vector_union_t a;
+	a.simd = _a;
 
 	vector_union_t b;
 	// https://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avx
@@ -116,7 +119,9 @@ rightShift (const vector_union_t& a) { // this work for avx2
 }
 #elif __SSE4_2__
 inline vector_union_t
-leftShift (const vector_union_t& a) { // this work for avx2
+leftShift (const vector_t& _a) { // this work for avx2
+	vector_union_t a;
+	a.simd = _a;
 
 	vector_union_t b;
 	// https://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avx
@@ -125,7 +130,9 @@ leftShift (const vector_union_t& a) { // this work for avx2
 	return b;
 }
 inline vector_union_t
-rightShift (const vector_union_t& a) { // this work for avx2
+rightShift (const vector_t& _a) { // this work for avx2
+	vector_union_t a;
+	a.simd = _a;
 
 	vector_union_t b;
 	// https://stackoverflow.com/questions/25248766/emulating-shifts-on-32-bytes-with-avx
@@ -134,33 +141,5 @@ rightShift (const vector_union_t& a) { // this work for avx2
 	return b;
 }
 #endif
-
-static inline void
-moveRight (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
-	vector_union_t& antiDiag3, int& hoffset, int& voffset, vector_union_t& vqueryh,
-		vector_union_t& vqueryv, const int8_t queryh[], const int8_t queryv[])
-{
-	// (a) shift to the left on query horizontal
-	vqueryh = leftShift (vqueryh);
-	vqueryh.elem[LOGICALWIDTH-1] = queryh[hoffset++];
-	// (b) shift left on updated vector 1 (this places the right-aligned vector 2 as a left-aligned vector 1)
-	antiDiag1.simd = antiDiag2.simd;
-	antiDiag1 = leftShift (antiDiag1);
-	antiDiag2.simd = antiDiag3.simd;
-}
-
-static inline void
-moveDown (vector_union_t& antiDiag1, vector_union_t& antiDiag2,
-	vector_union_t& antiDiag3, int& hoffset, int& voffset, vector_union_t& vqueryh,
-		vector_union_t& vqueryv, const int8_t queryh[], const int8_t queryv[])
-{
-	//(a) shift to the right on query vertical
-	vqueryv = rightShift (vqueryv);
-	vqueryv.elem[0] = queryv[voffset++];
-	//(b) shift to the right on updated vector 2 (this places the left-aligned vector 3 as a right-aligned vector 2)
-	antiDiag1.simd = antiDiag2.simd;
-	antiDiag2.simd = antiDiag3.simd;
-	antiDiag2 = rightShift (antiDiag2);
-}
 
 #endif

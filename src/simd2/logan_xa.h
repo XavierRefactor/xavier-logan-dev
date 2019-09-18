@@ -51,7 +51,7 @@ public:
 		std::copy(querySeg.begin(), querySeg.end(), queryv);
 
 		// pay attention
-		log( "Verify Here (ASSERT)" );
+		// log( "Verify Here (ASSERT)" );
 
 		matchCost    = scoreMatch(scoringScheme   );
 		mismatchCost = scoreMismatch(scoringScheme);
@@ -69,6 +69,7 @@ public:
 		currScore    = 0;
 		scoreOffset  = 0;
 		scoreDropOff = _scoreDropOff;
+		xdrop_cond   = false;
 	}
 
 	~LoganState()
@@ -121,27 +122,27 @@ public:
 	void moveRight ( void )
 	{
 		// (a) shift to the left on query horizontal
-		vqueryh = leftShift( vqueryh );
+		vqueryh = leftShift( vqueryh.simd );
 		vqueryh.elem[LOGICALWIDTH - 1] = queryh[hoffset++];
 
 		// (b) shift left on updated vector 1
 		// this places the right-aligned vector 2 as a left-aligned vector 1
 		antiDiag1.simd = antiDiag2.simd;
-		antiDiag1 = leftShift( antiDiag1 );
+		antiDiag1 = leftShift( antiDiag1.simd );
 		antiDiag2.simd = antiDiag3.simd;
 	}
 
 	void moveDown ( void )
 	{
 		// (a) shift to the right on query vertical
-		vqueryv = rightShift( vqueryv );
+		vqueryv = rightShift( vqueryv.simd );
 		vqueryv.elem[0] = queryv[voffset++];
 
 		// (b) shift to the right on updated vector 2
 		// this places the left-aligned vector 3 as a right-aligned vector 2
 		antiDiag1.simd = antiDiag2.simd;
 		antiDiag2.simd = antiDiag3.simd;
-		antiDiag2 = rightShift( antiDiag2 );
+		antiDiag2 = rightShift( antiDiag2.simd );
 	}
 
 	// private:
@@ -185,6 +186,7 @@ public:
 	int64_t currScore;
 	int64_t scoreOffset;
 	int64_t scoreDropOff;
+	bool xdrop_cond;
 };
 
 void
@@ -193,8 +195,7 @@ LoganPhase1(LoganState& state)
 	log( "Phase1" );
 
 	// we need one more space for the off-grid values and one more space for antiDiag2
-	// TODO: worry about overflow in phase 1 with int8_t (depends on scoring matrix)
-	int8_t dp_matrix[LOGICALWIDTH + 2][LOGICALWIDTH + 2];
+	int64_t dp_matrix[LOGICALWIDTH + 2][LOGICALWIDTH + 2];
 
 	// dp_matrix initialization
 	dp_matrix[0][0] = 0;
@@ -204,33 +205,30 @@ LoganPhase1(LoganState& state)
 		dp_matrix[i][0] = -i;
 	}
 
+	// dp_max tracks maximum value in dp_matrix for xdrop condition
+	int64_t dp_max = 0;
+
 	// dynamic programming loop to fill dp_matrix
 	for ( int i = 1; i < LOGICALWIDTH + 2; i++ )
 	{
 		for ( int j = 1; j < LOGICALWIDTH + 2; j++ )
 		{
-			int8_t onef = dp_matrix[i-1][j-1];
+			int64_t onef = dp_matrix[i-1][j-1];
 
 			if ( state.queryh[i-1] == state.queryv[j-1] )
 				onef += state.get_match_cost();
 			else
 				onef += state.get_mismatch_cost();
 
-			int8_t twof = std::max( dp_matrix[i-1][j], dp_matrix[i][j-1] );
+			int64_t twof = std::max( dp_matrix[i-1][j], dp_matrix[i][j-1] );
 			twof += state.get_gap_cost();
 
 			dp_matrix[i][j] = std::max(onef, twof);
+
+			if ( dp_matrix[i][j] > dp_max )
+				dp_max = dp_matrix[i][j];
 		}
 	}
-
-	#ifdef DEBUG // print dp_matrix
-		for ( int i = 1; i < LOGICALWIDTH + 2; i++ )
-		{
-			for ( int j = 1; j < LOGICALWIDTH + 2; j++ )
-				std::cout << dp_matrix[i][j] << '\t';
-			std::cout << std::endl;
-		}
-	#endif
 
 	for ( int i = 0; i < LOGICALWIDTH; ++i )
 	{
@@ -241,11 +239,50 @@ LoganPhase1(LoganState& state)
 	state.update_vqueryh( LOGICALWIDTH, NINF );
 	state.update_vqueryv( LOGICALWIDTH, NINF );
 
+	int64_t antiDiagMin = std::numeric_limits<int64_t>::max();
+	int64_t antiDiagMax = std::numeric_limits<int64_t>::min();
+
 	// load dp_matrix into antiDiag1 and antiDiag2 vector
 	for ( int i = 1; i <= LOGICALWIDTH; ++i )
 	{
-		state.update_antiDiag1( i - 1, dp_matrix[i][LOGICALWIDTH - i + 1] );
-		state.update_antiDiag2( i, dp_matrix[i + 1][LOGICALWIDTH - i + 1] );
+		int64_t antiDiag1_value = dp_matrix[i][LOGICALWIDTH - i + 1];
+		int64_t antiDiag2_value = dp_matrix[i + 1][LOGICALWIDTH - i + 1];
+
+		if ( antiDiag1_value > antiDiagMax )
+			antiDiagMax = antiDiag1_value;
+		if ( antiDiag2_value > antiDiagMax )
+			antiDiagMax = antiDiag2_value;
+		if ( antiDiag1_value < antiDiagMin )
+			antiDiagMin = antiDiag1_value;
+		if ( antiDiag2_value < antiDiagMin )
+			antiDiagMin = antiDiag2_value;
+	}
+
+	state.set_best_score( dp_max );
+	state.set_curr_score( antiDiagMax );
+	log( dp_max );
+	log( antiDiagMax );
+
+	// xdrop-cond
+	if ( antiDiagMax < dp_max - state.get_score_dropoff() )
+	{
+		state.xdrop_cond = true;
+		return;
+	}
+
+	if ( antiDiagMax > CUTOFF )
+	{
+		state.set_score_offset( state.get_score_offset() + antiDiagMin );
+	}
+
+	// load dp_matrix into antiDiag1 and antiDiag2 vector
+	for ( int i = 1; i <= LOGICALWIDTH; ++i )
+	{
+		int64_t antiDiag1_value = dp_matrix[i][LOGICALWIDTH - i + 1];
+		int64_t antiDiag2_value = dp_matrix[i + 1][LOGICALWIDTH - i + 1];
+
+		state.update_antiDiag1( i - 1, antiDiag1_value - state.get_score_offset() );
+		state.update_antiDiag2( i, antiDiag2_value - state.get_score_offset() );
 	}
 	state.update_antiDiag1( LOGICALWIDTH, NINF );
 	state.update_antiDiag2( 0, NINF );
@@ -254,8 +291,6 @@ LoganPhase1(LoganState& state)
 	state.broadcast_antiDiag3( NINF );
 
 	// antiDiag2 going right, first computation of antiDiag3 is going down.
-
-	// TODO: add x-drop condition here
 }
 
 void
@@ -297,7 +332,10 @@ LoganPhase2(LoganState& state)
 		int64_t score_threshold = state.get_best_score() - state.get_score_dropoff();
 
 		if ( state.get_curr_score() < score_threshold )
+		{
+			state.xdrop_cond = true;
 			return; // GG: it's a void function and the values are saved in LoganState object
+		}
 
 		if ( antiDiagBest > CUTOFF )
 		{
@@ -377,7 +415,10 @@ LoganPhase4(LoganState& state)
 		int64_t score_threshold = state.get_best_score() - state.get_score_dropoff();
 
 		if ( state.get_curr_score() < score_threshold )
+		{
+			state.xdrop_cond = true;
 			return; // GG: it's a void function and the values are saved in LoganState object
+		}
 
 		if ( antiDiagBest > CUTOFF )
 		{
@@ -427,8 +468,14 @@ LoganOneDirection (LoganState& state) {
 	// PHASE 1 (initial values load using dynamic programming)
 	LoganPhase1( state );
 
+	if ( state.xdrop_cond )
+		return;
+
 	// PHASE 2 (core vectorized computation)
 	LoganPhase2( state );
+
+	if ( state.xdrop_cond )
+		return;
 
 	// PHASE 3 (align on one edge)
 	// GG: Phase3 removed to read to code easily (can be recovered from simd/ folder or older commits)
