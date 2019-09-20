@@ -15,22 +15,23 @@
 #ifdef  __AVX2__ 	// Compile flag: -mavx2
 #define VECTORWIDTH  (32)
 #define LOGICALWIDTH (VECTORWIDTH - 1)
-#define vector_t    __m256i
-#define add_func    _mm256_adds_epi8  // saturated arithmetic
-#define sub_func    _mm256_subs_epi8  // saturated arithmetic
-#define max_func    _mm256_max_epi8   // max
-#define set1_func   _mm256_set1_epi8  // set1 operation
-#define blendv_func _mm256_blendv_epi8 // blending operation
-#define cmpeq_func  _mm256_cmpeq_epi8 // compare equality operation
+#define vectorType    __m256i
+#define addOp    	_mm256_adds_epi8  	// saturated arithmetic
+#define subOp    	_mm256_subs_epi8  	// saturated arithmetic
+#define maxOp    	_mm256_max_epi8   	// max
+#define setOp   	_mm256_set1_epi8  	// set1 operation
+#define blendvOp	 _mm256_blendv_epi8 // blending operation
+#define cmpeqOp 	 _mm256_cmpeq_epi8 	// compare equality operation
 #elif __SSE4_2__ 	// Compile flag: -msse4.2
 #define VECTORWIDTH  (8)
 #define LOGICALWIDTH (VECTORWIDTH - 1)
-#define vector_t    __m128i
-#define add_func    _mm_adds_epi16 	// saturated arithmetic
-#define max_func    _mm_max_epi16  	// max
-#define set1_func   _mm_set1_epi16  // set1 operation
-#define blendv_func _mm_blendv_epi8 // blending operation
-#define cmpeq_func  _mm_cmpeq_epi16 // compare equality operation
+#define vectorType    __m128i
+#define addOp    	_mm_adds_epi16 	// saturated arithmetic
+#define subOp    	_mm_subs_epi16  // saturated arithmetic
+#define maxOp    	_mm_max_epi16  	// max
+#define setOp   	_mm_set1_epi16  // set1 operation
+#define blendvOp 	_mm_blendv_epi8 // blending operation
+#define cmpeqOp  	_mm_cmpeq_epi16 // compare equality operation
 #endif
 
 //======================================================================================
@@ -38,8 +39,8 @@
 //======================================================================================
 
 #define NINF  	(std::numeric_limits<int8_t>::min())
-#define myRIGHT (0)
-#define myDOWN  (1)
+#define goRIGHT (0)
+#define goDOWN  (1)
 #define MIDDLE 	(LOGICALWIDTH / 2)
 
 #define CUTOFF	(std::numeric_limits<int8_t>::max() - 25)
@@ -51,12 +52,12 @@
 typedef int8_t element_t;
 
 typedef union {
-	vector_t  simd;
-	element_t elem[VECTORWIDTH];
+	vectorType  simd;
+	element_t 	elem[VECTORWIDTH];
 } vector_union_t;
 
 void
-print_vector_c(vector_t a) {
+print_vector_c(vectorType a) {
 
 	vector_union_t tmp;
 	tmp.simd = a;
@@ -68,7 +69,7 @@ print_vector_c(vector_t a) {
 }
 
 void
-print_vector_d(vector_t a) {
+print_vector_d(vectorType a) {
 
 	vector_union_t tmp;
 	tmp.simd = a;
@@ -92,11 +93,11 @@ std::pair<T,U> operator+(const std::pair<T,U> & l,const std::pair<T,U> & r) {
 	return {l.first+r.first,l.second+r.second};
 }
 
-// TODO: REWRITE leftShift/RightShift for int8_t
+// TODO: REWRITE shiftLeft/RightShift for int8_t
 // TODO: Verify
 #ifdef __AVX2__
 inline vector_union_t
-leftShift (const vector_t& _a) { // this work for avx2
+shiftLeft (const vectorType& _a) { // this work for avx2
 	vector_union_t a;
 	a.simd = _a;
 
@@ -107,7 +108,7 @@ leftShift (const vector_t& _a) { // this work for avx2
 	return b;
 }
 inline vector_union_t
-rightShift (const vector_t& _a) { // this work for avx2
+shiftRight (const vectorType& _a) { // this work for avx2
 	vector_union_t a;
 	a.simd = _a;
 
@@ -119,7 +120,7 @@ rightShift (const vector_t& _a) { // this work for avx2
 }
 #elif __SSE4_2__
 inline vector_union_t
-leftShift (const vector_t& _a) { // this work for avx2
+shiftLeft (const vectorType& _a) { // this work for avx2
 	vector_union_t a;
 	a.simd = _a;
 
@@ -130,7 +131,7 @@ leftShift (const vector_t& _a) { // this work for avx2
 	return b;
 }
 inline vector_union_t
-rightShift (const vector_t& _a) { // this work for avx2
+shiftRight (const vectorType& _a) { // this work for avx2
 	vector_union_t a;
 	a.simd = _a;
 
