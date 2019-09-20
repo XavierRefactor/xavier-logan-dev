@@ -27,14 +27,14 @@
 #include <assert.h>
 #include <iterator>
 #include <x86intrin.h>
-#include "logan.h"
+#include "../simd2/logan_xa.h"
 // #include "parasail/parasail.h"
 // #include "parasail/parasail/io.h"
 // #include "parasail/parasail/memory.h"
 // #include "parasail/parasail/stats.h"
-#include "Complete-Striped-Smith-Waterman-Library/src/ssw_cpp.h"
-#include "ksw2/ksw2.h"
-#include "ksw2/ksw2_extz2_sse.c" // global and extension with SSE intrinsics; Suzuki'
+// #include "Complete-Striped-Smith-Waterman-Library/src/ssw_cpp.h"
+// #include "ksw2/ksw2.h"
+// #include "ksw2/ksw2_extz2_sse.c" // global and extension with SSE intrinsics; Suzuki'
 // #include <edlib.h>
 #include <seqan/align.h>
 //#include <seqan/align_parallel.h>
@@ -45,15 +45,15 @@
 #include <seqan/modifier.h>
 #include <seqan/basic.h>
 #include <seqan/stream.h>
-#ifdef __cplusplus
-extern "C" {
-#endif
-#include "libgaba/gaba.h" 		 // sometimes the forefront vector will not reach the end
-								 // of the sequences. It is more likely to occur when the input
-								 // sequence lengths greatly differ
-#ifdef __cplusplus
-}
-#endif
+// #ifdef __cplusplus
+// extern "C" {
+// #endif
+// #include "libgaba/gaba.h" 		 // sometimes the forefront vector will not reach the end
+// 								 // of the sequences. It is more likely to occur when the input
+// 								 // sequence lengths greatly differ
+// #ifdef __cplusplus
+// }
+// #endif
 
 //======================================================================================
 // GLOBAL VARIABLE DECLARATION
@@ -61,23 +61,23 @@ extern "C" {
 
 // Logan AVVX2 can achieve at most a score of 32,767
 // Future work: remove this limitation
-#define LEN1 	(10000)		// read length (this is going to be a distribution of length in
+#define LEN1 	(5000)		// read length (this is going to be a distribution of length in
 							// the adaptive version)
-#define LEN2 	(10000)		// 2nd read length
+#define LEN2 	(5000)		// 2nd read length
 #define MAT		( 1)		// match score
 #define MIS		(-1)		// mismatch score
 #define GAP		(-1)		// gap score
-//#define xdrop 	(21)		// so high so it won't be triggered in SeqAn
-#define PMIS 	(0.23)		// substitution probability
-#define PGAP 	(0.22)		// insertion/deletion probability
+#define xdrop 	(10)		// so high so it won't be triggered in SeqAn
+#define PMIS 	(0.03)		// substitution probability
+#define PGAP 	(0.13)		// insertion/deletion probability
 #define BW 		(128)		// bandwidth (the alignment path of the input sequence and the result does not go out of the band)
 #define LOGAN
 
 #define BENCH
 
 #ifdef BENCH
-#define KSW2
-#define GABA
+// #define KSW2
+// #define GABA
 #define NOSIMD
 //#define SEQAN
 //#define SSW
@@ -156,7 +156,7 @@ int main(int argc, char const *argv[])
 	generate_random_sequence(targetSeg);
 	//querySeg = targetSeg;
 	querySeg = generate_mutated_sequence(targetSeg);
-	int xdrop = std::stoi(argv[1]);
+	// int xdrop = xdrop;
 	//======================================================================================
 	// LOGAN (vectorized SSE2 and AVX2, banded, (not yet) x-drop)
 	//======================================================================================
@@ -171,6 +171,7 @@ int main(int argc, char const *argv[])
 	diff1 = end1-start1;
 	// score off by factor of 5
 	//std::cout << best.first << "\t" << best.second << std::endl;
+	std::cout << "\nLOGAN" << std::endl;
 	std::cout << xdrop << "\t" << best.second << "\t" << diff1.count() << "\t" << (double)LEN1 / diff1.count() << "\tbases aligned per second" << std::endl;
 #endif
 
@@ -286,6 +287,7 @@ int main(int argc, char const *argv[])
 
 #ifdef NOSIMD
 	// SeqAn
+	std::cout << "SeqAn" << std::endl;
 	seqan::Score<int, seqan::Simple> scoringSchemeSeqAn(MAT, MIS, GAP);
 	seqan::Seed<seqan::Simple> seed1(0, 0, 0);
 	std::chrono::duration<double> diff4;

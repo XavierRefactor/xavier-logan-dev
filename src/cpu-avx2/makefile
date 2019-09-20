@@ -6,7 +6,7 @@ SEQANPATH=../utils/seqan
 SSWPATH=Complete-Striped-Smith-Waterman-Library/src
 KSW2PATH=ksw2
 INCLUDE=	-I$(SEQANPATH) -Ilibgaba
-LIBS= -Llibgaba -lgaba
+LIBS= #-Llibgaba -lgaba
 
 test: $(SSWPATH)/ssw_cpp.cpp $(SSWPATH)/ssw.c simulator.cpp ksw2 
 	$(CXX) -march=native -std=c++14 $(INCLUDE) -O3 -fpermissive -o test $(SSWPATH)/ssw_cpp.cpp $(SSWPATH)/ssw.c simulator.cpp $(LIBS)
