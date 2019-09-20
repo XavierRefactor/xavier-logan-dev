@@ -17,9 +17,9 @@
 #include"score.h"
 
 #ifdef DEBUG
-	#define log( var ) do { std::cerr << "LOG: " << __FILE__ << "(" << __LINE__ << ") " << #var << " = " << (var) << std::endl; } while(0)
+	#define myLog( var ) do { std::cerr << "LOG: " << __FILE__ << "(" << __LINE__ << ") " << #var << " = " << (var) << std::endl; } while(0)
 #else
-	#define log( var )
+	#define myLog( var )
 #endif
 
 class LoganState
@@ -40,8 +40,7 @@ public:
 		vlength = querySeg.length()  + 1;
 
 		if (hlength <= 1 || vlength <= 1)
-			log( "ERROR STATE, Fix this here buddy!" );
-			// return std::make_pair(0, 0);
+			myLog("ERROR STATE, Fix this here buddy!");
 
 		// Convert from string to int array
 		// This is the entire sequences
@@ -51,7 +50,7 @@ public:
 		std::copy(querySeg.begin(), querySeg.end(), queryv);
 
 		// pay attention
-		// log( "Verify Here (ASSERT)" );
+		// myLog( "Verify Here (ASSERT)" );
 
 		matchCost    = scoreMatch(scoringScheme   );
 		mismatchCost = scoreMismatch(scoringScheme);
@@ -69,7 +68,7 @@ public:
 		currScore    = 0;
 		scoreOffset  = 0;
 		scoreDropOff = _scoreDropOff;
-		xdrop_cond   = false;
+		xDropCond   = false;
 	}
 
 	~LoganState()
@@ -145,8 +144,6 @@ public:
 		antiDiag2 = rightShift( antiDiag2.simd );
 	}
 
-	// private:
-
 	// Seed position (define starting position and need to be updated when exiting)
 	SeedL seed;
 
@@ -186,117 +183,111 @@ public:
 	int64_t currScore;
 	int64_t scoreOffset;
 	int64_t scoreDropOff;
-	bool xdrop_cond;
+	bool xDropCond;
 };
 
+// GG: max penalty = +/- 3
 void
 LoganPhase1(LoganState& state)
 {
-	log( "Phase1" );
+	myLog("Phase1");
 
 	// we need one more space for the off-grid values and one more space for antiDiag2
-	int64_t dp_matrix[LOGICALWIDTH + 2][LOGICALWIDTH + 2];
+	int DPmatrix[LOGICALWIDTH + 2][LOGICALWIDTH + 2];
 
-	// dp_matrix initialization
-	dp_matrix[0][0] = 0;
-	for ( int i = 1; i < LOGICALWIDTH + 2; i++ )
+	// DPmatrix initialization
+	DPmatrix[0][0] = 0;
+	for(int i = 1; i < LOGICALWIDTH + 2; i++ )
 	{
-		dp_matrix[0][i] = -i;
-		dp_matrix[i][0] = -i;
+		DPmatrix[0][i] = -i;
+		DPmatrix[i][0] = -i;
 	}
 
-	// dp_max tracks maximum value in dp_matrix for xdrop condition
-	int64_t dp_max = 0;
+	// DPmax tracks maximum value in DPmatrix for xdrop condition
+	int DPmax = 0;
 
-	// dynamic programming loop to fill dp_matrix
-	for ( int i = 1; i < LOGICALWIDTH + 2; i++ )
+	// dynamic programming loop to fill DPmatrix
+	for(int i = 1; i < LOGICALWIDTH + 2; i++)
 	{
-		for ( int j = 1; j < LOGICALWIDTH + 2; j++ )
+		for (int j = 1; j < LOGICALWIDTH + 2; j++)
 		{
-			int64_t onef = dp_matrix[i-1][j-1];
+			int oneF = DPmatrix[i-1][j-1];
 
-			if ( state.queryh[i-1] == state.queryv[j-1] )
-				onef += state.get_match_cost();
+			// comparing bases
+			if(state.queryh[i-1] == state.queryv[j-1])
+				oneF += state.get_match_cost();
 			else
-				onef += state.get_mismatch_cost();
+				oneF += state.get_mismatch_cost();
 
-			int64_t twof = std::max( dp_matrix[i-1][j], dp_matrix[i][j-1] );
-			twof += state.get_gap_cost();
+			int twoF = std::max(DPmatrix[i-1][j], DPmatrix[i][j-1]);
+			twoF += state.get_gap_cost();
 
-			dp_matrix[i][j] = std::max(onef, twof);
+			DPmatrix[i][j] = std::max(oneF, twoF);
 
-			if ( dp_matrix[i][j] > dp_max )
-				dp_max = dp_matrix[i][j];
+			// heuristic to keep track of the max in phase1
+			if(DPmatrix[i][j] > DPmax)
+				DPmax = DPmatrix[i][j];
 		}
 	}
 
-	for ( int i = 0; i < LOGICALWIDTH; ++i )
+	for(int i = 0; i < LOGICALWIDTH; ++i)
 	{
-		state.update_vqueryh( i, state.queryh[i + 1] );
-		state.update_vqueryv( i, state.queryv[LOGICALWIDTH - i] );
+		state.update_vqueryh(i, state.queryh[i + 1]);
+		state.update_vqueryv(i, state.queryv[LOGICALWIDTH - i]);
 	}
 
-	state.update_vqueryh( LOGICALWIDTH, NINF );
-	state.update_vqueryv( LOGICALWIDTH, NINF );
+	state.update_vqueryh(LOGICALWIDTH, NINF);
+	state.update_vqueryv(LOGICALWIDTH, NINF);
 
-	int64_t antiDiagMin = std::numeric_limits<int64_t>::max();
-	int64_t antiDiagMax = std::numeric_limits<int64_t>::min();
+	// let's assume we fit in int8_t
+	// int64_t antiDiagMin = std::numeric_limits<int64_t>::max();
+	int antiDiag1Max = std::numeric_limits<int8_t>::min();
 
-	// load dp_matrix into antiDiag1 and antiDiag2 vector
-	for ( int i = 1; i <= LOGICALWIDTH; ++i )
+	// load DPmatrix into antiDiag1 and antiDiag2 vector and find max elem at the end of phase1 in antiDiag1
+	// GG: double check loop bound
+	for(int i = 1; i < LOGICALWIDTH + 1; ++i)
 	{
-		int64_t antiDiag1_value = dp_matrix[i][LOGICALWIDTH - i + 1];
-		int64_t antiDiag2_value = dp_matrix[i + 1][LOGICALWIDTH - i + 1];
+		int value1 = DPmatrix[i][LOGICALWIDTH - i + 1];
+		int value2 = DPmatrix[i + 1][LOGICALWIDTH - i + 1];
 
-		if ( antiDiag1_value > antiDiagMax )
-			antiDiagMax = antiDiag1_value;
-		if ( antiDiag2_value > antiDiagMax )
-			antiDiagMax = antiDiag2_value;
-		if ( antiDiag1_value < antiDiagMin )
-			antiDiagMin = antiDiag1_value;
-		if ( antiDiag2_value < antiDiagMin )
-			antiDiagMin = antiDiag2_value;
+		state.update_antiDiag1(i - 1, value1);
+		state.update_antiDiag2(i, value2);
+		// state.update_antiDiag1(i - 1, value1 - state.get_score_offset());
+		// state.update_antiDiag2(i, value2 - state.get_score_offset());
+
+		if(value1 > antiDiag1Max)
+			antiDiag1Max = value1;
 	}
+	state.update_antiDiag1(LOGICALWIDTH, NINF);
+	state.update_antiDiag2(0, NINF);
 
-	state.set_best_score( dp_max );
-	state.set_curr_score( antiDiagMax );
-	log( dp_max );
-	log( antiDiagMax );
+	// clear antiDiag3
+	state.broadcast_antiDiag3(NINF);
 
-	// xdrop-cond
-	if ( antiDiagMax < dp_max - state.get_score_dropoff() )
+	state.set_best_score(DPmax);
+	state.set_curr_score(antiDiag1Max);
+
+	myLog(DPmax);
+	myLog(antiDiag1Max);
+
+	// check x-drop condition
+	if(antiDiag1Max < DPmax - state.get_score_dropoff())
 	{
-		state.xdrop_cond = true;
+		state.xDropCond = true;
 		return;
 	}
 
-	if ( antiDiagMax > CUTOFF )
-	{
-		state.set_score_offset( state.get_score_offset() + antiDiagMin );
-	}
+	// I'm gonna assume this is fine for now
+	// if(antiDiagMax > CUTOFF)
+	//	state.set_score_offset(state.get_score_offset() + antiDiagMin);
 
-	// load dp_matrix into antiDiag1 and antiDiag2 vector
-	for ( int i = 1; i <= LOGICALWIDTH; ++i )
-	{
-		int64_t antiDiag1_value = dp_matrix[i][LOGICALWIDTH - i + 1];
-		int64_t antiDiag2_value = dp_matrix[i + 1][LOGICALWIDTH - i + 1];
-
-		state.update_antiDiag1( i - 1, antiDiag1_value - state.get_score_offset() );
-		state.update_antiDiag2( i, antiDiag2_value - state.get_score_offset() );
-	}
-	state.update_antiDiag1( LOGICALWIDTH, NINF );
-	state.update_antiDiag2( 0, NINF );
-
-	// Clear antiDiag3
-	state.broadcast_antiDiag3( NINF );
-
-	// antiDiag2 going right, first computation of antiDiag3 is going down.
+	// antiDiag2 going right, first computation of antiDiag3 is going down
 }
 
 void
 LoganPhase2(LoganState& state)
 {
-	log( "Phase2" );
+	myLog( "Phase2" );
 
 	while ( state.hoffset < state.hlength && state.voffset < state.vlength )
 	{
@@ -333,7 +324,7 @@ LoganPhase2(LoganState& state)
 
 		if ( state.get_curr_score() < score_threshold )
 		{
-			state.xdrop_cond = true;
+			state.xDropCond = true;
 			return; // GG: it's a void function and the values are saved in LoganState object
 		}
 
@@ -377,7 +368,7 @@ LoganPhase2(LoganState& state)
 void
 LoganPhase4(LoganState& state)
 {
-	log("Phase4");
+	myLog("Phase4");
 
 	int dir = state.hoffset >= state.hlength ? myDOWN : myRIGHT;
 
@@ -416,7 +407,7 @@ LoganPhase4(LoganState& state)
 
 		if ( state.get_curr_score() < score_threshold )
 		{
-			state.xdrop_cond = true;
+			state.xDropCond = true;
 			return; // GG: it's a void function and the values are saved in LoganState object
 		}
 
@@ -468,13 +459,13 @@ LoganOneDirection (LoganState& state) {
 	// PHASE 1 (initial values load using dynamic programming)
 	LoganPhase1( state );
 
-	if ( state.xdrop_cond )
+	if ( state.xDropCond )
 		return;
 
 	// PHASE 2 (core vectorized computation)
 	LoganPhase2( state );
 
-	if ( state.xdrop_cond )
+	if ( state.xDropCond )
 		return;
 
 	// PHASE 3 (align on one edge)
