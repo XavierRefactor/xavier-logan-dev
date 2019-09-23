@@ -61,13 +61,13 @@
 
 // Logan AVVX2 can achieve at most a score of 32,767
 // Future work: remove this limitation
-#define LEN1 	(5000)		// read length (this is going to be a distribution of length in
+#define LEN1 	(10000)		// read length (this is going to be a distribution of length in
 							// the adaptive version)
-#define LEN2 	(5000)		// 2nd read length
+#define LEN2 	(10000)		// 2nd read length
 #define MAT		( 1)		// match score
 #define MIS		(-1)		// mismatch score
 #define GAP		(-1)		// gap score
-#define xdrop 	(10)		// so high so it won't be triggered in SeqAn
+//#define xdrop 	(10)		// so high so it won't be triggered in SeqAn
 #define PMIS 	(0.03)		// substitution probability
 #define PGAP 	(0.13)		// insertion/deletion probability
 #define BW 		(128)		// bandwidth (the alignment path of the input sequence and the result does not go out of the band)
@@ -156,7 +156,7 @@ int main(int argc, char const *argv[])
 	generate_random_sequence(targetSeg);
 	//querySeg = targetSeg;
 	querySeg = generate_mutated_sequence(targetSeg);
-	// int xdrop = xdrop;
+	int xdrop = std::stoi(argv[1]);
 	//======================================================================================
 	// LOGAN (vectorized SSE2 and AVX2, banded, (not yet) x-drop)
 	//======================================================================================
