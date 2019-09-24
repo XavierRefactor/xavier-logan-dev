@@ -18,11 +18,11 @@
 #include"simdutils.h"
 
 // GG: max penalty = +/- 3 (we can easily removed this limitation)
+
 void
 LoganPhase1(LoganState& state)
 {
 	myLog("Phase1");
-
 	// we need one more space for the off-grid values and one more space for antiDiag2
 	int DPmatrix[LOGICALWIDTH + 2][LOGICALWIDTH + 2];
 
@@ -37,14 +37,14 @@ LoganPhase1(LoganState& state)
 	// DPmax tracks maximum value in DPmatrix for xdrop condition
 	int DPmax = 0;
 
-	// dynamic programming loop to fill DPmatrix
+	// Dynamic programming loop to fill DPmatrix
 	for(int i = 1; i < LOGICALWIDTH + 2; i++)
 	{
 		for (int j = 1; j <= LOGICALWIDTH + 2 - i; j++) // we only need the upper-left triangular matrix
 		{
 			int oneF = DPmatrix[i-1][j-1];
 
-			// comparing bases
+			// Comparing bases
 			if(state.queryh[i-1] == state.queryv[j-1])
 				oneF += state.get_match_cost();
 			else
@@ -55,7 +55,7 @@ LoganPhase1(LoganState& state)
 
 			DPmatrix[i][j] = std::max(oneF, twoF);
 		
-			// heuristic to keep track of the max in phase1
+			// Heuristic to keep track of the max in phase1
 			if(DPmatrix[i][j] > DPmax)
 				DPmax = DPmatrix[i][j];			
 		}
@@ -70,14 +70,9 @@ LoganPhase1(LoganState& state)
 	state.update_vqueryh(LOGICALWIDTH, NINF);
 	state.update_vqueryv(LOGICALWIDTH, NINF);
 
-	// let's assume we fit in int8_t
-	// int64_t antiDiagMin = std::numeric_limits<int64_t>::max();
 	int antiDiagMax = std::numeric_limits<int8_t>::min();
-	// GG: max penalty = +/- 3 (we can easily removed this limitation)
-	// int antiDiagMin = std::numeric_limits<int8_t>::max();
 
-	// load DPmatrix into antiDiag1 and antiDiag2 vector and find max elem at the end of phase1 in antiDiag1
-	// GG: double check loop bound
+	// Load DPmatrix into antiDiag1 and antiDiag2 vector and find max elem at the end of phase1 in antiDiag1
 	for(int i = 1; i < LOGICALWIDTH + 1; ++i)
 	{
 		int value1 = DPmatrix[i][LOGICALWIDTH - i + 1];
@@ -85,49 +80,27 @@ LoganPhase1(LoganState& state)
 
 		state.update_antiDiag1(i - 1, value1);
 		state.update_antiDiag2(i, value2);
-		// GG: max penalty = +/- 3 (we can easily removed this limitation)
-		// state.update_antiDiag1(i - 1, value1 - state.get_score_offset());
-		// state.update_antiDiag2(i, value2 - state.get_score_offset());
 
 		if(value1 > antiDiagMax)
 			antiDiagMax = value1;
-		// GG: max penalty = +/- 3 (we can easily removed this limitation)
-		// if(value2 > antiDiagMax)
-		// 	antiDiagMax = value2;
-		// if(value1 < antiDiagMin)
-		// 	antiDiagMin = value1;
-		// if(value2 < antiDiagMin)
-		// 	antiDiagMin = value2;
 	}
 
 	state.update_antiDiag1(LOGICALWIDTH, NINF);
 	state.update_antiDiag2(0, NINF);
-	// clear antiDiag3
 	state.broadcast_antiDiag3(NINF);
 
 	state.set_best_score(DPmax);
 	state.set_curr_score(antiDiagMax);
 
-	// check x-drop condition
 	if(antiDiagMax < DPmax - state.get_score_dropoff())
 	{
 		state.xDropCond = true;
 
-		setBeginPositionH(state.seed, 0);
-		setBeginPositionV(state.seed, 0);
-
-		setEndPositionH(state.seed, LOGICALWIDTH);
-		setEndPositionV(state.seed, LOGICALWIDTH);
+		setEndPositionH(state.seed, state.hoffset);
+		setEndPositionV(state.seed, state.voffset);
 
 		return;
 	}
-
-	// I'm gonna assume this is fine for now
-	//
-	// GG: max penalty = +/- 3 (we can easily removed this limitation)
-	// if(antiDiagMax > CUTOFF)
-	// 	state.set_score_offset(state.get_score_offset() + antiDiagMin);
-
 	// antiDiag2 going right, first computation of antiDiag3 is going down
 }
 
@@ -135,18 +108,15 @@ void
 LoganPhase2(LoganState& state)
 {
 	myLog("Phase2");
-
-	while(state.hoffset <= state.hlength && state.voffset <= state.vlength)
+	while(state.hoffset < state.hlength && state.voffset < state.vlength)
 	{
 		// antiDiag1F (final)
-		// POST-IT: -1 for a match and 0 for a mismatch
+		// NOTE: -1 for a match and 0 for a mismatch
 		vectorType match = cmpeqOp(state.get_vqueryh(), state.get_vqueryv());
 		match = blendvOp(state.get_vmismatchCost(), state.get_vmatchCost(), match);
 		vectorType antiDiag1F = addOp(match, state.get_antiDiag1());
 
 		// antiDiag2S (shift)
-		// TODO: vectorType not vectorUnionType;
-
 		vectorUnionType antiDiag2S = shiftLeft(state.get_antiDiag2());
 
 		// antiDiag2M (pairwise max)
@@ -162,7 +132,7 @@ LoganPhase2(LoganState& state)
 		state.update_antiDiag3(LOGICALWIDTH, NINF);
 
 		// TODO: x-drop termination
-		// Note: Don't need to check x drop every time
+		// Note: Don't need to check x-drop every time
 		// Create custom max_element that also returns position to save computation
 		int8_t antiDiagBest = *std::max_element(state.antiDiag3.elem, state.antiDiag3.elem + VECTORWIDTH);
 		state.set_curr_score(antiDiagBest + state.get_score_offset());
@@ -185,20 +155,16 @@ LoganPhase2(LoganState& state)
 		if (antiDiagBest > CUTOFF)
 		{
 			int8_t min = *std::min_element(state.antiDiag3.elem, state.antiDiag3.elem + LOGICALWIDTH);
-			// std::cout << "antiDiagMin " << min << std::endl;
 			state.set_antiDiag2(subOp(state.get_antiDiag2(), setOp(min)));
 			state.set_antiDiag3(subOp(state.get_antiDiag3(), setOp(min)));
 			state.set_score_offset(state.get_score_offset() + min);
 		}
 
-		// update best
+		// Update best
 		if (state.get_curr_score() > state.get_best_score())
 			state.set_best_score(state.get_curr_score());
 
-		if(state.get_best_score() > std::max(state.hlength, state.vlength))
-			myLog("Fishy");
-
-		// TODO : optimize this
+		// TODO: optimize this
 		int maxpos, max = 0;
 		for (int i = 0; i < VECTORWIDTH; ++i)
 		{
@@ -209,30 +175,26 @@ LoganPhase2(LoganState& state)
 			}
 		}
 
+		setEndPositionH(state.seed, state.hoffset);
+		setEndPositionV(state.seed, state.voffset);
+
 		if (maxpos > MIDDLE)
 			state.moveRight();
 		else
 			state.moveDown();
 	}
-
-	setBeginPositionH(state.seed, 0);
-	setBeginPositionV(state.seed, 0);
-
-	setEndPositionH(state.seed, state.hoffset);
-	setEndPositionV(state.seed, state.voffset);
 }
 
 void
 LoganPhase4(LoganState& state)
 {
 	myLog("Phase4");
-
 	int dir = state.hoffset >= state.hlength ? goDOWN : goRIGHT;
 
 	for (int i = 0; i < (LOGICALWIDTH - 3); i++)
 	{
 		// antiDiag1F (final)
-		// POST-IT: -1 for a match and 0 for a mismatch
+		// NOTE: -1 for a match and 0 for a mismatch
 		vectorType match = cmpeqOp(state.get_vqueryh(), state.get_vqueryv());
 		match = blendvOp(state.get_vmismatchCost(), state.get_vmatchCost(), match);
 		vectorType antiDiag1F = addOp(match, state.get_antiDiag1());
@@ -258,19 +220,11 @@ LoganPhase4(LoganState& state)
 		int8_t antiDiagBest = *std::max_element(state.antiDiag3.elem, state.antiDiag3.elem + VECTORWIDTH);
 		state.set_curr_score(antiDiagBest + state.get_score_offset());
 
-		// int64_t current_best_score = antiDiagBest + state.get_score_offset();
 		int64_t scoreThreshold = state.get_best_score() - state.get_score_dropoff();
 
 		if (state.get_curr_score() < scoreThreshold)
 		{
 			state.xDropCond = true;
-			
-			setBeginPositionH(state.seed, 0);
-			setBeginPositionV(state.seed, 0);
-
-			setEndPositionH(state.seed, state.hoffset);
-			setEndPositionV(state.seed, state.voffset);
-			
 			return; // GG: it's a void function and the values are saved in LoganState object
 		}
 
@@ -282,7 +236,7 @@ LoganPhase4(LoganState& state)
 			state.set_score_offset(state.get_score_offset() + min);
 		}
 
-		// update best
+		// Update best
 		if (state.get_curr_score() > state.get_best_score())
 			state.set_best_score(state.get_curr_score());
 
@@ -294,16 +248,9 @@ LoganPhase4(LoganState& state)
 		else
 			state.moveDown();
 
-		// direction update
+		// Update direction
 		dir = nextDir;
 	}
-
-	// TODO: check here
-	setBeginPositionH(state.seed, 0);
-	setBeginPositionV(state.seed, 0);
-	// TODO: check here
-	setEndPositionH(state.seed, state.hoffset);
-	setEndPositionV(state.seed, state.voffset);
 }
 
 //======================================================================================
@@ -315,7 +262,7 @@ LoganOneDirection (LoganState& state) {
 
 	// PHASE 1 (initial values load using dynamic programming)
 	LoganPhase1(state);
-	if(state.xDropCond) return;
+	if(state.xDropCond)  return;
 
 	// PHASE 2 (core vectorized computation)
 	LoganPhase2(state);
@@ -352,7 +299,9 @@ LoganXDrop
 		std::reverse (queryPrefix.begin(),  queryPrefix.end());
 
 		LoganState result (_seed, targetPrefix, queryPrefix, scoringScheme, scoreDropOff);
-		LoganOneDirection (result);
+
+		if (targetPrefix.length() >= VECTORWIDTH || queryPrefix.length() >= VECTORWIDTH) 
+			LoganOneDirection (result);
 
 		setBeginPositionH(seed, getEndPositionH(seed) - getEndPositionH(result.seed));
 		setBeginPositionV(seed, getEndPositionV(seed) - getEndPositionV(result.seed));
@@ -367,7 +316,9 @@ LoganXDrop
 		std::string querySuffix  = query.substr  (getBeginPositionV(seed), query.length());		// from end seed until the end (seed included)
 
 		LoganState result (_seed, targetSuffix, querySuffix, scoringScheme, scoreDropOff);
-		LoganOneDirection (result);
+
+		if (targetSuffix.length() >= VECTORWIDTH || querySuffix.length() >= VECTORWIDTH) 
+			LoganOneDirection (result);
 
 		setEndPositionH (seed, getBeginPositionH(seed) + getEndPositionH(result.seed));
 		setEndPositionV (seed, getBeginPositionV(seed) + getEndPositionV(result.seed));
@@ -386,19 +337,37 @@ LoganXDrop
 		std::reverse (queryPrefix.begin(),  queryPrefix.end());
 
 		LoganState result1(_seed1, targetPrefix, queryPrefix, scoringScheme, scoreDropOff);
-		LoganOneDirection (result1);
+
+		if (targetPrefix.length() < VECTORWIDTH || queryPrefix.length() < VECTORWIDTH) 
+		{
+			setBeginPositionH (seed, getEndPositionH(seed) - targetPrefix.length());
+			setBeginPositionV (seed, getEndPositionV(seed) - queryPrefix.length());
+		}
+		else
+		{
+			LoganOneDirection (result1);
+
+			setBeginPositionH (seed, getEndPositionH(seed) - getEndPositionH(result1.seed));
+			setBeginPositionV (seed, getEndPositionV(seed) - getEndPositionV(result1.seed));
+		}
 
 		std::string targetSuffix = target.substr (getEndPositionH(seed), target.length()); 	// from end seed until the end (seed included)
 		std::string querySuffix  = query.substr  (getEndPositionV(seed), query.length());	// from end seed until the end (seed included)
 
 		LoganState result2(_seed2, targetSuffix, querySuffix, scoringScheme, scoreDropOff);
-		LoganOneDirection (result2);
 
-		setBeginPositionH (seed, getEndPositionH(seed) - getEndPositionH(result1.seed));
-		setBeginPositionV (seed, getEndPositionV(seed) - getEndPositionV(result1.seed));
-
-		setEndPositionH (seed, getEndPositionH(seed) + getEndPositionH(result2.seed));
-		setEndPositionV (seed, getEndPositionV(seed) + getEndPositionV(result2.seed));
+		if (targetSuffix.length() < VECTORWIDTH || querySuffix.length() < VECTORWIDTH) 
+		{
+			setBeginPositionH (seed, getEndPositionH(seed) + targetSuffix.length());
+			setBeginPositionV (seed, getEndPositionV(seed) + querySuffix.length());
+		}
+		else
+		{
+			LoganOneDirection (result2);
+			
+			setEndPositionH (seed, getEndPositionH(seed) + getEndPositionH(result2.seed));
+			setEndPositionV (seed, getEndPositionV(seed) + getEndPositionV(result2.seed));
+		}
 
 		// seed already updated and saved in result1
 		// this operation sums up best and exit scores for result1 and result2 and stores them in result1
