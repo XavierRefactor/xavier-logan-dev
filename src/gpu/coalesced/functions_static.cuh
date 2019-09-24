@@ -39,7 +39,7 @@ enum ExtensionDirectionL
 	EXTEND_BOTHL  = 3
 };
 
-__inline__ __device__ void warpReduce(volatile short *input,
+__inline__ __device__ void warpReduce(volatile int *input,
 										  int myTId){
 		input[myTId] = (input[myTId] > input[myTId + 32]) ? input[myTId] : input[myTId + 32]; 
 		input[myTId] = (input[myTId] > input[myTId + 16]) ? input[myTId] : input[myTId + 16];
@@ -49,7 +49,7 @@ __inline__ __device__ void warpReduce(volatile short *input,
 		input[myTId] = (input[myTId] > input[myTId + 1]) ? input[myTId] : input[myTId + 1];
 }
 
-__inline__ __device__ short reduce_max(short *input, int dim){
+__inline__ __device__ int reduce_max(int *input, int dim){
 	unsigned int myTId = threadIdx.x;   
 	if(dim>32){
 		for(int i = N_THREADS/2; i >32; i>>=1){
@@ -99,9 +99,9 @@ __inline__ __device__ void updateExtendedSeedL(SeedL &seed,
 	}
 }
 
-__inline__ __device__ void computeAntidiag(short *antiDiag1,
-									short *antiDiag2,
-									short *antiDiag3,
+__inline__ __device__ void computeAntidiag(int *antiDiag1,
+									int *antiDiag2,
+									int *antiDiag3,
 									char* querySeg,
 									char* databaseSeg,
 									int &best,
@@ -165,7 +165,7 @@ __inline__ __device__ void calcExtendedUpperDiag(int &upperDiag,
 		upperDiag = maxCol - 1 - maxRow;
 }
 
-__inline__ __device__ void initAntiDiag3(short *antiDiag3,
+__inline__ __device__ void initAntiDiag3(int *antiDiag3,
 						   int &a3size,
 						   int const &offset,
 						   int const &maxCol,
@@ -190,9 +190,9 @@ __inline__ __device__ void initAntiDiag3(short *antiDiag3,
 }
 
 __inline__ __device__ void initAntiDiags(
-			   short *antiDiag1,
-			   short *antiDiag2,
-			   short *antiDiag3,
+			   int *antiDiag1,
+			   int *antiDiag2,
+			   int *antiDiag3,
 			   int &a2size,
 			   int &a3size,
 			   int const &dropOff,
@@ -230,7 +230,7 @@ __global__ void extendSeedLGappedXDropOneDirectionGlobal(
 		int *offsetQuery,
 		int *offsetTarget,
 		int offAntidiag,
-		short *antidiag
+		int *antidiag
 		)
 {
 	int myId = blockIdx.x;
@@ -247,9 +247,9 @@ __global__ void extendSeedLGappedXDropOneDirectionGlobal(
 		databaseSeg = databaseSegArray + offsetTarget[myId-1];
 	}
 
-	short *antiDiag1 = &antidiag[myId*offAntidiag*3]; 
-	short* antiDiag2 = &antiDiag1[offAntidiag];
-		short* antiDiag3 = &antiDiag2[offAntidiag];
+	int *antiDiag1 = &antidiag[myId*offAntidiag*3]; 
+	int* antiDiag2 = &antiDiag1[offAntidiag];
+		int* antiDiag3 = &antiDiag2[offAntidiag];
 
 
 	SeedL mySeed(seed[myId]);	
@@ -296,7 +296,7 @@ __global__ void extendSeedLGappedXDropOneDirectionGlobal(
 		//antiDiag2 -> antiDiag1
 		//antiDiag3 -> antiDiag2
 		//antiDiag1 -> antiDiag3
-		short *t = antiDiag1;
+		int *t = antiDiag1;
 		antiDiag1 = antiDiag2;
 		antiDiag2 = antiDiag3;
 		antiDiag3 = t;
@@ -307,7 +307,7 @@ __global__ void extendSeedLGappedXDropOneDirectionGlobal(
 		offset1 = offset2;
 		offset2 = offset3;
 		offset3 = minCol-1;
-		__shared__ short temp[N_THREADS];
+		__shared__ int temp[N_THREADS];
 		initAntiDiag3(antiDiag3, a3size, offset3, maxCol, antiDiagNo, best - scoreDropOff, GAP_EXT, UNDEF);
 		
 		computeAntidiag(antiDiag1, antiDiag2, antiDiag3, querySeg, databaseSeg, best, scoreDropOff, cols, rows, minCol, maxCol, antiDiagNo, offset1, offset2, direction);	 	
