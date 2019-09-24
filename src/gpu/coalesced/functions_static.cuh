@@ -3,7 +3,7 @@
 // Author: G. Guidi, A. Zeni
 // Date:   6 March 2019
 //==================================================================
-#define N_THREADS 32 
+#define N_THREADS 128 
 #define N_BLOCKS 500000 
 #define MIN -32768
 #define BYTES_INT 4
@@ -470,7 +470,7 @@ inline void extendSeedL(vector<SeedL> &seeds,
 	int ant_len_right[MAX_GPUS];
 
 	//antidiag in case shared memory isn't enough
-	short *ant_l[MAX_GPUS], *ant_r[MAX_GPUS];
+	int *ant_l[MAX_GPUS], *ant_r[MAX_GPUS];
 
 	//total lenght of the sequences
 	int totalLengthQPref[MAX_GPUS];
@@ -565,8 +565,8 @@ inline void extendSeedL(vector<SeedL> &seeds,
 		cudaStreamCreateWithFlags(&stream_r[i],cudaStreamNonBlocking);
 		cudaStreamCreateWithFlags(&stream_l[i],cudaStreamNonBlocking);
 		//allocate antidiagonals on the GPU
-                cudaErrchk(cudaMalloc(&ant_l[i], sizeof(short)*ant_len_left[i]*3*dim));
-                cudaErrchk(cudaMalloc(&ant_r[i], sizeof(short)*ant_len_right[i]*3*dim));
+        cudaErrchk(cudaMalloc(&ant_l[i], sizeof(int)*ant_len_left[i]*3*dim));
+        cudaErrchk(cudaMalloc(&ant_r[i], sizeof(int)*ant_len_right[i]*3*dim));
 		//allocate offsets on the GPU
 		cudaErrchk(cudaMalloc(&offsetLeftQ_d[i], dim*sizeof(int)));
 		cudaErrchk(cudaMalloc(&offsetLeftT_d[i], dim*sizeof(int)));
