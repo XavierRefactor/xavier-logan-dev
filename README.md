@@ -1,3 +1,3 @@
-# logan
+# xavier-logan
 
-TODO: add readme
+Xavier-Logan Depelopment Repository
